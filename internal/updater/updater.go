@@ -196,13 +196,23 @@ func CheckExecutableWritable() (bool, string) {
 		return false, fmt.Sprintf("cannot resolve executable path: %v", err)
 	}
 
+	return checkExecutableWritable(exePath, runtime.GOOS)
+}
+
+// Binary-only updates cannot preserve a macOS app bundle's signed resources and
+// Info.plist. Offer a complete DMG replacement until bundle updates are supported.
+func checkExecutableWritable(exePath, goos string) (bool, string) {
+	if goos == "darwin" && macOSAppBundle(exePath) != "" {
+		return false, "To preserve the macOS app signature, download the DMG, quit LocalFinance, and replace LocalFinance.app in Applications. Your local database is kept separately and is preserved."
+	}
+
 	// Test if directory of the binary is writable (needed to create temp update file and replace binary)
 	dir := filepath.Dir(exePath)
 	testFile := filepath.Join(dir, fmt.Sprintf(".perm_test_%d", time.Now().UnixNano()))
 	f, err := os.OpenFile(testFile, os.O_CREATE|os.O_WRONLY, 0755)
 	if err != nil {
 		// Provide a helpful hint on macOS if running from a mounted read-only volume
-		if runtime.GOOS == "darwin" && strings.HasPrefix(exePath, "/Volumes/") {
+		if goos == "darwin" && strings.HasPrefix(exePath, "/Volumes/") {
 			return false, "Application appears to be running from a read-only mounted disk image (DMG). Please copy LocalFinance.app to /Applications to enable one-click updates."
 		}
 		return false, fmt.Sprintf("application directory is not writable (%s): %v", dir, err)
@@ -221,6 +231,31 @@ func CheckExecutableWritable() (bool, string) {
 	}
 
 	return true, ""
+}
+
+func macOSAppBundle(exePath string) string {
+	macOSDir := filepath.Dir(exePath)
+	contentsDir := filepath.Dir(macOSDir)
+	bundleDir := filepath.Dir(contentsDir)
+	if filepath.Base(macOSDir) == "MacOS" && filepath.Base(contentsDir) == "Contents" && strings.EqualFold(filepath.Ext(bundleDir), ".app") {
+		return bundleDir
+	}
+	return ""
+}
+
+// SelectInstallationAsset selects a complete DMG for macOS app installations.
+// Standalone executables retain the binary archives used for one-click updates.
+func SelectInstallationAsset(assets []GitHubAsset, goos, goarch, exePath string) (*GitHubAsset, *GitHubAsset) {
+	asset, checksum := SelectAsset(assets, goos, goarch)
+	if goos == "darwin" && macOSAppBundle(exePath) != "" {
+		for i := range assets {
+			if assets[i].Name == "LocalFinance.dmg" {
+				return &assets[i], checksum
+			}
+		}
+		return nil, checksum
+	}
+	return asset, checksum
 }
 
 // SelectAsset matches the target platform OS/Arch with the release assets.
@@ -329,7 +364,11 @@ func (s *Service) CheckForUpdate(ctx context.Context, forceRefresh bool, offline
 	writable, writeErr := CheckExecutableWritable()
 	updateAvailable := IsUpdateAvailable(CurrentVersion, release.TagName)
 
-	matchedAsset, checksumAsset := SelectAsset(release.Assets, runtime.GOOS, runtime.GOARCH)
+	exePath, err := GetExecutablePath()
+	if err != nil {
+		return nil, err
+	}
+	matchedAsset, checksumAsset := SelectInstallationAsset(release.Assets, runtime.GOOS, runtime.GOARCH, exePath)
 
 	info := &UpdateInfo{
 		CurrentVersion:  CurrentVersion,

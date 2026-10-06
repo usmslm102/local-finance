@@ -41,6 +41,10 @@
   - Idempotent SQLite upserts (`ON CONFLICT`) safely update balances while **strictly preserving** your custom category overrides, notes, and tags.
 - **Optional Local Security / Password Protection**:
   - Protect local database access with an optional PIN/password stored with PBKDF2/argon2 hashing, complete with automatic lock timeout.
+- **Built-in Release Checks & Updates**:
+  - Checks public GitHub Releases automatically on launch (cached for four hours). Disable **Automatic Update Checks** in Settings to opt out; **Check for Updates** remains available on demand.
+  - Standalone executables support **Update & Restart** when writable. macOS `.app` installations offer the complete DMG instead: quit LocalFinance and replace the app in Applications to preserve its signature. Financial data remains in the separate local database.
+  - macOS releases use local ad-hoc code signatures; they are not Developer ID signed or notarized.
 - **Modern Interactive Dashboard**:
   - Built with **React 19**, **TypeScript**, **Tailwind CSS v4**, **TanStack Router**, **TanStack Table**, and **Recharts**.
 

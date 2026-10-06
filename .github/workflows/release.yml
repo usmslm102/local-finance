@@ -75,6 +75,10 @@ jobs:
           GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags="-s -w -X 'local-finance/internal/updater.CurrentVersion=${{ github.ref_name }}'" -o dist/local-finance-amd64 ./cmd/server/main.go
           lipo -create -output dist/LocalFinance dist/local-finance-arm64 dist/local-finance-amd64
           chmod +x dist/LocalFinance
+          # Sign every architecture after combining the Go executables.
+          codesign --force --sign - --identifier com.localfinance.cli dist/LocalFinance
+          codesign --verify --strict --all-architectures --verbose=2 dist/LocalFinance
+          dist/LocalFinance -h
           rm -f dist/local-finance-arm64 dist/local-finance-amd64
 
       - name: Package macOS Application and DMG
@@ -95,6 +99,11 @@ jobs:
             sed -i '' "s/1.0.0/${VERSION}/g" "${APP_PATH}/Contents/Info.plist"
           fi
 
+          # Seal the complete bundle after setting its version and resources.
+          codesign --force --sign - "${APP_PATH}"
+          codesign --verify --deep --strict --all-architectures --verbose=2 "${APP_PATH}"
+          "${APP_PATH}/Contents/MacOS/LocalFinance" -h
+
           # Prepare DMG staging folder with Applications symlink
           STAGING="dmg_staging"
           mkdir -p "${STAGING}"
@@ -114,7 +123,12 @@ jobs:
           mkdir -p cli_staging
           cp dist/LocalFinance cli_staging/local-finance
           tar -C cli_staging -czf dist/local-finance-darwin-universal.tar.gz local-finance
-          rm -rf cli_staging
+          # Verify the shipped archive, not only the pre-packaged executable.
+          mkdir -p cli_verify
+          tar -xzf dist/local-finance-darwin-universal.tar.gz -C cli_verify
+          codesign --verify --strict --all-architectures --verbose=2 cli_verify/local-finance
+          cli_verify/local-finance -h
+          rm -rf cli_staging cli_verify
 
       - name: Upload DMG
         uses: actions/upload-artifact@v4

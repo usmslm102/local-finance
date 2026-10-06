@@ -11,6 +11,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -266,5 +268,66 @@ func TestCheckExecutableWritableCurrentEnv(t *testing.T) {
 func TestRestartStateSync(t *testing.T) {
 	if IsRestarting() {
 		t.Error("expected IsRestarting to initially be false")
+	}
+}
+
+func TestMacOSAppBundleCannotReplaceOnlyExecutable(t *testing.T) {
+	dir := t.TempDir()
+	exe := filepath.Join(dir, "LocalFinance.app", "Contents", "MacOS", "LocalFinance")
+	if err := os.MkdirAll(filepath.Dir(exe), 0755); err != nil {
+		t.Fatal(err)
+	}
+	original := []byte("existing signed executable")
+	if err := os.WriteFile(exe, original, 0755); err != nil {
+		t.Fatal(err)
+	}
+	writable, reason := checkExecutableWritable(exe, "darwin")
+	if writable {
+		t.Fatal("one-click binary replacement must not be offered for a macOS app bundle")
+	}
+	if !strings.Contains(reason, "DMG") {
+		t.Fatalf("expected complete-app download guidance, got %q", reason)
+	}
+	after, err := os.ReadFile(exe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(after, original) {
+		t.Fatal("capability check modified the installed app")
+	}
+}
+
+func TestStandaloneExecutableCanStillUpdate(t *testing.T) {
+	for _, goos := range []string{"darwin", "linux", "windows"} {
+		t.Run(goos, func(t *testing.T) {
+			exe := filepath.Join(t.TempDir(), "local-finance")
+			if err := os.WriteFile(exe, []byte("standalone executable"), 0755); err != nil {
+				t.Fatal(err)
+			}
+			writable, reason := checkExecutableWritable(exe, goos)
+			if !writable {
+				t.Fatalf("standalone update disabled: %s", reason)
+			}
+		})
+	}
+}
+
+func TestSelectInstallationAsset(t *testing.T) {
+	assets := []GitHubAsset{{Name: "local-finance-darwin-universal.tar.gz"}, {Name: "LocalFinance.dmg"}, {Name: "checksums.txt"}}
+	bundleExe := filepath.Join("/Applications", "LocalFinance.app", "Contents", "MacOS", "LocalFinance")
+	asset, checksum := SelectInstallationAsset(assets, "darwin", "arm64", bundleExe)
+	if asset == nil || asset.Name != "LocalFinance.dmg" {
+		t.Fatalf("expected complete DMG for app bundle, got %v", asset)
+	}
+	if checksum == nil {
+		t.Fatal("missing checksum manifest")
+	}
+	asset, _ = SelectInstallationAsset(assets[:1], "darwin", "arm64", bundleExe)
+	if asset != nil {
+		t.Fatal("must not fall back to an executable archive for an app bundle")
+	}
+	asset, _ = SelectInstallationAsset(assets, "darwin", "amd64", filepath.Join("/usr/local/bin", "local-finance"))
+	if asset == nil || asset.Name != "local-finance-darwin-universal.tar.gz" {
+		t.Fatalf("standalone CLI must retain binary archive, got %v", asset)
 	}
 }
