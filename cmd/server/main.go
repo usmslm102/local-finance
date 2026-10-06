@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,6 +18,7 @@ import (
 	"local-finance/internal/api"
 	"local-finance/internal/db"
 	"local-finance/internal/service"
+	"local-finance/internal/updater"
 )
 
 func main() {
@@ -36,7 +40,7 @@ func main() {
 		}
 	}
 
-	log.Printf("📂 Database location: %s", finalDBPath)
+	log.Printf("📁 Database location: %s", finalDBPath)
 	database, err := db.NewDB(finalDBPath)
 	if err != nil {
 		log.Fatalf("❌ Failed to initialize database: %v", err)
@@ -47,20 +51,34 @@ func main() {
 	router := api.SetupRouter(database, svc, localfinance.GetStaticFS())
 
 	addr := fmt.Sprintf("127.0.0.1:%d", *port)
-	url := fmt.Sprintf("http://%s", addr)
 
-	// Check if port is already in use
+	// Bind TCP listener directly
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
-		// Fallback to random available port if 8080 is occupied
+		// Fallback to random available port if specified port is occupied
 		listener, err = net.Listen("tcp", "127.0.0.1:0")
 		if err != nil {
 			log.Fatalf("❌ Failed to start listener: %v", err)
 		}
-		addr = listener.Addr().String()
-		url = fmt.Sprintf("http://%s", addr)
 	}
-	_ = listener.Close()
+
+	actualAddr := listener.Addr().String()
+	actualPort := *port
+	if tcpAddr, ok := listener.Addr().(*net.TCPAddr); ok {
+		actualPort = tcpAddr.Port
+	}
+	url := fmt.Sprintf("http://%s", actualAddr)
+
+	srv := &http.Server{
+		Addr:    actualAddr,
+		Handler: router,
+	}
+
+	// Register server details and graceful shutdown hook with updater
+	updater.RegisterServerContext(actualPort, finalDBPath, func(ctx context.Context) error {
+		log.Printf("🛑 Releasing listener and shutting down HTTP server on %s for updater restart...", actualAddr)
+		return srv.Shutdown(ctx)
+	})
 
 	log.Printf("🚀 Local Finance server listening on %s", url)
 
@@ -71,7 +89,7 @@ func main() {
 		}()
 	}
 
-	if err := router.Run(addr); err != nil {
+	if err := srv.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("❌ Server error: %v", err)
 	}
 }

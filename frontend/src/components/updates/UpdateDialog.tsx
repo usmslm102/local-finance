@@ -12,18 +12,17 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   Sparkles,
-  ArrowUpCircle,
-  ExternalLink,
-  ShieldCheck,
+  Download,
   CheckCircle2,
   AlertCircle,
   Loader2,
-  Download,
-  Database,
   RefreshCw,
+  ExternalLink,
+  ShieldCheck,
+  ArrowUpCircle,
 } from 'lucide-react'
-import type { SystemVersionInfo, ApplyUpdateResponse } from '@/types'
 import { applySystemUpdate, fetchSystemVersion } from '@/lib/api'
+import type { SystemVersionInfo, ApplyUpdateResponse } from '@/types'
 
 interface UpdateDialogProps {
   open: boolean
@@ -32,7 +31,7 @@ interface UpdateDialogProps {
   onUpdateSuccess?: () => void
 }
 
-type UpdateStage = 'idle' | 'updating' | 'restarting' | 'done' | 'error'
+type UpdateStage = 'idle' | 'updating' | 'restarting' | 'done' | 'restart_timeout' | 'error'
 
 export const UpdateDialog: React.FC<UpdateDialogProps> = ({
   open,
@@ -44,6 +43,7 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
   const [errorMsg, setErrorMsg] = useState<string>('')
   const [updateResult, setUpdateResult] = useState<ApplyUpdateResponse | null>(null)
   const [restartSeconds, setRestartSeconds] = useState<number>(10)
+  const [pollAttempt, setPollAttempt] = useState<number>(0)
 
   // Reset state when dialog opens
   useEffect(() => {
@@ -52,6 +52,7 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
       setErrorMsg('')
       setUpdateResult(null)
       setRestartSeconds(10)
+      setPollAttempt(0)
     }
   }, [open])
 
@@ -60,24 +61,32 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
     if (stage !== 'restarting') return
 
     let intervalId: any
-    let pollCount = 0
+    let count = 0
+    const MAX_POLLS = 20 // 20 polls * 1.5s = 30 seconds max before timeout
 
     intervalId = setInterval(async () => {
-      pollCount++
+      count++
+      setPollAttempt(count)
       setRestartSeconds((prev) => Math.max(0, prev - 1))
 
       try {
         const check = await fetchSystemVersion(true)
-        // If the server is back up and version updated, finish!
-        if (check.current_version === versionInfo?.latest_version || pollCount >= 8) {
+        // Strictly verify that the server has restarted and reports the newly installed version!
+        if (check.current_version === versionInfo?.latest_version) {
           clearInterval(intervalId)
           setStage('done')
           setTimeout(() => {
             window.location.reload()
           }, 1500)
+          return
         }
       } catch {
-        // Server is restarting, expected to fail momentarily
+        // Expected temporary connection failure while old process exits and new process binds port
+      }
+
+      if (count >= MAX_POLLS) {
+        clearInterval(intervalId)
+        setStage('restart_timeout')
       }
     }, 1500)
 
@@ -99,6 +108,12 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
     }
   }
 
+  const handleRetryRestartPoll = () => {
+    setStage('restarting')
+    setRestartSeconds(10)
+    setPollAttempt(0)
+  }
+
   if (!versionInfo) return null
 
   return (
@@ -110,31 +125,37 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
               <Sparkles className="h-5 w-5" />
             </div>
             <div>
-              <DialogTitle className="text-lg font-bold flex items-center gap-2">
-                New Release Available
-                <Badge variant="default" className="text-xs px-2 py-0.5">
-                  {versionInfo.latest_version}
-                </Badge>
+              <DialogTitle className="text-base font-semibold">
+                Software Update Available
               </DialogTitle>
-              <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                Current installed version: <span className="font-mono font-medium text-foreground">{versionInfo.current_version}</span>
+              <DialogDescription className="text-xs">
+                {versionInfo.release_name || `Release ${versionInfo.latest_version}`} is ready to install
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
-        {/* Content area */}
-        <div className="space-y-4 my-2 overflow-y-auto max-h-[50vh] pr-1 text-sm">
-          {/* Release Notes Card */}
+        {/* Version Details */}
+        <div className="space-y-4 my-2 overflow-y-auto pr-1 text-sm">
+          <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-3">
+            <div className="space-y-0.5">
+              <p className="text-[11px] font-medium text-muted-foreground">Current Installed</p>
+              <p className="font-mono text-xs font-semibold">{versionInfo.current_version}</p>
+            </div>
+            <div className="text-muted-foreground font-mono">→</div>
+            <div className="space-y-0.5 text-right">
+              <p className="text-[11px] font-medium text-muted-foreground">Latest Available</p>
+              <Badge variant="default" className="font-mono text-xs bg-primary text-primary-foreground">
+                {versionInfo.latest_version}
+              </Badge>
+            </div>
+          </div>
+
+          {/* Release Highlights / Changelog */}
           {versionInfo.release_notes ? (
-            <div className="rounded-lg border bg-muted/30 p-3.5 space-y-2">
-              <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground">
-                <span>Release Highlights ({versionInfo.release_name || versionInfo.latest_version})</span>
-                {versionInfo.published_at && (
-                  <span className="font-normal">{new Date(versionInfo.published_at).toLocaleDateString()}</span>
-                )}
-              </div>
-              <div className="text-xs font-mono whitespace-pre-wrap text-foreground/90 max-h-48 overflow-y-auto leading-relaxed bg-background/60 p-2.5 rounded border">
+            <div className="space-y-1.5">
+              <p className="text-xs font-semibold text-foreground">What's New in this Release</p>
+              <div className="rounded-lg border bg-muted/20 p-3 text-xs text-muted-foreground whitespace-pre-wrap max-h-40 overflow-y-auto font-sans leading-relaxed selection:bg-primary/20">
                 {versionInfo.release_notes}
               </div>
             </div>
@@ -162,9 +183,9 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
             <div className="flex flex-col items-center justify-center p-6 space-y-3 bg-muted/40 rounded-xl border border-primary/20">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
               <div className="text-center space-y-1">
-                <p className="text-sm font-semibold">Downloading & Applying Update...</p>
+                <p className="text-sm font-semibold">Downloading &amp; Applying Update...</p>
                 <p className="text-xs text-muted-foreground">
-                  Validating SHA256 checksum and updating binary in place.
+                  Validating SHA256 checksum against release manifest and updating binary in place.
                 </p>
               </div>
             </div>
@@ -176,7 +197,7 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
               <div className="text-center space-y-1">
                 <p className="text-sm font-semibold text-primary">Restarting LocalFinance Server</p>
                 <p className="text-xs text-muted-foreground">
-                  The application will automatically refresh in {restartSeconds}s once the server comes back online.
+                  Waiting for updated server to respond ({restartSeconds}s, attempt {pollAttempt}/20)...
                 </p>
                 {updateResult?.backup_path && (
                   <p className="text-[11px] text-muted-foreground mt-2 font-mono truncate max-w-sm">
@@ -192,9 +213,30 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
               <CheckCircle2 className="h-8 w-8 text-emerald-500" />
               <div className="text-center space-y-1">
                 <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">Update Installed Successfully!</p>
-                <p className="text-xs text-muted-foreground">Reloading application...</p>
+                <p className="text-xs text-muted-foreground">Server upgraded to {versionInfo.latest_version}. Reloading application...</p>
               </div>
             </div>
+          )}
+
+          {stage === 'restart_timeout' && (
+            <Alert className="border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200">
+              <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              <AlertTitle className="text-xs font-semibold">Reconnection Taking Longer than Expected</AlertTitle>
+              <AlertDescription className="text-xs mt-1 space-y-2">
+                <p>
+                  The binary update was applied, but the web interface hasn't reconnected after 30 seconds.
+                  If the process did not restart automatically, please start it from your terminal or launcher.
+                </p>
+                <div className="flex items-center gap-2 pt-1">
+                  <Button size="sm" variant="outline" onClick={handleRetryRestartPoll} className="h-7 text-xs">
+                    Retry Connection
+                  </Button>
+                  <Button size="sm" variant="secondary" onClick={() => window.location.reload()} className="h-7 text-xs">
+                    Reload Page
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
           )}
 
           {stage === 'error' && (

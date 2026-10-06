@@ -1,8 +1,8 @@
-import React, { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { fetchSystemVersion } from '@/lib/api'
+import React from 'react'
+import { useSystemUpdate } from '@/hooks/use-system-update'
 import { UpdateDialog } from '@/components/updates/UpdateDialog'
 import { ArrowUpCircle } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Link, useRouterState } from '@tanstack/react-router'
 import {
   LayoutDashboard,
@@ -137,13 +137,7 @@ const helpNavItems: NavItem[] = [
 export const AppSidebar: React.FC = () => {
   const routerState = useRouterState()
   const currentPath = routerState.location.pathname
-  const [updateDialogOpen, setUpdateDialogOpen] = useState(false)
-
-  const { data: versionInfo, refetch: refetchVersion } = useQuery({
-    queryKey: ['system-version'],
-    queryFn: () => fetchSystemVersion(false),
-    staleTime: 1000 * 60 * 30,
-  })
+  const { versionInfo, dialogOpen, setDialogOpen, refetch } = useSystemUpdate()
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
@@ -286,7 +280,7 @@ export const AppSidebar: React.FC = () => {
               {versionInfo?.update_available && (
                 <SidebarMenuItem>
                   <SidebarMenuButton
-                    onClick={() => setUpdateDialogOpen(true)}
+                    onClick={() => setDialogOpen(true)}
                     tooltip={`Update Available: ${versionInfo.latest_version}`}
                     className="h-9 gap-3 rounded-md px-2.5 text-xs font-semibold transition-colors bg-primary/10 text-primary hover:bg-primary/20"
                   >
@@ -337,17 +331,18 @@ export const AppSidebar: React.FC = () => {
               <span className="text-xs font-semibold text-foreground truncate">
                 local_finance.db
               </span>
-              <button
-                type="button"
-                onClick={() => setUpdateDialogOpen(true)}
-                className="text-[10px] text-muted-foreground truncate hover:text-primary transition-colors text-left flex items-center gap-1 cursor-pointer"
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setDialogOpen(true)}
+                className="h-auto p-0 text-[10px] text-muted-foreground hover:text-primary hover:bg-transparent transition-colors justify-start font-normal gap-1 cursor-pointer"
               >
                 <span>{versionInfo?.current_version || 'v1.2.0'}</span>
                 {versionInfo?.update_available && (
                   <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
                 )}
                 <span>• Local Only</span>
-              </button>
+              </Button>
             </div>
           </div>
           <ModeToggle />
@@ -355,10 +350,10 @@ export const AppSidebar: React.FC = () => {
       </SidebarFooter>
 
       <UpdateDialog
-        open={updateDialogOpen}
-        onOpenChange={setUpdateDialogOpen}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
         versionInfo={versionInfo || null}
-        onUpdateSuccess={() => refetchVersion()}
+        onUpdateSuccess={() => refetch()}
       />
 
       {/* Drag & Hover Rail for Collapsing */}

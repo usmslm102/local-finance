@@ -96,7 +96,6 @@ func TestSelectAsset(t *testing.T) {
 }
 
 func TestExtractBinaryFromTarGz(t *testing.T) {
-	// Create an in-memory tar.gz containing "local-finance"
 	var buf bytes.Buffer
 	gzw := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gzw)
@@ -132,7 +131,7 @@ func TestExtractBinaryFromTarGz(t *testing.T) {
 	}
 }
 
-func TestVerifyChecksum(t *testing.T) {
+func TestVerifyChecksumStrictFailsClosed(t *testing.T) {
 	sampleData := []byte("binary payload content")
 	hash := sha256.Sum256(sampleData)
 	hashHex := hex.EncodeToString(hash[:])
@@ -148,19 +147,53 @@ func TestVerifyChecksum(t *testing.T) {
 	svc := NewService()
 	svc.client = server.Client()
 
-	// Valid checksum
+	// 1. Valid checksum
 	err := svc.VerifyChecksum(context.Background(), server.URL, "local-finance-darwin-universal.tar.gz", sampleData)
 	if err != nil {
 		t.Fatalf("VerifyChecksum failed on valid data: %v", err)
 	}
 
-	// Invalid checksum
+	// 2. Missing checksum URL must FAIL CLOSED
+	err = svc.VerifyChecksum(context.Background(), "", "local-finance-darwin-universal.tar.gz", sampleData)
+	if err == nil {
+		t.Fatal("expected error on empty checksum URL, got nil")
+	}
+	if !strings.Contains(err.Error(), "missing") {
+		t.Errorf("expected missing manifest error, got %v", err)
+	}
+
+	// 3. Manifest missing the asset must FAIL CLOSED
+	err = svc.VerifyChecksum(context.Background(), server.URL, "nonexistent-asset.tar.gz", sampleData)
+	if err == nil {
+		t.Fatal("expected error when asset is not in checksum manifest, got nil")
+	}
+	if !strings.Contains(err.Error(), "not found in release checksums.txt") {
+		t.Errorf("expected not-found error, got %v", err)
+	}
+
+	// 4. Invalid/tampered checksum must FAIL
 	err = svc.VerifyChecksum(context.Background(), server.URL, "local-finance-darwin-universal.tar.gz", []byte("tampered content"))
 	if err == nil {
 		t.Fatal("expected error on tampered content, got nil")
 	}
 	if !strings.Contains(err.Error(), "checksum mismatch") {
 		t.Errorf("expected checksum mismatch error, got %v", err)
+	}
+}
+
+func TestOfflineByDefaultCheck(t *testing.T) {
+	svc := NewService()
+
+	// With forceRefresh=false and no cache, CheckForUpdate must NOT make any network calls
+	info, err := svc.CheckForUpdate(context.Background(), false)
+	if err != nil {
+		t.Fatalf("unexpected error on offline default check: %v", err)
+	}
+	if info.CheckedAt != "" {
+		t.Errorf("expected CheckedAt to be empty for offline check, got %q", info.CheckedAt)
+	}
+	if info.UpdateAvailable {
+		t.Errorf("expected UpdateAvailable to be false for offline check, got true")
 	}
 }
 
@@ -188,7 +221,6 @@ func TestCheckForUpdateWithMock(t *testing.T) {
 	svc := NewService()
 	svc.client = server.Client()
 
-	// Intercept URL by overriding host in a custom roundtripper
 	transport := server.Client().Transport
 	svc.client.Transport = &mockTransport{
 		targetURL: server.URL,
@@ -217,7 +249,6 @@ type mockTransport struct {
 }
 
 func (m *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	// Redirect any request to the mock server URL
 	mockReq, _ := http.NewRequestWithContext(req.Context(), req.Method, m.targetURL, req.Body)
 	mockReq.Header = req.Header
 	if m.base != nil {

@@ -1,19 +1,11 @@
-import React, { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { fetchSystemVersion } from '@/lib/api'
+import React from 'react'
 import { Button } from '@/components/ui/button'
 import { Sparkles } from 'lucide-react'
 import { UpdateDialog } from './UpdateDialog'
+import { useSystemUpdate } from '@/hooks/use-system-update'
 
 export const UpdateIndicator: React.FC = () => {
-  const [dialogOpen, setDialogOpen] = useState(false)
-
-  const { data: versionInfo, refetch } = useQuery({
-    queryKey: ['system-version'],
-    queryFn: () => fetchSystemVersion(false),
-    staleTime: 1000 * 60 * 30, // 30 minutes
-    refetchOnWindowFocus: false,
-  })
+  const { versionInfo, dialogOpen, setDialogOpen, refetch } = useSystemUpdate()
 
   if (!versionInfo?.update_available) {
     return null

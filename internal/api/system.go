@@ -34,7 +34,11 @@ func (h *Handler) GetSystemVersion(c *gin.Context) {
 func (h *Handler) ApplySystemUpdate(c *gin.Context) {
 	result, err := h.updaterService.ApplyUpdate(c.Request.Context(), h.db)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+		status := http.StatusBadRequest
+		if err.Error() == "an update is already in progress" {
+			status = http.StatusConflict
+		}
+		c.JSON(status, gin.H{
 			"error": err.Error(),
 		})
 		return

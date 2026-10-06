@@ -21,8 +21,8 @@ import {
   changeAuthPassword,
   disableAuth,
   updateSecuritySettings,
-  fetchSystemVersion,
 } from '@/lib/api'
+import { useSystemUpdate } from '@/hooks/use-system-update'
 import { useAuth } from '@/components/auth/AuthProvider'
 import { useTheme } from '@/components/theme-provider'
 import type { SettingsSearchParams } from '@/types'
@@ -146,27 +146,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
   const [copiedPath, setCopiedPath] = useState(false)
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; title: string; text: string } | null>(null)
 
-  // Software Update States
-  const [showUpdateModal, setShowUpdateModal] = useState(false)
-  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false)
-  const { data: versionInfo, refetch: refetchVersion } = useQuery({
-    queryKey: ['system-version'],
-    queryFn: () => fetchSystemVersion(false),
-    staleTime: 1000 * 60 * 30,
-  })
-
-  const handleManualCheckUpdate = async () => {
-    setIsCheckingUpdate(true)
-    try {
-      const updated = await fetchSystemVersion(true)
-      queryClient.setQueryData(['system-version'], updated)
-      if (updated.update_available) {
-        setShowUpdateModal(true)
-      }
-    } finally {
-      setIsCheckingUpdate(false)
-    }
-  }
+  // Software Update States via shared hook
+  const {
+    versionInfo,
+    dialogOpen: showUpdateModal,
+    setDialogOpen: setShowUpdateModal,
+    isChecking: isCheckingUpdate,
+    checkError: updateCheckError,
+    checkNow: handleManualCheckUpdate,
+    refetch: refetchVersion,
+  } = useSystemUpdate()
 
   // Security Form States
   const [showSetupAuthModal, setShowSetupAuthModal] = useState(false)
@@ -731,18 +720,41 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                       <p className="text-muted-foreground text-[11px]">
                         {versionInfo?.update_available
                           ? `New version ${versionInfo.latest_version} is available!`
-                          : 'You are running the latest released version'}
+                          : updateCheckError || versionInfo?.auto_update_error
+                          ? `Check failed: ${updateCheckError || versionInfo?.auto_update_error}`
+                          : versionInfo?.checked_at
+                          ? `Up to date (checked at ${new Date(versionInfo.checked_at).toLocaleTimeString()})`
+                          : 'Not checked yet. 100% offline by default.'}
                       </p>
                     </div>
                     {versionInfo?.update_available ? (
                       <Badge variant="default" className="bg-primary text-primary-foreground font-semibold text-[11px]">
                         {versionInfo.latest_version} Available
                       </Badge>
-                    ) : (
+                    ) : updateCheckError || versionInfo?.auto_update_error ? (
+                      <Badge variant="destructive" className="text-[11px]">
+                        Check Failed (Offline)
+                      </Badge>
+                    ) : versionInfo?.checked_at ? (
                       <Badge variant="outline" className="border-emerald-500/30 text-emerald-600 dark:text-emerald-400 flex items-center gap-1 text-[11px]">
                         <CheckCircle2 className="h-3 w-3" /> Up to Date
                       </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="text-[11px]">
+                        Not Checked
+                      </Badge>
                     )}
+                  </div>
+                  <div className="flex items-center justify-between border-b pb-3">
+                    <div>
+                      <p className="font-semibold text-foreground">Offline Privacy Policy</p>
+                      <p className="text-muted-foreground text-[11px]">
+                        External release checks run on-demand only when you click &quot;Check for Updates&quot;.
+                      </p>
+                    </div>
+                    <Badge variant="outline" className="border-primary/20 text-primary font-mono text-[10px]">
+                      On-Demand Only
+                    </Badge>
                   </div>
                   <div className="flex items-center justify-between pt-1">
                     <div>

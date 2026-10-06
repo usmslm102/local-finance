@@ -36,6 +36,27 @@ const (
 	defaultRepo  = "local-finance"
 )
 
+// RestartHook is an optional callback to close the HTTP listener before the child process is launched.
+type RestartHook func(ctx context.Context) error
+
+var (
+	serverPort     int
+	serverDBPath   string
+	restartHook    RestartHook
+	serverCtxMu    sync.RWMutex
+	lastTargetExe  string
+	lastTargetExeMu sync.RWMutex
+)
+
+// RegisterServerContext stores running server details and a shutdown hook to cleanly release the port upon update restart.
+func RegisterServerContext(port int, dbPath string, hook RestartHook) {
+	serverCtxMu.Lock()
+	defer serverCtxMu.Unlock()
+	serverPort = port
+	serverDBPath = dbPath
+	restartHook = hook
+}
+
 // GetRepoCoordinates returns the GitHub owner and repository name.
 func GetRepoCoordinates() (string, string) {
 	owner := os.Getenv("LOCAL_FINANCE_REPO_OWNER")
@@ -90,6 +111,7 @@ type UpdateInfo struct {
 type Service struct {
 	client     *http.Client
 	mu         sync.Mutex
+	applyMu    sync.Mutex
 	cachedInfo *UpdateInfo
 	cachedAt   time.Time
 	cacheTTL   time.Duration
@@ -134,17 +156,27 @@ func IsUpdateAvailable(current, latest string) bool {
 	return semver.Compare(normLatest, normCurrent) > 0
 }
 
-// CheckExecutableWritable verifies if the running application can be modified in place.
-func CheckExecutableWritable() (bool, string) {
+// GetExecutablePath resolves the canonical absolute path of the current running executable.
+// Crucially, this must be evaluated BEFORE replacing the executable on disk (especially on Linux
+// where /proc/self/exe points to the unlinked/renamed .old binary after selfupdate.Apply).
+func GetExecutablePath() (string, error) {
 	exePath, err := os.Executable()
 	if err != nil {
-		return false, fmt.Sprintf("cannot resolve executable path: %v", err)
+		return "", fmt.Errorf("cannot resolve executable path: %w", err)
 	}
 
-	// Resolve symlinks
 	realPath, err := filepath.EvalSymlinks(exePath)
-	if err == nil {
-		exePath = realPath
+	if err == nil && realPath != "" {
+		return realPath, nil
+	}
+	return exePath, nil
+}
+
+// CheckExecutableWritable verifies if the running application can be modified in place.
+func CheckExecutableWritable() (bool, string) {
+	exePath, err := GetExecutablePath()
+	if err != nil {
+		return false, fmt.Sprintf("cannot resolve executable path: %v", err)
 	}
 
 	// On macOS, if running directly from a mounted volume (like a read-only DMG)
@@ -201,12 +233,34 @@ func SelectAsset(assets []GitHubAsset, goos, goarch string) (asset *GitHubAsset,
 }
 
 // CheckForUpdate queries the GitHub Releases API for the latest release.
+// Adheres strictly to LocalFinance's offline-by-default architecture:
+// If forceRefresh is false and no cache exists, it does NOT make any external HTTP call.
+// It only contacts GitHub when forceRefresh is explicitly true (i.e. user requested a check).
 func (s *Service) CheckForUpdate(ctx context.Context, forceRefresh bool) (*UpdateInfo, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// Return cached information if available and within TTL
 	if !forceRefresh && s.cachedInfo != nil && time.Since(s.cachedAt) < s.cacheTTL {
 		return s.cachedInfo, nil
+	}
+
+	// Offline-by-default principle:
+	// Do not make background network calls unless explicitly refreshed by the user.
+	if !forceRefresh && s.cachedInfo == nil {
+		writable, writeErr := CheckExecutableWritable()
+		return &UpdateInfo{
+			CurrentVersion:  CurrentVersion,
+			LatestVersion:   "",
+			UpdateAvailable: false,
+			CanAutoUpdate:   writable,
+			AutoUpdateError: writeErr,
+			ReleaseName:     "",
+			ReleaseNotes:    "",
+			ReleaseURL:      "",
+			PublishedAt:     "",
+			CheckedAt:       "", // Empty indicates not checked yet
+		}, nil
 	}
 
 	owner, repo := GetRepoCoordinates()
@@ -343,9 +397,10 @@ func ExtractBinaryFromTarGz(r io.Reader) (io.Reader, error) {
 }
 
 // VerifyChecksum downloads checksums.txt and validates the SHA256 of the downloaded asset.
+// Strictly fails closed: if checksum URL is missing, or asset is not listed, or hash differs, it returns an error.
 func (s *Service) VerifyChecksum(ctx context.Context, checksumURL string, assetName string, assetData []byte) error {
 	if checksumURL == "" {
-		return nil // No checksum file present in release, skip
+		return errors.New("security check failed: release manifest (checksums.txt) is missing")
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, checksumURL, nil)
@@ -369,11 +424,15 @@ func (s *Service) VerifyChecksum(ctx context.Context, checksumURL string, assetN
 		return fmt.Errorf("failed to read checksums.txt: %w", err)
 	}
 
+	return VerifyChecksumFromManifest(string(checksumContent), assetName, assetData)
+}
+
+// VerifyChecksumFromManifest checks assetData against the manifest content string.
+func VerifyChecksumFromManifest(manifestText string, assetName string, assetData []byte) error {
 	computedHash := sha256.Sum256(assetData)
 	computedHex := hex.EncodeToString(computedHash[:])
 
-	// Format of checksums.txt: "<hash>  <filename>" or "<hash> *<filename>"
-	lines := strings.Split(string(checksumContent), "\n")
+	lines := strings.Split(manifestText, "\n")
 	for _, line := range lines {
 		fields := strings.Fields(line)
 		if len(fields) >= 2 {
@@ -389,8 +448,7 @@ func (s *Service) VerifyChecksum(ctx context.Context, checksumURL string, assetN
 		}
 	}
 
-	log.Printf("⚠️ Asset %s not found in checksums.txt, skipping strict checksum validation", assetName)
-	return nil
+	return fmt.Errorf("security check failed: asset %q not found in release checksums.txt manifest", assetName)
 }
 
 // ApplyUpdateResult holds the outcome of an update application.
@@ -402,8 +460,21 @@ type ApplyUpdateResult struct {
 }
 
 // ApplyUpdate downloads the release asset, backs up the database, and replaces the binary.
+// Serialized via applyMu to prevent concurrent updates from corrupting binary files or scheduling duplicate restarts.
 func (s *Service) ApplyUpdate(ctx context.Context, database *db.DB) (*ApplyUpdateResult, error) {
-	// 1. Fetch latest release info
+	if !s.applyMu.TryLock() {
+		return nil, errors.New("an update is already in progress")
+	}
+	defer s.applyMu.Unlock()
+
+	// 1. Resolve canonical target executable path BEFORE replacing anything.
+	// On Linux, /proc/self/exe will point to .old after selfupdate.Apply.
+	targetExe, err := GetExecutablePath()
+	if err != nil {
+		return nil, fmt.Errorf("cannot resolve target executable path before update: %w", err)
+	}
+
+	// 2. Fetch latest release info
 	info, err := s.CheckForUpdate(ctx, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check for update: %w", err)
@@ -420,7 +491,12 @@ func (s *Service) ApplyUpdate(ctx context.Context, database *db.DB) (*ApplyUpdat
 		return nil, errors.New("one-click update is not available for this platform or installation")
 	}
 
-	// 2. Perform safe SQLite backup before changing binary
+	// 3. Strict verification prerequisite: release MUST have checksum manifest
+	if info.ChecksumURL == "" {
+		return nil, errors.New("update aborted: release does not contain a checksums.txt verification manifest")
+	}
+
+	// 4. Perform safe SQLite backup before changing binary
 	var backupPath string
 	if database != nil {
 		backupPath, err = BackupDatabaseBeforeUpdate(database)
@@ -429,7 +505,7 @@ func (s *Service) ApplyUpdate(ctx context.Context, database *db.DB) (*ApplyUpdat
 		}
 	}
 
-	// 3. Download asset
+	// 5. Download asset
 	log.Printf("⬇️ Downloading update asset: %s", info.AssetURL)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, info.AssetURL, nil)
 	if err != nil {
@@ -449,34 +525,43 @@ func (s *Service) ApplyUpdate(ctx context.Context, database *db.DB) (*ApplyUpdat
 
 	assetBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read downloaded update: %w", err)
+		return nil, fmt.Errorf("failed to read download content: %w", err)
 	}
 
-	// 4. Verify checksum
+	// 6. Verify checksum strictly before executing or extracting
 	if err := s.VerifyChecksum(ctx, info.ChecksumURL, info.AssetName, assetBytes); err != nil {
-		return nil, fmt.Errorf("security check failed: %w", err)
+		return nil, fmt.Errorf("update aborted due to checksum verification failure: %w", err)
 	}
 
-	// 5. Extract binary if tar.gz
-	var binaryReader io.Reader = bytes.NewReader(assetBytes)
+	// 7. Prepare binary stream (extract if .tar.gz)
+	var binaryReader io.Reader
 	if strings.HasSuffix(info.AssetName, ".tar.gz") {
 		extracted, err := ExtractBinaryFromTarGz(bytes.NewReader(assetBytes))
 		if err != nil {
-			return nil, fmt.Errorf("failed to extract binary: %w", err)
+			return nil, fmt.Errorf("failed to extract binary archive: %w", err)
 		}
 		binaryReader = extracted
+	} else {
+		binaryReader = bytes.NewReader(assetBytes)
 	}
 
-	// 6. Apply atomic update to the running binary
-	log.Println("🔄 Applying binary update to current executable...")
-	if err := selfupdate.Apply(binaryReader, selfupdate.Options{}); err != nil {
-		if rerr := selfupdate.RollbackError(err); rerr != nil {
-			return nil, fmt.Errorf("update failed and rollback failed: %v (rollback err: %v)", err, rerr)
-		}
-		return nil, fmt.Errorf("update failed (rolled back): %w", err)
+	// 8. Atomically apply self-update to the pre-resolved target executable path
+	opts := selfupdate.Options{
+		TargetPath: targetExe,
 	}
 
-	log.Printf("✅ LocalFinance updated successfully from %s to %s", CurrentVersion, info.LatestVersion)
+	if err := selfupdate.Apply(binaryReader, opts); err != nil {
+		log.Printf("❌ Failed to apply binary update: %v, rolling back...", err)
+		_ = selfupdate.RollbackError(err)
+		return nil, fmt.Errorf("failed to apply binary update: %w", err)
+	}
+
+	log.Printf("✅ Application binary successfully updated in place: %s", targetExe)
+
+	// Save target executable path for RestartServer
+	lastTargetExeMu.Lock()
+	lastTargetExe = targetExe
+	lastTargetExeMu.Unlock()
 
 	return &ApplyUpdateResult{
 		PreviousVersion: CurrentVersion,
@@ -486,24 +571,50 @@ func (s *Service) ApplyUpdate(ctx context.Context, database *db.DB) (*ApplyUpdat
 	}, nil
 }
 
-// RestartServer re-launches the updated executable and terminates the current process.
+// RestartServer safely shuts down the existing HTTP server (releasing the bound port) and relaunches
+// the updated executable at the pre-resolved path with the exact same port.
 func RestartServer() {
 	go func() {
-		// Allow HTTP response to be completely sent to the browser
-		time.Sleep(1200 * time.Millisecond)
+		// 1. Allow HTTP response to be completely written and flushed to the network socket
+		time.Sleep(600 * time.Millisecond)
 
-		exe, err := os.Executable()
-		if err != nil {
-			log.Fatalf("❌ Failed to find executable for restart: %v", err)
+		lastTargetExeMu.RLock()
+		exe := lastTargetExe
+		lastTargetExeMu.RUnlock()
+
+		if exe == "" {
+			var err error
+			exe, err = GetExecutablePath()
+			if err != nil {
+				log.Fatalf("❌ Failed to find executable for restart: %v", err)
+			}
 		}
 
-		// Resolve any symlinks
-		if realPath, err := filepath.EvalSymlinks(exe); err == nil {
-			exe = realPath
+		serverCtxMu.RLock()
+		port := serverPort
+		dbPath := serverDBPath
+		hook := restartHook
+		serverCtxMu.RUnlock()
+
+		// 2. Shut down parent HTTP server if registered, releasing port listener so child can rebind
+		if hook != nil {
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			_ = hook(shutdownCtx)
+			cancel()
 		}
 
-		log.Printf("🚀 Relaunching server: %s %v", exe, os.Args[1:])
-		cmd := exec.Command(exe, os.Args[1:]...)
+		// 3. Construct arguments preserving current port, database path, and disable duplicate browser open
+		args := []string{}
+		if port > 0 {
+			args = append(args, fmt.Sprintf("-port=%d", port))
+		}
+		if dbPath != "" {
+			args = append(args, fmt.Sprintf("-db=%s", dbPath))
+		}
+		args = append(args, "-open=false")
+
+		log.Printf("🚀 Relaunching server: %s %v", exe, args)
+		cmd := exec.Command(exe, args...)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		cmd.Stdin = os.Stdin
@@ -512,7 +623,7 @@ func RestartServer() {
 			log.Fatalf("❌ Failed to restart server: %v", err)
 		}
 
-		// Exit current process
+		// 4. Terminate current process
 		os.Exit(0)
 	}()
 }
