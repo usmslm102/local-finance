@@ -21,6 +21,7 @@
       </a>
       <nav aria-label="Primary navigation">
         <a href="#features">Features</a>
+        <a href="#compatibility">Supported banks</a>
         <a href="#privacy">Privacy</a>
         <a class="nav-github" href="https://github.com/usmslm102/local-finance" target="_blank" rel="noreferrer">
           GitHub
@@ -45,6 +46,7 @@
             </a>
             <a class="text-link" href="#workflow">See how it works <span aria-hidden="true">↓</span></a>
           </div>
+          <p class="hero-update-note"><a href="#updates">Built-in updates. Automatic checks. Opt out in Settings.</a></p>
           <p class="hero-footnote"><span></span>No cloud. No telemetry. No account aggregator.</p>
         </div>
 
@@ -146,13 +148,46 @@
         </div>
       </section>
 
+      <section class="compatibility" id="compatibility" aria-labelledby="compatibility-title">
+        <div class="section-heading">
+          <h2 id="compatibility-title">Find your bank.<br />Bring your statements.</h2>
+          <p>Dedicated parsers for Indian accounts and credit cards. See what is supported today and what is planned.</p>
+        </div>
+        <div class="matrix-key" aria-label="Compatibility legend">
+          <span class="support-status supported">Supported</span>
+          <span class="support-status planned">Planned</span>
+          <span class="support-status not-applicable">N/A · Not applicable</span>
+        </div>
+        <p class="matrix-hint" id="matrix-hint">Scroll across to compare all account and card types.</p>
+        <div class="matrix-scroll" role="region" aria-label="Bank and statement compatibility" aria-describedby="matrix-hint" tabindex="0">
+          <table class="support-matrix">
+            <caption>Bank and statement compatibility</caption>
+            <thead><tr>
+              <th scope="col">Bank</th><th scope="col">Savings</th><th scope="col">Current</th><th scope="col">Core / premium cards</th><th scope="col">Swiggy HDFC</th><th scope="col">Amazon Pay ICICI</th><th scope="col">Flipkart Axis</th><th scope="col">RuPay UPI cards</th><th scope="col">Formats</th>
+            </tr></thead>
+            <tbody>
+              <tr><th scope="row">HDFC Bank</th><td><span class="support-status supported">Supported</span></td><td><span class="support-status supported">Supported</span></td><td><span class="support-status supported">Supported</span><small>Regalia, Millennia, Infinia</small></td><td><span class="support-status supported">Supported</span></td><td><span class="support-status not-applicable">N/A</span></td><td><span class="support-status not-applicable">N/A</span></td><td><span class="support-status supported">Supported</span><small>Tata Neu, RuPay</small></td><td class="matrix-formats">PDF, CSV, Excel (.xls, .xlsx)</td></tr>
+              <tr><th scope="row">ICICI Bank</th><td><span class="support-status supported">Supported</span></td><td><span class="support-status planned">Planned</span></td><td><span class="support-status supported">Supported</span><small>Coral, Rubyx, Sapphiro</small></td><td><span class="support-status not-applicable">N/A</span></td><td><span class="support-status supported">Supported</span></td><td><span class="support-status not-applicable">N/A</span></td><td><span class="support-status planned">Planned</span></td><td class="matrix-formats">PDF (Savings, Credit Card)</td></tr>
+              <tr><th scope="row">Union Bank of India</th><td><span class="support-status supported">Supported</span></td><td><span class="support-status planned">Planned</span></td><td><span class="support-status planned">Planned</span></td><td><span class="support-status not-applicable">N/A</span></td><td><span class="support-status not-applicable">N/A</span></td><td><span class="support-status not-applicable">N/A</span></td><td><span class="support-status planned">Planned</span></td><td class="matrix-formats">PDF (Savings)</td></tr>
+              <tr><th scope="row">Axis Bank</th><td><span class="support-status planned">Planned</span></td><td><span class="support-status planned">Planned</span></td><td><span class="support-status supported">Supported</span><small>ACE, Magnus, Atlas, Neo</small></td><td><span class="support-status not-applicable">N/A</span></td><td><span class="support-status not-applicable">N/A</span></td><td><span class="support-status supported">Supported</span></td><td><span class="support-status planned">Planned</span></td><td class="matrix-formats">PDF (Credit Card)</td></tr>
+              <tr><th scope="row">State Bank of India (SBI)</th><td><span class="support-status planned">Planned</span></td><td><span class="support-status planned">Planned</span></td><td><span class="support-status planned">Planned</span></td><td><span class="support-status not-applicable">N/A</span></td><td><span class="support-status not-applicable">N/A</span></td><td><span class="support-status not-applicable">N/A</span></td><td><span class="support-status planned">Planned</span></td><td class="matrix-formats">Generic CSV</td></tr>
+              <tr><th scope="row">Kotak Mahindra Bank</th><td><span class="support-status planned">Planned</span></td><td><span class="support-status planned">Planned</span></td><td><span class="support-status planned">Planned</span></td><td><span class="support-status not-applicable">N/A</span></td><td><span class="support-status not-applicable">N/A</span></td><td><span class="support-status not-applicable">N/A</span></td><td><span class="support-status planned">Planned</span></td><td class="matrix-formats">Generic CSV</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="matrix-notes">
+          <p><strong>Have a CSV from another bank?</strong> The built-in generic CSV parser can import bank statements, including SBI and Kotak. Planned means a dedicated parser is not yet available for that account or card type.</p>
+          <p>Password-protected PDFs are decrypted in memory. <a href="https://github.com/usmslm102/local-finance#credit-card-variants-breakdown" target="_blank" rel="noreferrer">See the full card variant breakdown <span aria-hidden="true">↗</span></a></p>
+        </div>
+      </section>
+
       <section class="privacy" id="privacy">
         <div class="privacy-copy">
           <img src="./mark.svg" width="64" height="64" alt="" />
           <h2>The safest cloud is no cloud.</h2>
           <p>Your financial history stays in an open SQLite database on your computer. LocalFinance ships as one standalone executable with the interface, server, and database engine included.</p>
           <ul>
-            <li><span></span>100% offline operation</li>
+            <li><span></span>Offline financial analysis</li>
             <li><span></span>Zero telemetry or remote logging</li>
             <li><span></span>Optional local app lock</li>
             <li><span></span>Windows, macOS, and Linux</li>
@@ -164,6 +199,20 @@
           <div class="arch-node active"><small>ONE BINARY</small><strong>LocalFinance</strong><span>Go + React + SQLite</span></div>
           <svg viewBox="0 0 24 64" aria-hidden="true"><path d="M12 0v56m0 0-5-6m5 6 5-6" /></svg>
           <div class="arch-node"><small>YOUR MACHINE</small><strong>Private insights</strong><span>Available on localhost</span></div>
+        </div>
+      </section>
+
+      <section class="updates" id="updates" aria-labelledby="updates-title">
+        <div class="updates-copy">
+          <h2 id="updates-title">Built-in updates.<br />You stay in control.</h2>
+          <p>LocalFinance checks public GitHub Releases in the background, with results cached for four hours. When a release is available, review the release notes and choose <strong>Update &amp; Restart</strong> to install it from the app.</p>
+          <p>Prefer to opt out? Turn off <strong>Automatic Update Checks</strong> in Settings. You can still choose <strong>Check for Updates</strong> whenever you want.</p>
+        </div>
+        <div class="updates-details">
+          <h3>Your financial data stays local.</h3>
+          <p>Release checks and update downloads contact GitHub. Your statements, transactions, and database stay on your machine.</p>
+          <p>If the app cannot replace its executable in its current location, it offers a manual release download.</p>
+          <a href="https://github.com/usmslm102/local-finance/releases" target="_blank" rel="noreferrer">View releases <span aria-hidden="true">↗</span></a>
         </div>
       </section>
 
