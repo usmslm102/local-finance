@@ -145,6 +145,7 @@ func (h *Handler) AuthMiddleware() gin.HandlerFunc {
 
 		// Whitelist public endpoints
 		if path == "/api/health" ||
+			path == "/api/system/version" ||
 			path == "/api/auth/status" ||
 			path == "/api/auth/login" ||
 			path == "/api/auth/setup" {

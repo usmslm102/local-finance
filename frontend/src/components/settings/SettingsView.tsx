@@ -21,6 +21,7 @@ import {
   changeAuthPassword,
   disableAuth,
   updateSecuritySettings,
+  fetchSystemVersion,
 } from '@/lib/api'
 import { useAuth } from '@/components/auth/AuthProvider'
 import { useTheme } from '@/components/theme-provider'
@@ -78,6 +79,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { UpdateDialog } from '@/components/updates/UpdateDialog'
+import { ArrowUpCircle, ExternalLink, Sparkles } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -142,6 +145,28 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
   const [showConfirmRestore, setShowConfirmRestore] = useState(false)
   const [copiedPath, setCopiedPath] = useState(false)
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; title: string; text: string } | null>(null)
+
+  // Software Update States
+  const [showUpdateModal, setShowUpdateModal] = useState(false)
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false)
+  const { data: versionInfo, refetch: refetchVersion } = useQuery({
+    queryKey: ['system-version'],
+    queryFn: () => fetchSystemVersion(false),
+    staleTime: 1000 * 60 * 30,
+  })
+
+  const handleManualCheckUpdate = async () => {
+    setIsCheckingUpdate(true)
+    try {
+      const updated = await fetchSystemVersion(true)
+      queryClient.setQueryData(['system-version'], updated)
+      if (updated.update_available) {
+        setShowUpdateModal(true)
+      }
+    } finally {
+      setIsCheckingUpdate(false)
+    }
+  }
 
   // Security Form States
   const [showSetupAuthModal, setShowSetupAuthModal] = useState(false)
@@ -653,6 +678,89 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
           {/* TAB 1: GENERAL & PREFERENCES */}
           {activeTab === 'general' && (
             <div className="space-y-6">
+              {/* Software Version & Updates Card */}
+              <Card className="border-border/80 bg-card shadow-xs">
+                <CardHeader>
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <CardTitle className="text-base font-semibold flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-primary" /> Software Version &amp; Updates
+                      </CardTitle>
+                      <CardDescription className="text-xs">
+                        Check for new releases published on GitHub and update in place with 1-click
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleManualCheckUpdate}
+                        disabled={isCheckingUpdate}
+                        className="h-8 text-xs font-semibold gap-1.5"
+                      >
+                        <RefreshCw className={`h-3.5 w-3.5 ${isCheckingUpdate ? 'animate-spin' : ''}`} />
+                        <span>{isCheckingUpdate ? 'Checking GitHub...' : 'Check for Updates'}</span>
+                      </Button>
+                      {versionInfo?.update_available && (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={() => setShowUpdateModal(true)}
+                          className="h-8 text-xs font-semibold gap-1.5 bg-primary shadow-xs"
+                        >
+                          <ArrowUpCircle className="h-3.5 w-3.5" />
+                          <span>Update Now</span>
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3 text-xs">
+                  <div className="flex items-center justify-between border-b pb-3">
+                    <div>
+                      <p className="font-semibold text-foreground">Installed Version</p>
+                      <p className="text-muted-foreground text-[11px]">Locally running binary</p>
+                    </div>
+                    <Badge variant="outline" className="font-mono text-xs px-2 py-0.5">
+                      {versionInfo?.current_version || 'v1.2.0'}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between border-b pb-3">
+                    <div>
+                      <p className="font-semibold text-foreground">Release Status</p>
+                      <p className="text-muted-foreground text-[11px]">
+                        {versionInfo?.update_available
+                          ? `New version ${versionInfo.latest_version} is available!`
+                          : 'You are running the latest released version'}
+                      </p>
+                    </div>
+                    {versionInfo?.update_available ? (
+                      <Badge variant="default" className="bg-primary text-primary-foreground font-semibold text-[11px]">
+                        {versionInfo.latest_version} Available
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="border-emerald-500/30 text-emerald-600 dark:text-emerald-400 flex items-center gap-1 text-[11px]">
+                        <CheckCircle2 className="h-3 w-3" /> Up to Date
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between pt-1">
+                    <div>
+                      <p className="font-semibold text-foreground">GitHub Repository</p>
+                      <p className="text-muted-foreground text-[11px]">Official releases and open-source changelog</p>
+                    </div>
+                    <a
+                      href={versionInfo?.release_url || 'https://github.com/usmslm102/local-finance/releases'}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-primary hover:underline font-medium text-xs"
+                    >
+                      View on GitHub <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+                </CardContent>
+              </Card>
+
               {/* Appearance / Theme Card */}
               <Card className="border-border/80 bg-card shadow-xs">
                 <CardHeader>
@@ -2056,6 +2164,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <UpdateDialog
+        open={showUpdateModal}
+        onOpenChange={setShowUpdateModal}
+        versionInfo={versionInfo || null}
+        onUpdateSuccess={() => refetchVersion()}
+      />
 
       {/* Setup Master Password Dialog */}
       <Dialog open={showSetupAuthModal} onOpenChange={setShowSetupAuthModal}>

@@ -16,12 +16,14 @@ import (
 	"local-finance/internal/models"
 	"local-finance/internal/parser"
 	"local-finance/internal/service"
+	"local-finance/internal/updater"
 )
 
 type Handler struct {
 	db             *db.DB
 	service        *service.TransactionService
 	sessionManager *SessionManager
+	updaterService *updater.Service
 }
 
 func NewHandler(database *db.DB, svc *service.TransactionService) *Handler {
@@ -29,13 +31,14 @@ func NewHandler(database *db.DB, svc *service.TransactionService) *Handler {
 		db:             database,
 		service:        svc,
 		sessionManager: NewSessionManager(),
+		updaterService: updater.NewService(),
 	}
 }
 
 func (h *Handler) HealthCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "ok",
-		"version": "0.1.0",
+		"version": updater.CurrentVersion,
 		"app":     "local-finance",
 	})
 }

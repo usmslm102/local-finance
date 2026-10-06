@@ -812,3 +812,30 @@ export async function updateSecuritySettings(
 }
 
 
+
+
+// ==========================================
+// SYSTEM VERSION & AUTO-UPDATER API
+// ==========================================
+
+export async function fetchSystemVersion(refresh = false): Promise<import("../types").SystemVersionInfo> {
+  const query = refresh ? "?refresh=true" : ""
+  const res = await fetchWithAuth(`${BASE_URL}/system/version${query}`)
+  if (!res.ok) {
+    throw new Error("Failed to fetch system version")
+  }
+  return res.json()
+}
+
+export async function applySystemUpdate(): Promise<import("../types").ApplyUpdateResponse> {
+  const res = await fetchWithAuth(`${BASE_URL}/system/update`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  })
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({ error: "Update failed" }))
+    throw new Error(errorData.error || "Failed to apply update")
+  }
+  return res.json()
+}

@@ -38,6 +38,7 @@ import { WrappedView } from '@/components/wrapped/WrappedView'
 import { SalaryView } from '@/components/salary/SalaryView'
 import { PrivacyProvider } from '@/components/privacy-provider'
 import { PrivacyToggle } from '@/components/layout/PrivacyToggle'
+import { UpdateIndicator } from '@/components/updates/UpdateIndicator'
 import { NetWorthRunwayCard } from '@/components/dashboard/NetWorthRunwayCard'
 import type {
   TransactionsSearchParams,
@@ -124,6 +125,7 @@ const RootLayoutContent: React.FC = () => {
                     <span className="hidden sm:inline font-medium">Lock</span>
                   </Button>
                 )}
+                <UpdateIndicator />
                 <PrivacyToggle />
                 <CommandPalette />
                 {currentPath !== '/import' && (

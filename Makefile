@@ -1,5 +1,8 @@
 .PHONY: all build dev dev-backend dev-frontend serve start run test clean
 
+VERSION ?= $(shell git describe --tags --always 2>/dev/null || echo "v1.2.0")
+LDFLAGS := -X "local-finance/internal/updater.CurrentVersion=$(VERSION)"
+
 # Build production frontend and single standalone Go binary
 all: build
 
@@ -7,7 +10,7 @@ build:
 	@echo "📦 Building React frontend..."
 	@cd frontend && pnpm build
 	@echo "🔨 Building Go binary with embedded frontend..."
-	@go build -o local-finance ./cmd/server/main.go
+	@go build -ldflags="$(LDFLAGS)" -o local-finance ./cmd/server/main.go
 	@echo "✅ Single binary build complete: ./local-finance"
 
 # Build frontend and start the Go server in one command

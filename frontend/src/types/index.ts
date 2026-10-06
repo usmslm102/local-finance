@@ -847,3 +847,28 @@ export interface SalarySearchParams {
 export interface ReconcileSearchParams {
   tab?: 'CANDIDATES' | 'PAIRED' | 'WALLET'
 }
+
+
+export interface SystemVersionInfo {
+  current_version: string
+  latest_version: string
+  update_available: boolean
+  can_auto_update: boolean
+  auto_update_error?: string
+  release_name: string
+  release_notes: string
+  release_url: string
+  published_at: string
+  asset_url?: string
+  asset_name?: string
+  asset_size?: number
+  checksum_url?: string
+  checked_at: string
+}
+
+export interface ApplyUpdateResponse {
+  previous_version: string
+  new_version: string
+  backup_path: string
+  message: string
+}

@@ -98,6 +98,8 @@ func SetupRouter(database *db.DB, svc *service.TransactionService, staticFS fs.F
 		apiGroup.GET("/database/export/json", h.ExportDatabaseJSON)
 		apiGroup.GET("/database/export/csv", h.ExportTransactionsCSV)
 		apiGroup.POST("/database/reset", h.ResetDatabase)
+		apiGroup.GET("/system/version", h.GetSystemVersion)
+		apiGroup.POST("/system/update", h.ApplySystemUpdate)
 	}
 
 	// Serve Static Frontend if embedded FS provided
