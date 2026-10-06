@@ -138,43 +138,30 @@ graph TD
 
 ## 🚀 Running & Developing LocalFinance
 
-### ⚡ Quick Start: Pre-built Standalone Binaries
-You don't need Go or Node.js installed to use LocalFinance. Download the pre-compiled binary for your system from **[GitHub Releases](https://github.com/usmslm102/local-finance/releases)**.
+### ⚡ Quick Start: Pre-built Standalone Releases
+You don't need Go or Node.js installed to use LocalFinance. Download the pre-compiled package for your operating system from **[GitHub Releases](https://github.com/usmslm102/local-finance/releases)**.
 
-#### 🍎 macOS (Apple Silicon M1/M2/M3/M4 & Intel)
-When running downloaded binaries on macOS, Gatekeeper may display a security dialog:
-> *"local-finance-darwin-arm64" Not Opened — Apple could not verify that it is free of malware...*
-
-This is standard macOS protection for open-source binaries distributed outside the Mac App Store without an Apple Developer ID signature.
-
-**To run the binary:**
-- **Terminal (Fastest)**: Remove the download quarantine attribute and grant execution permission:
-  ```bash
-  # For Apple Silicon (M1/M2/M3/M4):
-  xattr -d com.apple.quarantine ~/Downloads/local-finance-darwin-arm64
-  chmod +x ~/Downloads/local-finance-darwin-arm64
-  ~/Downloads/local-finance-darwin-arm64
-
-  # For Intel Mac:
-  xattr -d com.apple.quarantine ~/Downloads/local-finance-darwin-amd64
-  chmod +x ~/Downloads/local-finance-darwin-amd64
-  ~/Downloads/local-finance-darwin-amd64
-  ```
-- **Finder**:
-  1. Click **Done** on the alert dialog.
-  2. In Finder, **Right-click** (or **Control-click**) the executable file.
-  3. Click **Open** from the menu, then click **Open** on the confirmation prompt.  
-  *(Alternatively: Go to **System Settings** → **Privacy & Security**, scroll down to **Security**, and click **Open Anyway**).*
+#### 🍏 macOS (Universal: Apple Silicon M1/M2/M3/M4 & Intel)
+1. Download **`LocalFinance.dmg`** directly from Releases.
+2. Open the `.dmg` and drag **LocalFinance** into your **Applications** folder.
+3. Launch **LocalFinance** from Applications or Spotlight.
+   - *Note on Gatekeeper*: Because LocalFinance is open-source and distributed without an Apple Developer ID certificate, macOS may show a prompt:
+     > *"LocalFinance" cannot be opened because Apple cannot check it for malicious software.*
+   - To open: **Right-click** (or Control-click) `LocalFinance.app` in Finder, choose **Open**, and click **Open** on the prompt. Alternatively, go to **System Settings** → **Privacy & Security**, scroll down to **Security**, and click **Open Anyway**.
+   - *(CLI Alternative)*: A universal command-line binary archive is also available as `local-finance-darwin-universal.tar.gz`.
 
 #### 🪟 Windows
-1. Download `local-finance-windows-amd64.exe` from Releases.
-2. Double-click to launch. If Windows SmartScreen appears (*"Windows protected your PC"*), click **More info** → **Run anyway**.
+1. Download **`LocalFinance.exe`** directly from Releases (no unzipping required).
+2. Double-click `LocalFinance.exe` to launch.
+   - If Windows SmartScreen appears (*"Windows protected your PC"*), click **More info** → **Run anyway**.
 
 #### 🐧 Linux
-```bash
-chmod +x local-finance-linux-amd64
-./local-finance-linux-amd64
-```
+1. Download `local-finance-linux-amd64.tar.gz` (or `local-finance-linux-arm64.tar.gz`).
+2. Extract and run:
+   ```bash
+   tar -xzf local-finance-linux-amd64.tar.gz
+   ./local-finance
+   ```
 
 ---
 

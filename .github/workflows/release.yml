@@ -45,40 +45,10 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  binaries:
-    name: Build ${{ matrix.asset }}
+  macos:
+    name: Build macOS Universal DMG & CLI
     needs: frontend
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - goos: linux
-            goarch: amd64
-            asset: local-finance-linux-amd64
-            binary: local-finance
-            archive: local-finance-linux-amd64.tar.gz
-          - goos: linux
-            goarch: arm64
-            asset: local-finance-linux-arm64
-            binary: local-finance
-            archive: local-finance-linux-arm64.tar.gz
-          - goos: darwin
-            goarch: amd64
-            asset: local-finance-darwin-amd64
-            binary: local-finance
-            archive: local-finance-darwin-amd64.tar.gz
-          - goos: darwin
-            goarch: arm64
-            asset: local-finance-darwin-arm64
-            binary: local-finance
-            archive: local-finance-darwin-arm64.tar.gz
-          - goos: windows
-            goarch: amd64
-            asset: local-finance-windows-amd64
-            binary: local-finance.exe
-            archive: local-finance-windows-amd64.zip
-
+    runs-on: macos-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -95,54 +65,170 @@ jobs:
           name: frontend-dist
           path: frontend/dist
 
-      - name: Build binary
+      - name: Build Darwin binaries & Universal Binary
         env:
           CGO_ENABLED: "0"
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-          OUTPUT: ${{ matrix.binary }}
-        run: go build -trimpath -ldflags="-s -w" -o "dist/${OUTPUT}" ./cmd/server/main.go
-
-      - name: Package Unix binary
-        if: matrix.goos != 'windows'
-        env:
-          ASSET: ${{ matrix.asset }}
-          ARCHIVE: ${{ matrix.archive }}
         run: |
-          mv dist/local-finance "dist/${ASSET}"
-          tar -C dist -czf "dist/${ARCHIVE}" "${ASSET}"
+          mkdir -p dist
+          GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o dist/local-finance-arm64 ./cmd/server/main.go
+          GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/local-finance-amd64 ./cmd/server/main.go
+          lipo -create -output dist/LocalFinance dist/local-finance-arm64 dist/local-finance-amd64
+          chmod +x dist/LocalFinance
+          rm -f dist/local-finance-arm64 dist/local-finance-amd64
 
-      - name: Package Windows binary
-        if: matrix.goos == 'windows'
-        env:
-          ARCHIVE: ${{ matrix.archive }}
-        run: cd dist && zip "${ARCHIVE}" local-finance.exe
+      - name: Package macOS Application and DMG
+        run: |
+          APP_NAME="LocalFinance.app"
+          APP_PATH="dist/${APP_NAME}"
+          mkdir -p "${APP_PATH}/Contents/MacOS"
+          mkdir -p "${APP_PATH}/Contents/Resources"
+          cp dist/LocalFinance "${APP_PATH}/Contents/MacOS/LocalFinance"
+          cp packaging/macos/Info.plist "${APP_PATH}/Contents/Info.plist"
+          if [ -f packaging/macos/AppIcon.icns ]; then
+            cp packaging/macos/AppIcon.icns "${APP_PATH}/Contents/Resources/AppIcon.icns"
+          fi
+          
+          # Inject version into Info.plist if built from tag
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            sed -i '' "s/1.0.0/${VERSION}/g" "${APP_PATH}/Contents/Info.plist"
+          fi
 
-      - name: Upload packaged binary
+          # Prepare DMG staging folder with Applications symlink
+          STAGING="dmg_staging"
+          mkdir -p "${STAGING}"
+          cp -R "${APP_PATH}" "${STAGING}/"
+          ln -s /Applications "${STAGING}/Applications"
+
+          # Create compressed DMG
+          hdiutil create -volname "LocalFinance" -srcfolder "${STAGING}" -ov -format UDZO "dist/LocalFinance.dmg"
+          rm -rf "${STAGING}"
+
+      - name: Package macOS CLI Archive
+        run: |
+          mkdir -p cli_staging
+          cp dist/LocalFinance cli_staging/local-finance
+          tar -C cli_staging -czf dist/local-finance-darwin-universal.tar.gz local-finance
+          rm -rf cli_staging
+
+      - name: Upload DMG
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.asset }}
+          name: release-macos-dmg
+          path: dist/LocalFinance.dmg
+          if-no-files-found: error
+
+      - name: Upload Darwin CLI
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-darwin-cli
+          path: dist/local-finance-darwin-universal.tar.gz
+          if-no-files-found: error
+
+  windows:
+    name: Build Windows executable
+    needs: frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Download embedded frontend
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+      - name: Build Windows binary
+        env:
+          CGO_ENABLED: "0"
+          GOOS: windows
+          GOARCH: amd64
+        run: |
+          mkdir -p dist
+          go build -trimpath -ldflags="-s -w" -o dist/LocalFinance.exe ./cmd/server/main.go
+
+      - name: Upload Windows binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-windows-exe
+          path: dist/LocalFinance.exe
+          if-no-files-found: error
+
+  linux:
+    name: Build Linux ${{ matrix.goarch }}
+    needs: frontend
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goarch: amd64
+            archive: local-finance-linux-amd64.tar.gz
+          - goarch: arm64
+            archive: local-finance-linux-arm64.tar.gz
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Download embedded frontend
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+      - name: Build Linux binary
+        env:
+          CGO_ENABLED: "0"
+          GOOS: linux
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          mkdir -p dist
+          go build -trimpath -ldflags="-s -w" -o dist/local-finance ./cmd/server/main.go
+
+      - name: Package Linux tarball
+        run: |
+          tar -C dist -czf "dist/${{ matrix.archive }}" local-finance
+
+      - name: Upload Linux archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-linux-${{ matrix.goarch }}
           path: dist/${{ matrix.archive }}
           if-no-files-found: error
 
   release:
     name: Publish GitHub release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: binaries
+    needs: [macos, windows, linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Download packaged binaries
+      - name: Download release assets
         uses: actions/download-artifact@v4
         with:
-          pattern: local-finance-*
+          pattern: release-*
           path: release-assets
           merge-multiple: true
 
       - name: Generate checksums
         working-directory: release-assets
-        run: sha256sum * > checksums.txt
+        run: |
+          sha256sum * > /tmp/checksums.txt
+          mv /tmp/checksums.txt checksums.txt
 
       - name: Create or update GitHub release
         env:
