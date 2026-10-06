@@ -70,9 +70,11 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
       setRestartSeconds((prev) => Math.max(0, prev - 1))
 
       try {
-        const check = await fetchSystemVersion(true)
+        // Poll local server strictly offline (no GitHub network request needed during restart)
+        const check = await fetchSystemVersion(false, true)
+        const expectedVersion = updateResult?.new_version || versionInfo?.latest_version
         // Strictly verify that the server has restarted and reports the newly installed version!
-        if (check.current_version === versionInfo?.latest_version) {
+        if (expectedVersion && check.current_version === expectedVersion) {
           clearInterval(intervalId)
           setStage('done')
           setTimeout(() => {
@@ -91,7 +93,7 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
     }, 1500)
 
     return () => clearInterval(intervalId)
-  }, [stage, versionInfo?.latest_version])
+  }, [stage, updateResult?.new_version, versionInfo?.latest_version])
 
   const handleApplyUpdate = async () => {
     setStage('updating')

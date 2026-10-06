@@ -92,6 +92,12 @@ func main() {
 	if err := srv.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("❌ Server error: %v", err)
 	}
+
+	// Keep main alive if updater is relaunching the process
+	if updater.IsRestarting() {
+		log.Println("⏳ Server listener closed; keeping process alive until replacement is launched...")
+		updater.WaitForRelaunch()
+	}
 }
 
 func openBrowser(url string) {

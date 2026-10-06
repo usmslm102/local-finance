@@ -1,9 +1,44 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useSyncExternalStore } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchSystemVersion } from '@/lib/api'
 import type { SystemVersionInfo } from '@/types'
 
 const AUTO_CHECK_STORAGE_KEY = 'localfinance_auto_check_updates'
+
+// Reactive cross-component and cross-tab preference store
+const listeners = new Set<() => void>()
+
+function subscribePreference(callback: () => void) {
+  listeners.add(callback)
+  const onStorage = (e: StorageEvent) => {
+    if (e.key === AUTO_CHECK_STORAGE_KEY) {
+      callback()
+    }
+  }
+  window.addEventListener('storage', onStorage)
+  return () => {
+    listeners.delete(callback)
+    window.removeEventListener('storage', onStorage)
+  }
+}
+
+function getPreferenceSnapshot(): boolean {
+  try {
+    const stored = localStorage.getItem(AUTO_CHECK_STORAGE_KEY)
+    return stored !== 'false' // Default is enabled unless opted out
+  } catch {
+    return true
+  }
+}
+
+function setPreferenceSnapshot(enabled: boolean) {
+  try {
+    localStorage.setItem(AUTO_CHECK_STORAGE_KEY, enabled ? 'true' : 'false')
+  } catch {
+    // ignore local storage quota / security errors
+  }
+  listeners.forEach((l) => l())
+}
 
 export function useSystemUpdate() {
   const queryClient = useQueryClient()
@@ -11,31 +46,24 @@ export function useSystemUpdate() {
   const [isChecking, setIsChecking] = useState(false)
   const [checkError, setCheckError] = useState<string | null>(null)
 
-  // Stored preference: automatic release check enabled by default with opt-out
-  const [autoCheckEnabled, setAutoCheckState] = useState<boolean>(() => {
-    try {
-      const stored = localStorage.getItem(AUTO_CHECK_STORAGE_KEY)
-      return stored !== 'false' // defaults to true unless user explicitly opted out
-    } catch {
-      return true
-    }
-  })
+  // Synchronized reactive preference across all components in all tabs
+  const autoCheckEnabled = useSyncExternalStore(
+    subscribePreference,
+    getPreferenceSnapshot,
+    () => true
+  )
 
   const setAutoCheckEnabled = useCallback(
     (enabled: boolean) => {
-      try {
-        localStorage.setItem(AUTO_CHECK_STORAGE_KEY, enabled ? 'true' : 'false')
-        setAutoCheckState(enabled)
-        queryClient.invalidateQueries({ queryKey: ['system-version'] })
-      } catch {
-        setAutoCheckState(enabled)
-      }
+      setPreferenceSnapshot(enabled)
+      // Immediately cancel / invalidate any active queries so all components switch mode
+      queryClient.invalidateQueries({ queryKey: ['system-version'] })
     },
     [queryClient]
   )
 
-  // Automatic background check runs on app mount when autoCheckEnabled is true (cached 4 hours)
-  // If autoCheckEnabled is false (opted out), it queries with offline=true, touching 0 external endpoints
+  // Query is keyed by the shared reactive preference.
+  // When autoCheckEnabled is false, offline is strictly true across the whole app.
   const { data: versionInfo, refetch } = useQuery<SystemVersionInfo>({
     queryKey: ['system-version', autoCheckEnabled],
     queryFn: () => fetchSystemVersion(false, !autoCheckEnabled),

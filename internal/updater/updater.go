@@ -19,6 +19,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/minio/selfupdate"
@@ -40,13 +41,29 @@ const (
 type RestartHook func(ctx context.Context) error
 
 var (
-	serverPort     int
-	serverDBPath   string
-	restartHook    RestartHook
-	serverCtxMu    sync.RWMutex
-	lastTargetExe  string
+	serverPort      int
+	serverDBPath    string
+	restartHook     RestartHook
+	serverCtxMu     sync.RWMutex
+	lastTargetExe   string
 	lastTargetExeMu sync.RWMutex
+
+	restarting   atomic.Bool
+	relaunchDone = make(chan struct{})
 )
+
+// IsRestarting reports whether a server restart has been triggered by the updater.
+func IsRestarting() bool {
+	return restarting.Load()
+}
+
+// WaitForRelaunch blocks until the replacement process has been started or a safety timeout expires.
+func WaitForRelaunch() {
+	select {
+	case <-relaunchDone:
+	case <-time.After(10 * time.Second):
+	}
+}
 
 // RegisterServerContext stores running server details and a shutdown hook to cleanly release the port upon update restart.
 func RegisterServerContext(port int, dbPath string, hook RestartHook) {
@@ -179,20 +196,29 @@ func CheckExecutableWritable() (bool, string) {
 		return false, fmt.Sprintf("cannot resolve executable path: %v", err)
 	}
 
-	// On macOS, if running directly from a mounted volume (like a read-only DMG)
-	if runtime.GOOS == "darwin" && strings.HasPrefix(exePath, "/Volumes/") {
-		return false, "Application is running from a mounted disk image (DMG). Please copy LocalFinance.app to /Applications to enable one-click updates."
-	}
-
-	// Test if directory of the binary is writable (needed to create temp update file)
+	// Test if directory of the binary is writable (needed to create temp update file and replace binary)
 	dir := filepath.Dir(exePath)
 	testFile := filepath.Join(dir, fmt.Sprintf(".perm_test_%d", time.Now().UnixNano()))
 	f, err := os.OpenFile(testFile, os.O_CREATE|os.O_WRONLY, 0755)
 	if err != nil {
+		// Provide a helpful hint on macOS if running from a mounted read-only volume
+		if runtime.GOOS == "darwin" && strings.HasPrefix(exePath, "/Volumes/") {
+			return false, "Application appears to be running from a read-only mounted disk image (DMG). Please copy LocalFinance.app to /Applications to enable one-click updates."
+		}
 		return false, fmt.Sprintf("application directory is not writable (%s): %v", dir, err)
 	}
 	_ = f.Close()
 	_ = os.Remove(testFile)
+
+	// Verify that the executable file itself has write permissions
+	fExe, err := os.OpenFile(exePath, os.O_WRONLY, 0)
+	if err != nil {
+		if os.IsPermission(err) {
+			return false, fmt.Sprintf("executable file is not writable: %v", err)
+		}
+	} else {
+		_ = fExe.Close()
+	}
 
 	return true, ""
 }
@@ -464,10 +490,18 @@ type ApplyUpdateResult struct {
 // ApplyUpdate downloads the release asset, backs up the database, and replaces the binary.
 // Serialized via applyMu to prevent concurrent updates from corrupting binary files or scheduling duplicate restarts.
 func (s *Service) ApplyUpdate(ctx context.Context, database *db.DB) (*ApplyUpdateResult, error) {
+	if restarting.Load() {
+		return nil, errors.New("an update is already in progress")
+	}
 	if !s.applyMu.TryLock() {
 		return nil, errors.New("an update is already in progress")
 	}
-	defer s.applyMu.Unlock()
+	keepLocked := false
+	defer func() {
+		if !keepLocked {
+			s.applyMu.Unlock()
+		}
+	}()
 
 	// 1. Resolve canonical target executable path BEFORE replacing anything.
 	// On Linux, /proc/self/exe will point to .old after selfupdate.Apply.
@@ -565,6 +599,9 @@ func (s *Service) ApplyUpdate(ctx context.Context, database *db.DB) (*ApplyUpdat
 	lastTargetExe = targetExe
 	lastTargetExeMu.Unlock()
 
+	// Keep applyMu locked through process exit so no concurrent requests can interfere during restart
+	keepLocked = true
+
 	return &ApplyUpdateResult{
 		PreviousVersion: CurrentVersion,
 		NewVersion:      info.LatestVersion,
@@ -576,6 +613,7 @@ func (s *Service) ApplyUpdate(ctx context.Context, database *db.DB) (*ApplyUpdat
 // RestartServer safely shuts down the existing HTTP server (releasing the bound port) and relaunches
 // the updated executable at the pre-resolved path with the exact same port.
 func RestartServer() {
+	restarting.Store(true)
 	go func() {
 		// 1. Allow HTTP response to be completely written and flushed to the network socket
 		time.Sleep(600 * time.Millisecond)
@@ -624,6 +662,9 @@ func RestartServer() {
 		if err := cmd.Start(); err != nil {
 			log.Fatalf("❌ Failed to restart server: %v", err)
 		}
+
+		// Signal to parent/main goroutine that child process has started
+		close(relaunchDone)
 
 		// 4. Terminate current process
 		os.Exit(0)

@@ -256,3 +256,15 @@ func (m *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 	return http.DefaultTransport.RoundTrip(mockReq)
 }
+
+func TestCheckExecutableWritableCurrentEnv(t *testing.T) {
+	writable, reason := CheckExecutableWritable()
+	// In the test runner environment, either it's writable or has a clear error explanation
+	t.Logf("CheckExecutableWritable returned writable=%v, reason=%q", writable, reason)
+}
+
+func TestRestartStateSync(t *testing.T) {
+	if IsRestarting() {
+		t.Error("expected IsRestarting to initially be false")
+	}
+}
