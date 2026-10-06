@@ -55,9 +55,11 @@ export function useSystemUpdate() {
 
   const setAutoCheckEnabled = useCallback(
     (enabled: boolean) => {
+      // Abort any in-flight query immediately so an active online check does not finish contacting GitHub
+      queryClient.cancelQueries({ queryKey: ['system-version'] })
+      // Update reactive preference store; changing queryKey ['system-version', autoCheckEnabled]
+      // naturally transitions observers without refetching the old online key
       setPreferenceSnapshot(enabled)
-      // Immediately cancel / invalidate any active queries so all components switch mode
-      queryClient.invalidateQueries({ queryKey: ['system-version'] })
     },
     [queryClient]
   )
@@ -80,7 +82,6 @@ export function useSystemUpdate() {
     try {
       const data = await fetchSystemVersion(true, false)
       queryClient.setQueryData(['system-version', autoCheckEnabled], data)
-      queryClient.setQueryData(['system-version'], data)
       if (data.update_available) {
         setDialogOpen(true)
       } else if (data.auto_update_error) {
