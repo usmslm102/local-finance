@@ -818,8 +818,11 @@ export async function updateSecuritySettings(
 // SYSTEM VERSION & AUTO-UPDATER API
 // ==========================================
 
-export async function fetchSystemVersion(refresh = false): Promise<import("../types").SystemVersionInfo> {
-  const query = refresh ? "?refresh=true" : ""
+export async function fetchSystemVersion(refresh = false, offline = false): Promise<import("../types").SystemVersionInfo> {
+  const params = new URLSearchParams()
+  if (refresh) params.set("refresh", "true")
+  if (offline) params.set("offline", "true")
+  const query = params.toString() ? `?${params.toString()}` : ""
   const res = await fetchWithAuth(`${BASE_URL}/system/version${query}`)
   if (!res.ok) {
     throw new Error("Failed to fetch system version")

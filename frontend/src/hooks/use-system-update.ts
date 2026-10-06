@@ -3,7 +3,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchSystemVersion } from '@/lib/api'
 import type { SystemVersionInfo } from '@/types'
 
-const SYSTEM_VERSION_QUERY_KEY = ['system-version']
 const AUTO_CHECK_STORAGE_KEY = 'localfinance_auto_check_updates'
 
 export function useSystemUpdate() {
@@ -12,32 +11,37 @@ export function useSystemUpdate() {
   const [isChecking, setIsChecking] = useState(false)
   const [checkError, setCheckError] = useState<string | null>(null)
 
-  // Stored preference: strictly opt-in, default is false (100% offline-by-default)
+  // Stored preference: automatic release check enabled by default with opt-out
   const [autoCheckEnabled, setAutoCheckState] = useState<boolean>(() => {
     try {
-      return localStorage.getItem(AUTO_CHECK_STORAGE_KEY) === 'true'
+      const stored = localStorage.getItem(AUTO_CHECK_STORAGE_KEY)
+      return stored !== 'false' // defaults to true unless user explicitly opted out
     } catch {
-      return false
+      return true
     }
   })
 
-  const setAutoCheckEnabled = useCallback((enabled: boolean) => {
-    try {
-      localStorage.setItem(AUTO_CHECK_STORAGE_KEY, enabled ? 'true' : 'false')
-      setAutoCheckState(enabled)
-    } catch {
-      setAutoCheckState(enabled)
-    }
-  }, [])
+  const setAutoCheckEnabled = useCallback(
+    (enabled: boolean) => {
+      try {
+        localStorage.setItem(AUTO_CHECK_STORAGE_KEY, enabled ? 'true' : 'false')
+        setAutoCheckState(enabled)
+        queryClient.invalidateQueries({ queryKey: ['system-version'] })
+      } catch {
+        setAutoCheckState(enabled)
+      }
+    },
+    [queryClient]
+  )
 
-  // Offline-by-default: Only executes with refresh=false on mount,
-  // which backend answers locally with current version info and checked_at="" (no network call).
+  // Automatic background check runs on app mount when autoCheckEnabled is true (cached 4 hours)
+  // If autoCheckEnabled is false (opted out), it queries with offline=true, touching 0 external endpoints
   const { data: versionInfo, refetch } = useQuery<SystemVersionInfo>({
-    queryKey: SYSTEM_VERSION_QUERY_KEY,
-    queryFn: () => fetchSystemVersion(false),
-    staleTime: 1000 * 60 * 60, // 1 hour cache
+    queryKey: ['system-version', autoCheckEnabled],
+    queryFn: () => fetchSystemVersion(false, !autoCheckEnabled),
+    staleTime: 1000 * 60 * 60 * 4, // 4 hours
     refetchOnWindowFocus: false,
-    refetchOnMount: false,
+    refetchOnMount: true,
     refetchOnReconnect: false,
   })
 
@@ -46,8 +50,9 @@ export function useSystemUpdate() {
     setIsChecking(true)
     setCheckError(null)
     try {
-      const data = await fetchSystemVersion(true)
-      queryClient.setQueryData(SYSTEM_VERSION_QUERY_KEY, data)
+      const data = await fetchSystemVersion(true, false)
+      queryClient.setQueryData(['system-version', autoCheckEnabled], data)
+      queryClient.setQueryData(['system-version'], data)
       if (data.update_available) {
         setDialogOpen(true)
       } else if (data.auto_update_error) {
@@ -61,7 +66,7 @@ export function useSystemUpdate() {
     } finally {
       setIsChecking(false)
     }
-  }, [queryClient])
+  }, [queryClient, autoCheckEnabled])
 
   return {
     versionInfo: versionInfo || null,

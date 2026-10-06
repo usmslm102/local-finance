@@ -181,13 +181,13 @@ func TestVerifyChecksumStrictFailsClosed(t *testing.T) {
 	}
 }
 
-func TestOfflineByDefaultCheck(t *testing.T) {
+func TestOfflineOptOutCheck(t *testing.T) {
 	svc := NewService()
 
-	// With forceRefresh=false and no cache, CheckForUpdate must NOT make any network calls
-	info, err := svc.CheckForUpdate(context.Background(), false)
+	// When offline is requested, CheckForUpdate must NOT make any network calls
+	info, err := svc.CheckForUpdate(context.Background(), false, true)
 	if err != nil {
-		t.Fatalf("unexpected error on offline default check: %v", err)
+		t.Fatalf("unexpected error on offline check: %v", err)
 	}
 	if info.CheckedAt != "" {
 		t.Errorf("expected CheckedAt to be empty for offline check, got %q", info.CheckedAt)
@@ -227,7 +227,7 @@ func TestCheckForUpdateWithMock(t *testing.T) {
 		base:      transport,
 	}
 
-	info, err := svc.CheckForUpdate(context.Background(), true)
+	info, err := svc.CheckForUpdate(context.Background(), true, false)
 	if err != nil {
 		t.Fatalf("CheckForUpdate failed: %v", err)
 	}

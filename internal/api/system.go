@@ -10,7 +10,8 @@ import (
 // GetSystemVersion handles GET /api/system/version
 func (h *Handler) GetSystemVersion(c *gin.Context) {
 	refresh := c.Query("refresh") == "true"
-	info, err := h.updaterService.CheckForUpdate(c.Request.Context(), refresh)
+	offline := c.Query("offline") == "true"
+	info, err := h.updaterService.CheckForUpdate(c.Request.Context(), refresh, offline)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"current_version":   updater.CurrentVersion,

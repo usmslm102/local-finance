@@ -23,6 +23,7 @@ import {
   updateSecuritySettings,
 } from '@/lib/api'
 import { useSystemUpdate } from '@/hooks/use-system-update'
+import { Switch } from '@/components/ui/switch'
 import { useAuth } from '@/components/auth/AuthProvider'
 import { useTheme } from '@/components/theme-provider'
 import type { SettingsSearchParams } from '@/types'
@@ -153,6 +154,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
     setDialogOpen: setShowUpdateModal,
     isChecking: isCheckingUpdate,
     checkError: updateCheckError,
+    autoCheckEnabled,
+    setAutoCheckEnabled,
     checkNow: handleManualCheckUpdate,
     refetch: refetchVersion,
   } = useSystemUpdate()
@@ -716,15 +719,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                   </div>
                   <div className="flex items-center justify-between border-b pb-3">
                     <div>
+                      <p className="font-semibold text-foreground">Automatic Update Checks</p>
+                      <p className="text-muted-foreground text-[11px]">
+                        Check GitHub Releases in the background on launch (cached for 4 hours). Disable to keep LocalFinance completely offline.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={autoCheckEnabled}
+                      onCheckedChange={setAutoCheckEnabled}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between border-b pb-3">
+                    <div>
                       <p className="font-semibold text-foreground">Release Status</p>
                       <p className="text-muted-foreground text-[11px]">
                         {versionInfo?.update_available
                           ? `New version ${versionInfo.latest_version} is available!`
                           : updateCheckError || versionInfo?.auto_update_error
                           ? `Check failed: ${updateCheckError || versionInfo?.auto_update_error}`
+                          : !autoCheckEnabled && !versionInfo?.checked_at
+                          ? 'Automatic checks disabled (offline mode). You can still check manually at any time.'
                           : versionInfo?.checked_at
                           ? `Up to date (checked at ${new Date(versionInfo.checked_at).toLocaleTimeString()})`
-                          : 'Not checked yet. 100% offline by default.'}
+                          : 'Checking GitHub Releases in background...'}
                       </p>
                     </div>
                     {versionInfo?.update_available ? (
@@ -733,7 +750,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                       </Badge>
                     ) : updateCheckError || versionInfo?.auto_update_error ? (
                       <Badge variant="destructive" className="text-[11px]">
-                        Check Failed (Offline)
+                        Check Failed
+                      </Badge>
+                    ) : !autoCheckEnabled && !versionInfo?.checked_at ? (
+                      <Badge variant="secondary" className="text-[11px]">
+                        Offline Only
                       </Badge>
                     ) : versionInfo?.checked_at ? (
                       <Badge variant="outline" className="border-emerald-500/30 text-emerald-600 dark:text-emerald-400 flex items-center gap-1 text-[11px]">
@@ -741,20 +762,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                       </Badge>
                     ) : (
                       <Badge variant="secondary" className="text-[11px]">
-                        Not Checked
+                        Checking...
                       </Badge>
                     )}
-                  </div>
-                  <div className="flex items-center justify-between border-b pb-3">
-                    <div>
-                      <p className="font-semibold text-foreground">Offline Privacy Policy</p>
-                      <p className="text-muted-foreground text-[11px]">
-                        External release checks run on-demand only when you click &quot;Check for Updates&quot;.
-                      </p>
-                    </div>
-                    <Badge variant="outline" className="border-primary/20 text-primary font-mono text-[10px]">
-                      On-Demand Only
-                    </Badge>
                   </div>
                   <div className="flex items-center justify-between pt-1">
                     <div>

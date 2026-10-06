@@ -233,21 +233,23 @@ func SelectAsset(assets []GitHubAsset, goos, goarch string) (asset *GitHubAsset,
 }
 
 // CheckForUpdate queries the GitHub Releases API for the latest release.
-// Adheres strictly to LocalFinance's offline-by-default architecture:
-// If forceRefresh is false and no cache exists, it does NOT make any external HTTP call.
-// It only contacts GitHub when forceRefresh is explicitly true (i.e. user requested a check).
-func (s *Service) CheckForUpdate(ctx context.Context, forceRefresh bool) (*UpdateInfo, error) {
+// Release checks are cached in memory for 4 hours to avoid rate limits and unnecessary network access.
+// If offline is true, no network calls are made and only local version or cache is returned.
+// When offline is false, it uses cached data within TTL, or queries GitHub Releases when cache is nil/expired.
+func (s *Service) CheckForUpdate(ctx context.Context, forceRefresh bool, offline bool) (*UpdateInfo, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Return cached information if available and within TTL
+	// Return cached information if available and within TTL (unless forceRefresh)
 	if !forceRefresh && s.cachedInfo != nil && time.Since(s.cachedAt) < s.cacheTTL {
 		return s.cachedInfo, nil
 	}
 
-	// Offline-by-default principle:
-	// Do not make background network calls unless explicitly refreshed by the user.
-	if !forceRefresh && s.cachedInfo == nil {
+	// If offline mode is requested (e.g. user opted out of automatic background checks), do not initiate network calls
+	if offline {
+		if s.cachedInfo != nil {
+			return s.cachedInfo, nil
+		}
 		writable, writeErr := CheckExecutableWritable()
 		return &UpdateInfo{
 			CurrentVersion:  CurrentVersion,
@@ -259,7 +261,7 @@ func (s *Service) CheckForUpdate(ctx context.Context, forceRefresh bool) (*Updat
 			ReleaseNotes:    "",
 			ReleaseURL:      "",
 			PublishedAt:     "",
-			CheckedAt:       "", // Empty indicates not checked yet
+			CheckedAt:       "", // Empty indicates not checked
 		}, nil
 	}
 
@@ -475,7 +477,7 @@ func (s *Service) ApplyUpdate(ctx context.Context, database *db.DB) (*ApplyUpdat
 	}
 
 	// 2. Fetch latest release info
-	info, err := s.CheckForUpdate(ctx, true)
+	info, err := s.CheckForUpdate(ctx, true, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check for update: %w", err)
 	}
