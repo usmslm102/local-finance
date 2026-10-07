@@ -53,14 +53,14 @@ func CleanNarration(raw string) CleanedNarration {
 	trimmed := strings.TrimSpace(raw)
 	trimmed = timePrefixRegex.ReplaceAllString(trimmed, "")
 	trimmed = strings.TrimSpace(trimmed)
+	upper := strings.ToUpper(trimmed)
 	res := CleanedNarration{
 		CleanedPayee:    trimmed,
 		PaymentMode:     models.PaymentModeOther,
 		ReferenceNumber: "",
-		IsTransfer:      false,
+		// Detect explicit self transfers before payment-specific parsing returns.
+		IsTransfer: strings.Contains(upper, "SELF TRANSFER"),
 	}
-
-	upper := strings.ToUpper(trimmed)
 
 	// Check card mask last 4 digits
 	if matches := cardMaskRegex.FindStringSubmatch(trimmed); len(matches) > 1 {
