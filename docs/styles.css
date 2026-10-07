@@ -271,3 +271,60 @@ footer > a:last-child { justify-self: end; border-bottom: 1px solid var(--ink); 
   .support-matrix th, .support-matrix td { padding: 16px 12px; }
   .site-header nav > a[href="#compatibility"] { display: block; }
 }
+
+/* Optional AI access sits alongside the existing offline workflow. */
+.hero-copy .hero-mcp-note { max-width: 440px; margin-top: 24px; color: var(--green-light); font-size: 14px; line-height: 1.6; }
+.hero-mcp-note a { text-decoration: underline; text-underline-offset: 4px; text-decoration-color: #637168; }
+.hero-mcp-note a:hover { text-decoration-color: var(--green-light); }
+.hero-copy .hero-mcp-note + .hero-update-note { margin-top: 12px; }
+.mcp { scroll-margin-top: var(--header-h); }
+.mcp .text-link { color: #176c45; border-color: #176c45; }
+.mcp .text-link:hover { color: var(--ink); border-color: var(--ink); }
+.mcp-questions { list-style: none; margin: 30px 0; padding: 0; }
+.mcp-questions li { padding: 16px 0; border-top: 1px solid var(--line); color: #176c45; font-size: clamp(17px, 2vw, 21px); line-height: 1.5; }
+.mcp-questions li:last-child { border-bottom: 1px solid var(--line); }
+.mcp-details h3:not(:first-child) { margin-top: 32px; }
+
+/* Local financial intelligence leads, with an optional AI conversation. */
+.hero h1 { font-size: clamp(57px, 6.3vw, 88px); }
+.hero-copy .hero-ai-disclosure { margin-top: 12px; color: #aebbb5; font-size: 12px; line-height: 1.6; max-width: 440px; }
+.hero-ai-disclosure a { text-decoration: underline; text-underline-offset: 3px; }
+.ai-preview { transform: none; }
+.ai-preview .ledger-topbar { padding-inline: 24px; gap: 16px; }
+.ai-conversation { padding: 28px 32px 32px; }
+.ai-example-label { margin: 0 0 28px; color: #aebbb5; font-size: 11px; }
+.ai-question { margin-left: 40px; padding: 20px 24px; background: #193b2a; border-radius: 12px; font-size: 22px; line-height: 1.4; }
+.ai-evidence { margin-top: 28px; padding-block: 20px; border-block: 1px solid #304238; }
+.ai-evidence > span { color: #aebbb5; font-size: 12px; }
+.ai-evidence dl { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 20px 0 0; }
+.ai-evidence dt { color: #aebbb5; font-size: 12px; }
+.ai-evidence dd { margin: 8px 0 0; font-size: 19px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ai-evidence dl > div:last-child dd { color: var(--green-light); }
+.ai-answer { margin-top: 24px; font-size: 18px; line-height: 1.6; }
+.ai-answer p { margin: 0 0 16px; }
+.ai-answer p:last-child { color: #aebbb5; font-size: 15px; }
+.ai-followup { display: flex; justify-content: space-between; gap: 16px; padding-top: 16px; color: var(--green-light); font-size: 14px; line-height: 1.5; }
+.ai-preview-footer { margin: 0; padding: 18px 32px; background: #13221a; color: #aebbb5; font-size: 12px; line-height: 1.6; }
+@media (max-width: 980px) {
+  .hero h1 { font-size: clamp(64px, 10vw, 88px); }
+}
+@media (max-width: 720px) {
+  .hero h1 { font-size: clamp(52px, 15vw, 76px); }
+  .ai-preview { width: 100%; }
+  .ai-preview .ledger-topbar { padding-inline: 18px; font-size: 11px; }
+  .ai-conversation { padding: 24px 20px; }
+  .ai-question { margin-left: 16px; padding: 16px; font-size: 20px; }
+  .ai-evidence dl { gap: 12px; }
+  .ai-evidence dd { font-size: 16px; }
+  .ai-answer { font-size: 17px; }
+  .ai-preview-footer { padding: 18px 20px; }
+}
+
+.ai-preview .ai-evidence { margin-top: 0; padding-top: 0; border-top: 0; }
+.local-insight { display: flex; align-items: center; gap: 18px; padding: 28px 0; }
+.local-insight strong { color: var(--green-light); font-size: 44px; font-weight: 600; letter-spacing: -.03em; }
+.local-insight span { max-width: 18ch; color: #aebbb5; font-size: 14px; line-height: 1.5; }
+.optional-ai-example { border-top: 1px solid #304238; padding-top: 24px; }
+.optional-ai-example .ai-example-label { margin-bottom: 16px; }
+.optional-ai-example .ai-question { margin-left: 0; padding: 16px 20px; font-size: 18px; background: #14281d; }
+.optional-ai-example > p:last-child { margin: 16px 0 0; color: #aebbb5; font-size: 13px; line-height: 1.6; }

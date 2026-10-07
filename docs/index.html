@@ -3,11 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="LocalFinance is a privacy-first, fully offline personal finance app for Indian banking and credit cards." />
+    <meta name="description" content="Local financial intelligence for Indian banking and credit cards. Understand your money offline, with optional read-only AI access through MCP." />
     <meta name="theme-color" content="#07110d" />
-    <meta property="og:title" content="LocalFinance — Your money stays yours" />
-    <meta property="og:description" content="Private, offline financial intelligence for Indian bank accounts and credit cards." />
-    <title>LocalFinance — Private finance, on your machine</title>
+    <meta property="og:title" content="LocalFinance — Your money, made clear" />
+    <meta property="og:description" content="Your local finance workspace for statements, spending, budgets, and cards. Connect Codex or Claude Code through optional, read-only MCP." />
+    <title>LocalFinance — Local financial intelligence, optional AI</title>
     <link rel="icon" href="./mark.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
@@ -22,6 +22,7 @@
       <nav aria-label="Primary navigation">
         <a href="#features">Features</a>
         <a href="#compatibility">Supported banks</a>
+        <a href="#mcp">AI / MCP</a>
         <a href="#privacy">Privacy</a>
         <a class="nav-github" href="https://github.com/usmslm102/local-finance" target="_blank" rel="noreferrer">
           GitHub
@@ -37,58 +38,51 @@
             <img src="./mark.svg" alt="" width="48" height="48" />
             <span>LocalFinance</span>
           </div>
-          <h1>Your money.<br /><em>Your machine.</em></h1>
-          <p>Private, offline financial intelligence built for Indian bank accounts and credit cards.</p>
+          <h1>Your money.<br /><em>Made clear.</em></h1>
+          <p>Local financial intelligence for Indian bank accounts and credit cards. Understand your spending, cash flow, budgets, and rewards — all on your machine.</p>
           <div class="hero-actions">
             <a class="button button-primary" href="https://github.com/usmslm102/local-finance" target="_blank" rel="noreferrer">
-              View on GitHub
+              Get LocalFinance
               <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 11 11 5M6 5h5v5" /></svg>
             </a>
-            <a class="text-link" href="#workflow">See how it works <span aria-hidden="true">↓</span></a>
+            <a class="text-link" href="#features">Explore the features <span aria-hidden="true">↓</span></a>
           </div>
+          <p class="hero-mcp-note"><a href="#mcp">Want to talk to your finances? Optional AI with Codex or Claude Code.</a></p>
+          <p class="hero-ai-disclosure">Your AI tool may send retrieved data to its model provider. <a href="#mcp">How access works</a></p>
           <p class="hero-update-note"><a href="#updates">Built-in updates. Automatic checks. Opt out in Settings.</a></p>
-          <p class="hero-footnote"><span></span>No cloud. No telemetry. No account aggregator.</p>
+          <p class="hero-footnote"><span></span>No cloud required. No telemetry. No account aggregator.</p>
         </div>
 
-        <div class="ledger-visual" aria-label="Illustrative LocalFinance dashboard preview">
+        <div class="ledger-visual ai-preview" aria-label="Illustrative local finance overview with optional AI conversation">
           <div class="ledger-topbar">
-            <div class="window-dots" aria-hidden="true"><i></i><i></i><i></i></div>
-            <span>Overview</span>
-            <span class="private-status"><i></i> Private</span>
+            <span>LocalFinance · Monthly overview</span>
+            <span class="private-status"><i></i> Local</span>
           </div>
-          <div class="ledger-body">
-            <div class="balance-block">
-              <span>Liquid net worth</span>
-              <strong>₹12,48,320</strong>
-              <small>Illustrative data</small>
+          <div class="ai-conversation">
+            <p class="ai-example-label">Illustrative overview · sample data</p>
+            <div class="ai-evidence">
+              <span>Your month at a glance</span>
+              <dl>
+                <div><dt>Income</dt><dd>₹1,84,000</dd></div>
+                <div><dt>Spending</dt><dd>₹96,420</dd></div>
+                <div><dt>Saved</dt><dd>₹87,580</dd></div>
+              </dl>
             </div>
-            <div class="trend" aria-hidden="true">
-              <svg viewBox="0 0 560 180" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="area" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0" stop-color="#69e7ad" stop-opacity=".3" />
-                    <stop offset="1" stop-color="#69e7ad" stop-opacity="0" />
-                  </linearGradient>
-                </defs>
-                <path class="area" d="M0 145 C45 142 61 115 100 119 S165 139 208 102 S280 88 318 95 S382 65 419 72 S495 25 560 33 V180 H0Z" />
-                <path class="line" d="M0 145 C45 142 61 115 100 119 S165 139 208 102 S280 88 318 95 S382 65 419 72 S495 25 560 33" />
-              </svg>
+            <div class="local-insight"><strong>47.6%</strong><span>of your income saved this month</span></div>
+            <div class="optional-ai-example">
+              <p class="ai-example-label">Optional · Ask your connected AI tool</p>
+              <div class="ai-question">Where can I cut back on spending?</div>
+              <p>Explore your financial context with Codex or Claude Code through read-only MCP.</p>
             </div>
-            <div class="ledger-summary">
-              <div><span>Income</span><strong>₹1,84,000</strong></div>
-              <div><span>Spent</span><strong>₹96,420</strong></div>
-              <div><span>Saved</span><strong>47.6%</strong></div>
-            </div>
-            <div class="transaction-row"><span class="merchant-mark">S</span><span><b>Swiggy</b><small>Dining · HDFC Card</small></span><strong>− ₹684</strong></div>
-            <div class="transaction-row"><span class="merchant-mark">A</span><span><b>Amazon</b><small>Shopping · ICICI Card</small></span><strong>− ₹2,499</strong></div>
           </div>
+          <p class="ai-preview-footer">A complete local workspace. AI access is off by default.</p>
         </div>
-        <p class="hero-note" aria-hidden="true">Runs entirely on <span>localhost</span></p>
+        <p class="hero-note" aria-hidden="true">Local ledger. <span>Optional AI.</span></p>
       </section>
 
       <section class="statement" id="workflow">
         <p>Financial clarity should not cost you your financial privacy.</p>
-        <h2>Import statements. Understand everything. Keep every byte local.</h2>
+        <h2>Import statements. Understand everything. Keep your ledger local.</h2>
       </section>
 
       <section class="workflow" aria-label="How LocalFinance works">
@@ -110,8 +104,8 @@
 
       <section class="features" id="features">
         <div class="section-heading">
-          <h2>One private home for your financial life.</h2>
-          <p>From a single transaction to a decade of statements, LocalFinance makes your money legible.</p>
+          <h2>One private home<br />for your financial life.</h2>
+          <p>From statement imports to monthly reviews, get a clear picture of your money in one local workspace. Every core feature works without an AI connection.</p>
         </div>
 
         <div class="feature-index">
@@ -145,6 +139,32 @@
             <div><h3>Smart reconciliation</h3><p>Pair card payments with bank debits, exclude wallet loads, and prevent transfers from inflating your spending totals.</p></div>
             <span>Match · Verify</span>
           </article>
+          <article>
+            <div class="feature-symbol"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v12H9l-5 4V4zM8 8h8M8 12h5" /></svg></div>
+            <div><h3>Talk to your finances</h3><p>Connect Codex, Claude Code, or a compatible AI tool through opt-in MCP. Ask questions about your spending, cash flow, and cards with read-only access.</p></div>
+            <span>Opt-in · MCP</span>
+          </article>
+        </div>
+      </section>
+
+      <section class="mcp updates" id="mcp" aria-labelledby="mcp-title">
+        <div class="mcp-copy">
+          <h2 id="mcp-title">Your finances.<br />An optional conversation.</h2>
+          <p>Bring your financial context to <strong>Codex, Claude Code, or another AI tool that supports local MCP connections</strong>. Ask about your transactions, budgets, subscriptions, cash flow, and credit cards in everyday language.</p>
+          <ul class="mcp-questions" aria-label="Example questions to ask your AI tool">
+            <li>“Where did I spend more this month?”</li>
+            <li>“Which subscriptions are coming up?”</li>
+            <li>“Which card should I use for this purchase?”</li>
+          </ul>
+          <a class="text-link" href="https://github.com/usmslm102/local-finance#ai-tools-and-mcp-opt-in" target="_blank" rel="noreferrer">Set up MCP <span aria-hidden="true">↗</span></a>
+        </div>
+        <div class="updates-details mcp-details">
+          <h3>Off by default. You control access.</h3>
+          <p>Enable or disable MCP in <strong>Settings → AI / MCP</strong>. Connect your tool using the provided configuration and an access token. Rotate the token to revoke existing client access.</p>
+          <h3>Read-only financial context.</h3>
+          <p>AI tools can retrieve insights and transaction details. They cannot edit your ledger, import statements, or change your settings. Keep LocalFinance running while you use the connection.</p>
+          <h3>Choose your AI tool with care.</h3>
+          <p>LocalFinance serves data locally and never contacts an AI provider. Your connected AI tool may send retrieved financial data to its model provider. Its privacy settings and policies apply.</p>
         </div>
       </section>
 
@@ -218,7 +238,7 @@
 
       <section class="closing">
         <h2>Know your money.<br />Keep it yours.</h2>
-        <p>LocalFinance is open source and built for people who believe privacy should be the default.</p>
+        <p>Your financial intelligence stays on your machine. Add an AI conversation when you choose. Open source, private by default.</p>
         <a class="button button-light" href="https://github.com/usmslm102/local-finance" target="_blank" rel="noreferrer">Explore the repository <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 11 11 5M6 5h5v5" /></svg></a>
       </section>
     </main>
