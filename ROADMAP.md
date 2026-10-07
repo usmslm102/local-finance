@@ -323,3 +323,12 @@ Future Roadmap Priorities
 | **Routing & Tables** | Navigation | **TanStack Router + TanStack Table** |
 | **Package Manager** | Tooling | **pnpm (Strictly enforced)** |
 | **Icons & Charts** | Visuals | **Lucide Icons + Recharts** |
+
+## Opt-in AI access through MCP
+
+- [x] Local Streamable HTTP endpoint, disabled by default, embedded in the single Go binary.
+- [x] Shared read-only bearer token, independent of the UI lock, with rotation and disable controls.
+- [x] Finance tools across all existing views, using the existing database/service calculations.
+- [x] Settings setup instructions for Codex, Claude Code, and generic HTTP MCP clients.
+- [x] Account metadata masking, bounded collection responses, and restore/reset revocation.
+- [ ] Future: separately authorized write/import tools and finer-grained client permissions.

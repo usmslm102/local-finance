@@ -13,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"local-finance/internal/db"
+	"local-finance/internal/mcp"
 	"local-finance/internal/models"
 	"local-finance/internal/parser"
 	"local-finance/internal/service"
@@ -20,6 +21,7 @@ import (
 )
 
 type Handler struct {
+	mcpManager     *mcp.Manager
 	db             *db.DB
 	service        *service.TransactionService
 	sessionManager *SessionManager
@@ -27,8 +29,14 @@ type Handler struct {
 }
 
 func NewHandler(database *db.DB, svc *service.TransactionService) *Handler {
+	manager := mcp.NewManager(database)
+	return newHandler(database, svc, manager)
+}
+
+func newHandler(database *db.DB, svc *service.TransactionService, manager *mcp.Manager) *Handler {
 	return &Handler{
 		db:             database,
+		mcpManager:     manager,
 		service:        svc,
 		sessionManager: NewSessionManager(),
 		updaterService: updater.NewService(),
@@ -93,10 +101,10 @@ func (h *Handler) ListTransactions(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"items":     transactions,
-		"total":     total,
-		"page":      page,
-		"page_size": pageSize,
+		"items":       transactions,
+		"total":       total,
+		"page":        page,
+		"page_size":   pageSize,
 		"total_pages": (total + pageSize - 1) / pageSize,
 	})
 }
@@ -384,6 +392,10 @@ func (h *Handler) ListParsers(c *gin.Context) {
 }
 
 func (h *Handler) ResetDatabase(c *gin.Context) {
+	if err := h.mcpManager.Revoke(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to revoke MCP access"})
+		return
+	}
 	if err := h.db.ResetDatabase(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -439,11 +451,16 @@ func (h *Handler) RestoreDatabase(c *gin.Context) {
 	}
 	defer file.Close()
 
+	if err := h.mcpManager.Revoke(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to revoke MCP access"})
+		return
+	}
 	if err := h.db.RestoreFrom(file); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
+	_ = h.mcpManager.Start() // Reload restored preferences; restored MCP access is always disabled.
 	info, _ := h.db.GetDatabaseInfo()
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Database successfully restored from backup",

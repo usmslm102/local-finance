@@ -66,6 +66,11 @@ func NewDB(dbPath string) (*DB, error) {
 }
 
 func (d *DB) ResetDatabase() error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if err := d.clearMCPAccess(); err != nil {
+		return err
+	}
 	tx, err := d.conn.Begin()
 	if err != nil {
 		return err
@@ -1706,6 +1711,9 @@ func (d *DB) BackupTo(targetPath string) error {
 func (d *DB) RestoreFrom(r io.Reader) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	if err := d.clearMCPAccess(); err != nil {
+		return err
+	}
 
 	tempFile := d.path + ".restore.tmp"
 	defer os.Remove(tempFile)
@@ -1773,6 +1781,11 @@ func (d *DB) RestoreFrom(r io.Reader) error {
 	// Run migrations to ensure restored DB is up to date
 	if err := d.migrate(); err != nil {
 		return fmt.Errorf("restored database migration failed: %w", err)
+	}
+
+	// Restored credentials must never reactivate MCP access.
+	if err := d.clearMCPAccess(); err != nil {
+		return err
 	}
 
 	// Ensure seed categories & rules exist

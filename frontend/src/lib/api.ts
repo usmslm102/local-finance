@@ -842,3 +842,29 @@ export async function applySystemUpdate(): Promise<import("../types").ApplyUpdat
   }
   return res.json()
 }
+
+export interface MCPSettings {
+  enabled: boolean
+  port: number
+  has_token: boolean
+  listening: boolean
+  endpoint: string
+  error?: string
+}
+
+async function mcpRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetchWithAuth(`${BASE_URL}/mcp/${path}`, init)
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error || 'Unable to update MCP access')
+  return data
+}
+
+export function fetchMCPSettings(): Promise<MCPSettings> {
+  return mcpRequest('settings')
+}
+export function updateMCPSettings(enabled: boolean, port: number): Promise<MCPSettings> {
+  return mcpRequest('settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled, port }) })
+}
+export function rotateMCPToken(): Promise<{ token: string; settings: MCPSettings }> {
+  return mcpRequest('token/rotate', { method: 'POST' })
+}

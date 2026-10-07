@@ -17,6 +17,7 @@ import (
 	localfinance "local-finance"
 	"local-finance/internal/api"
 	"local-finance/internal/db"
+	"local-finance/internal/mcp"
 	"local-finance/internal/service"
 	"local-finance/internal/updater"
 )
@@ -48,7 +49,12 @@ func main() {
 	defer database.Close()
 
 	svc := service.NewTransactionService(database)
-	router := api.SetupRouter(database, svc, localfinance.GetStaticFS())
+	mcpManager := mcp.NewManager(database)
+	if err := mcpManager.Start(); err != nil {
+		log.Printf("MCP unavailable: %v", err)
+	}
+	defer mcpManager.Close()
+	router := api.SetupRouter(database, svc, localfinance.GetStaticFS(), mcpManager)
 
 	addr := fmt.Sprintf("127.0.0.1:%d", *port)
 
@@ -77,6 +83,7 @@ func main() {
 	// Register server details and graceful shutdown hook with updater
 	updater.RegisterServerContext(actualPort, finalDBPath, func(ctx context.Context) error {
 		log.Printf("🛑 Releasing listener and shutting down HTTP server on %s for updater restart...", actualAddr)
+		mcpManager.Close()
 		return srv.Shutdown(ctx)
 	})
 

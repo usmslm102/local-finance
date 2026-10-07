@@ -821,7 +821,7 @@ export interface SubscriptionsSearchParams {
 }
 
 export interface SettingsSearchParams {
-  tab?: 'general' | 'accounts' | 'categories' | 'rules' | 'security' | 'database' | 'sound'
+  tab?: 'general' | 'accounts' | 'categories' | 'rules' | 'security' | 'database' | 'sound' | 'mcp'
 }
 
 export interface CalendarSearchParams {

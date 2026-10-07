@@ -487,3 +487,80 @@ The review is read-only, runs offline, and uses the app's existing authenticatio
 
 ## 📄 License
 MIT License. Free and open source for local personal finance intelligence.
+
+## AI tools and MCP (opt-in)
+
+LocalFinance can serve **read-only** finance data to AI tools through a local
+Streamable HTTP MCP endpoint. MCP is disabled by default, and LocalFinance must
+remain running. It does not call an AI provider itself. Your connected AI tool
+may send returned transactions, notes, payees, balances, and reports to its model
+provider. Review that tool's data policy before connecting.
+
+1. Open **Settings → AI / MCP** and click **Create access token**.
+2. Save the token; LocalFinance shows it once and stores only its SHA-256 hash.
+3. Enable MCP. The default endpoint is `http://127.0.0.1:8081/mcp`.
+4. Copy the configuration for your client from Settings. One shared token works
+   across all your clients. Keep it in private user configuration, never in a repo.
+
+For Codex, add this to your private `config.toml`:
+
+```toml
+[mcp_servers.localfinance]
+url = "http://127.0.0.1:8081/mcp"
+bearer_token_env_var = "LOCALFINANCE_MCP_TOKEN"
+```
+
+Set `LOCALFINANCE_MCP_TOKEN` in the environment that launches Codex. Alternatively,
+replace `bearer_token_env_var` with a private static header:
+
+```toml
+http_headers = { Authorization = "Bearer YOUR_TOKEN" }
+```
+
+For Claude Code, add a private, user-scoped connection:
+
+```bash
+claude mcp add --transport http --scope user localfinance \
+  http://127.0.0.1:8081/mcp --header "Authorization: Bearer YOUR_TOKEN"
+```
+
+For another MCP client, select **Streamable HTTP**, use the endpoint above, and
+set the header `Authorization: Bearer YOUR_TOKEN`. Clients running only in the
+cloud cannot reach this computer's loopback address. There is no stdio transport,
+remote hosting, or automatic app startup. Client configuration references:
+[Codex MCP](https://learn.chatgpt.com/docs/extend/mcp?surface=cli) and
+[Claude Code MCP](https://code.claude.com/docs/en/mcp).
+
+### Access and revocation
+
+- The token grants read-only finance access and **remains usable while the UI is
+  locked**. It cannot authenticate against LocalFinance's REST API or settings.
+- Disable MCP to close the listener and cancel active requests. Re-enabling uses
+  the same token. Rotate the token to invalidate it and update every client.
+- Restoring or resetting the database disables MCP and clears its credentials,
+  including credentials present in a restored backup.
+- If the port is occupied, the app keeps running and Settings shows the failure.
+  Choose another port and save, then update your clients' endpoint URLs.
+- Returned data cannot be recalled from an AI client after disabling access.
+
+### Available data
+
+Tools cover accounts, transaction search and calendar ranges, categories and rules,
+overview, monthly review and its evidence, cash flow, salary, yearly Wrapped,
+credit-card portfolio/bills/reward rules and hypothetical card comparisons,
+budgets, existing subscriptions, reconciliation summaries, merchants, statement
+import history, parser capabilities, and the local app version. No tool imports,
+scans, changes data, reads arbitrary files, executes SQL, exports the database,
+manages security, or checks/applies software updates.
+
+Account numbers are represented by their existing masked identifiers; full
+account-number fields, customer IDs, and account-holder fields are omitted,
+including in nested reports. Narration and user notes are included and may contain
+sensitive information. The UI's privacy blur is a display preference, not an MCP
+access control.
+
+Tool results include `data` and `pagination`. Collections default to 50 items,
+with a maximum `page_size` of 200. Nested collections use JSON-pointer paths in
+`pagination`; `page` applies independently to each collection, and `has_more`
+indicates additional results. Transaction search uses database pagination.
+Monthly review evidence retains the app's fixed page size of 50.

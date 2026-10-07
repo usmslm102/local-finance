@@ -8,10 +8,11 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"local-finance/internal/db"
+	"local-finance/internal/mcp"
 	"local-finance/internal/service"
 )
 
-func SetupRouter(database *db.DB, svc *service.TransactionService, staticFS fs.FS) *gin.Engine {
+func SetupRouter(database *db.DB, svc *service.TransactionService, staticFS fs.FS, managers ...*mcp.Manager) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.Use(gin.Recovery())
@@ -26,11 +27,16 @@ func SetupRouter(database *db.DB, svc *service.TransactionService, staticFS fs.F
 		AllowCredentials: true,
 	}))
 
-	h := NewHandler(database, svc)
+	manager := mcp.NewManager(database)
+	if len(managers) > 0 {
+		manager = managers[0]
+	}
+	h := newHandler(database, svc, manager)
 
 	// API Group
 	apiGroup := r.Group("/api")
 	apiGroup.Use(h.AuthMiddleware())
+	apiGroup.Use(mcpManagementProtection())
 	{
 		apiGroup.GET("/health", h.HealthCheck)
 		apiGroup.GET("/auth/status", h.GetAuthStatus)
@@ -40,6 +46,10 @@ func SetupRouter(database *db.DB, svc *service.TransactionService, staticFS fs.F
 		apiGroup.POST("/auth/change-password", h.ChangePassword)
 		apiGroup.POST("/auth/disable", h.DisableAuth)
 		apiGroup.PUT("/auth/settings", h.UpdateSecuritySettings)
+
+		apiGroup.GET("/mcp/settings", h.GetMCPSettings)
+		apiGroup.PUT("/mcp/settings", h.UpdateMCPSettings)
+		apiGroup.POST("/mcp/token/rotate", h.RotateMCPToken)
 
 		apiGroup.GET("/accounts", h.ListAccounts)
 		apiGroup.PUT("/accounts/:id", h.UpdateAccount)

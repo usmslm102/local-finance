@@ -23,6 +23,7 @@ import {
   updateSecuritySettings,
 } from '@/lib/api'
 import { useSystemUpdate } from '@/hooks/use-system-update'
+import { MCPSettingsPanel } from './MCPSettingsPanel'
 import { Switch } from '@/components/ui/switch'
 import { useAuth } from '@/components/auth/AuthProvider'
 import { useTheme } from '@/components/theme-provider'
@@ -99,7 +100,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 
-type SettingsTab = 'general' | 'security' | 'rules' | 'parsers' | 'database'
+type SettingsTab = 'general' | 'security' | 'rules' | 'parsers' | 'database' | 'mcp'
 
 interface SettingsViewProps {
   initialTab?: SettingsTab
@@ -596,6 +597,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
       icon: Cpu,
       desc: 'Sniffing engines & statement plugins',
     },
+    { id: 'mcp', label: 'AI / MCP', icon: ShieldCheck, desc: 'Read-only AI connections' },
     {
       id: 'database',
       label: 'Data & Storage',
@@ -667,6 +669,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
 
         {/* Right Tab Content */}
         <main className="lg:col-span-9 space-y-6">
+          {activeTab === 'mcp' && <MCPSettingsPanel />}
           {/* TAB 1: GENERAL & PREFERENCES */}
           {activeTab === 'general' && (
             <div className="space-y-6">

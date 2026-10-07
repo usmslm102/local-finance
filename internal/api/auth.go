@@ -136,6 +136,10 @@ func extractToken(c *gin.Context) string {
 func (h *Handler) AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		settings, _, err := h.db.GetSecuritySettings()
+		if err != nil && strings.HasPrefix(c.Request.URL.Path, "/api/mcp/") {
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Unable to read security settings"})
+			return
+		}
 		if err != nil || !settings.AuthEnabled {
 			c.Next()
 			return
