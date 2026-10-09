@@ -69,6 +69,8 @@ LocalFinance features dedicated parsers for major Indian banks, with native extr
 
 Synthetic ICICI and Union Bank savings PDFs in `samples/savings/` exercise parser detection and full PDF extraction in the test suite. They contain only fabricated names, descriptions, dates, and amounts.
 
+Sample statements are embedded in the application binary. The sample buttons on **Import Statements** work offline without a separate `samples/` directory.
+
 ### Investment Statements and Samples
 
 Import portfolio holdings through **Import Statements → Investments**. Attach a supported workbook, review its preview, and import it. The **Investments** page shows dated holdings, provider fields, and original worksheets.
