@@ -7,12 +7,14 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	localfinance "local-finance"
 	"local-finance/internal/db"
 	"local-finance/internal/mcp"
 	"local-finance/internal/models"
@@ -994,10 +996,10 @@ func (h *Handler) ServeSampleStatement(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "path query parameter required"})
 		return
 	}
-	cleanPath := filepath.Clean(relPath)
+	cleanPath := path.Clean(relPath)
 	if strings.Contains(cleanPath, "..") || !strings.HasPrefix(cleanPath, "samples/") {
 		c.JSON(http.StatusForbidden, gin.H{"error": "invalid sample file path"})
 		return
 	}
-	c.File(cleanPath)
+	c.FileFromFS(cleanPath, http.FS(localfinance.GetSampleFS()))
 }
