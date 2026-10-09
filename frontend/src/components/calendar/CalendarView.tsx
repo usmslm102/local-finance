@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { fetchAccounts, fetchTransactions } from '@/lib/api'
+import { fetchAccounts, fetchAllTransactions } from '@/lib/api'
 import { Transaction, Account } from '@/types'
 import { formatDate, formatINR } from '@/lib/utils'
 import {
@@ -98,13 +98,12 @@ export const CalendarView: React.FC = () => {
   const lastDayOfMonth = new Date(year, month + 1, 0).getDate()
   const endOfMonthStr = makeDateKey(year, month, lastDayOfMonth)
 
-  const { data: txResponse } = useQuery({
+  const { data: rawTransactions } = useQuery({
     queryKey: ['transactions', 'calendar', startOfMonthStr, endOfMonthStr],
     queryFn: () =>
-      fetchTransactions({
+      fetchAllTransactions({
         start_date: startOfMonthStr,
         end_date: endOfMonthStr,
-        page_size: 5000,
       }),
   })
 
@@ -119,7 +118,6 @@ export const CalendarView: React.FC = () => {
     return map
   }, [accounts])
 
-  const rawTransactions = txResponse?.items
   const transactions = useMemo(() => rawTransactions || [], [rawTransactions])
 
   // Group transactions by normalized date (YYYY-MM-DD)

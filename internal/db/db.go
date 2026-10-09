@@ -628,6 +628,8 @@ type TransactionFilter struct {
 	StartDate  string
 	EndDate    string
 	IsTransfer *bool
+	MinAmount  *float64
+	MaxAmount  *float64
 	Limit      int
 	Offset     int
 }
@@ -668,6 +670,14 @@ func (d *DB) ListTransactions(f TransactionFilter) ([]models.Transaction, int, e
 		where = append(where, "(t.raw_narration LIKE ? OR t.cleaned_payee LIKE ? OR t.reference_number LIKE ? OR t.upi_vpa LIKE ?)")
 		searchTerm := "%" + f.Search + "%"
 		args = append(args, searchTerm, searchTerm, searchTerm, searchTerm)
+	}
+	if f.MinAmount != nil {
+		where = append(where, "t.amount >= ?")
+		args = append(args, *f.MinAmount)
+	}
+	if f.MaxAmount != nil {
+		where = append(where, "t.amount <= ?")
+		args = append(args, *f.MaxAmount)
 	}
 
 	whereClause := strings.Join(where, " AND ")

@@ -373,6 +373,8 @@ export const TransactionTable: React.FC = () => {
       txType,
       startDate,
       endDate,
+      minAmount,
+      maxAmount,
     ],
     queryFn: () =>
       fetchTransactions({
@@ -384,6 +386,8 @@ export const TransactionTable: React.FC = () => {
         tx_type: txType !== 'ALL' ? txType : undefined,
         start_date: startDate,
         end_date: endDate,
+        min_amount: minAmount || undefined,
+        max_amount: maxAmount || undefined,
       }),
   })
 
@@ -429,22 +433,8 @@ export const TransactionTable: React.FC = () => {
     })
   }
 
-  const filteredItems = useMemo(() => {
-    let list = data?.items || []
-    if (minAmount) {
-      const min = parseFloat(minAmount)
-      if (!isNaN(min)) {
-        list = list.filter((t) => t.amount >= min)
-      }
-    }
-    if (maxAmount) {
-      const max = parseFloat(maxAmount)
-      if (!isNaN(max)) {
-        list = list.filter((t) => t.amount <= max)
-      }
-    }
-    return list
-  }, [data?.items, minAmount, maxAmount])
+  // The API applies every filter before counting and paginating transactions.
+  const filteredItems = useMemo(() => data?.items || [], [data?.items])
 
   // Financial summary of visible/filtered transactions on the current page
   const pageStats = useMemo(() => {

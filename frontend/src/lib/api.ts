@@ -142,6 +142,8 @@ export async function fetchCreditCardBills(accountId?: string): Promise<import('
 }
 
 export interface TransactionParams {
+  min_amount?: string
+  max_amount?: string
   account_id?: string
   category_id?: string
   tx_type?: string
@@ -154,6 +156,8 @@ export interface TransactionParams {
 
 export async function fetchTransactions(params: TransactionParams = {}): Promise<TransactionListResponse> {
   const query = new URLSearchParams()
+  if (params.min_amount) query.append('min_amount', params.min_amount)
+  if (params.max_amount) query.append('max_amount', params.max_amount)
   if (params.account_id) query.append('account_id', params.account_id)
   if (params.category_id) query.append('category_id', params.category_id)
   if (params.tx_type) query.append('tx_type', params.tx_type)
@@ -166,6 +170,22 @@ export async function fetchTransactions(params: TransactionParams = {}): Promise
   const res = await fetchWithAuth(`${BASE_URL}/transactions?${query.toString()}`)
   if (!res.ok) throw new Error('Failed to fetch transactions')
   return res.json()
+}
+
+// For views that search or aggregate the whole matching set rather than one page.
+export async function fetchAllTransactions(
+  params: Omit<TransactionParams, 'page' | 'page_size'> = {}
+): Promise<Transaction[]> {
+  const items: Transaction[] = []
+  let page = 1
+  let totalPages = 1
+  do {
+    const result = await fetchTransactions({ ...params, page, page_size: 5000 })
+    items.push(...result.items)
+    totalPages = result.total_pages
+    page += 1
+  } while (page <= totalPages)
+  return items
 }
 
 export interface UpdateTransactionPayload {

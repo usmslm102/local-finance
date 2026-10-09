@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -64,6 +65,17 @@ func (h *Handler) ListAccounts(c *gin.Context) {
 }
 
 func (h *Handler) ListTransactions(c *gin.Context) {
+	amountBounds := make(map[string]*float64, 2)
+	for _, key := range []string{"min_amount", "max_amount"} {
+		if raw := c.Query(key); raw != "" {
+			value, err := strconv.ParseFloat(raw, 64)
+			if err != nil || math.IsNaN(value) || math.IsInf(value, 0) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": key + " must be a finite number"})
+				return
+			}
+			amountBounds[key] = &value
+		}
+	}
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "50"))
 	if page < 1 {
@@ -87,6 +99,8 @@ func (h *Handler) ListTransactions(c *gin.Context) {
 		StartDate:  c.Query("start_date"),
 		EndDate:    c.Query("end_date"),
 		IsTransfer: isTransferPtr,
+		MinAmount:  amountBounds["min_amount"],
+		MaxAmount:  amountBounds["max_amount"],
 		Limit:      pageSize,
 		Offset:     (page - 1) * pageSize,
 	}
