@@ -1,0 +1,9 @@
+Date,Description,Category,Cost,Currency,Sanjay Example,Asha Example,Dev Example
+
+2026-09-01,Example group dinner,Food & Dining,300.00,INR,200.00,-100.00,-100.00
+2026-09-02,Example shared taxi,Travel,150.00,INR,-50.00,100.00,-50.00
+2026-09-03,Sanjay Example paid Asha Example,Payment,50.00,INR,50.00,-50.00,0.00
+2026-09-04,Dev Example paid Sanjay Example,Payment,80.00,INR,-80.00,0.00,80.00
+2026-09-05,Example multi-payer groceries,Groceries,200.00,INR,0.00,60.00,-60.00
+
+2026-09-30,Total balance, , ,INR,120.00,10.00,-130.00

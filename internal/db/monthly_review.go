@@ -69,7 +69,7 @@ func (d *DB) GetMonthlyReview(month string, now time.Time) (*models.MonthlyRevie
 
 	months := []string{}
 	rows, err := tx.Query(`SELECT DISTINCT month FROM (
-		SELECT substr(tx_date, 1, 7) AS month FROM transactions
+		SELECT substr(tx_date, 1, 7) AS month FROM personal_transactions
 		UNION SELECT substr(end_date, 1, 7) FROM statement_imports
 	) WHERE month <= ? ORDER BY month DESC`, now.Format("2006-01"))
 	if err != nil {
@@ -119,7 +119,7 @@ func (d *DB) GetMonthlyReview(month string, now time.Time) (*models.MonthlyRevie
 
 	rows, err = tx.Query(`SELECT t.tx_date, COALESCE(t.category_id, ''), COALESCE(c.name, 'Uncategorized'),
 		COALESCE(NULLIF(TRIM(t.cleaned_payee), ''), 'Unknown payee'), t.amount
-		FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
+		FROM personal_transactions t LEFT JOIN categories c ON c.id = t.category_id
 		WHERE `+reviewSpending+` AND ((t.tx_date BETWEEN ? AND ?) OR (t.tx_date BETWEEN ? AND ?))`,
 		current.Start, current.End, previous.Start, previous.End)
 	if err != nil {
@@ -187,7 +187,7 @@ func (d *DB) GetMonthlyReview(month string, now time.Time) (*models.MonthlyRevie
 }
 
 func readReviewCoverage(tx *sql.Tx, current, previous models.ReviewPeriod) ([]models.ReviewCoverage, error) {
-	rows, err := tx.Query(`SELECT a.id, COALESCE(NULLIF(a.nickname, ''), a.bank_name) ||
+	rows, err := tx.Query(`SELECT a.id, COALESCE(NULLIF(a.nickname, ''), a.bank_name, 'Splitwise') ||
 		CASE WHEN COALESCE(a.account_number_mask, '') = '' THEN '' ELSE ' · ' || a.account_number_mask END,
 		COALESCE(s.start_date, ''), COALESCE(s.end_date, '')
 		FROM accounts a LEFT JOIN statement_imports s ON s.account_id = a.id ORDER BY a.id`)
@@ -262,13 +262,13 @@ func (d *DB) GetMonthlyReviewEvidence(month, category string, previous bool, pag
 	defer tx.Rollback()
 	result := &models.ReviewEvidence{Items: []models.ReviewTransaction{}, Page: page, PageSize: 50, Period: period}
 	where := reviewSpending + ` AND t.tx_date BETWEEN ? AND ? AND COALESCE(t.category_id, '') = ?`
-	if err := tx.QueryRow(`SELECT COUNT(*) FROM transactions t WHERE `+where,
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM personal_transactions t WHERE `+where,
 		period.Start, period.End, category).Scan(&result.Total); err != nil {
 		return nil, err
 	}
 	rows, err := tx.Query(`SELECT t.id, t.tx_date, COALESCE(NULLIF(TRIM(t.cleaned_payee), ''), 'Unknown payee'),
-		COALESCE(NULLIF(a.nickname, ''), a.bank_name) || ' · ' || COALESCE(a.account_number_mask, ''), t.amount
-		FROM transactions t JOIN accounts a ON a.id = t.account_id WHERE `+where+`
+		COALESCE(NULLIF(a.nickname, ''), a.bank_name, 'Splitwise') || ' · ' || COALESCE(a.account_number_mask, ''), t.amount
+		FROM personal_transactions t LEFT JOIN accounts a ON a.id = t.account_id WHERE `+where+`
 		ORDER BY t.tx_date DESC, t.id LIMIT ? OFFSET ?`, period.Start, period.End, category, result.PageSize, (page-1)*result.PageSize)
 	if err != nil {
 		return nil, err

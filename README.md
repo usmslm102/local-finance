@@ -1,5 +1,7 @@
 # 🇮🇳 LocalFinance
 
+Splitwise group CSVs can now be imported under **Statement Import → Splitwise** to reconcile your personal share with bank statements. See [Splitwise usage and accounting rules](docs/splitwise.md) and the [fictional sample export](samples/splitwise/fictional-group.csv).
+
 [![CI](https://github.com/usmslm102/local-finance/actions/workflows/ci.yml/badge.svg)](https://github.com/usmslm102/local-finance/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Website](https://img.shields.io/badge/Website-usamaansari.com-emerald)](https://usamaansari.com/local-finance/)
