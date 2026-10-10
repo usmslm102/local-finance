@@ -135,7 +135,7 @@ export function MCPSettingsPanel() {
             <Badge variant="outline">
               {settings.listening
                 ? settings.allow_statement_writes
-                  ? "Listening · statement writes"
+                  ? "Listening · statement and investment writes"
                   : settings.allow_categorization_writes
                   ? 'Listening · category and rule writes'
                   : 'Listening · read-only'
@@ -198,9 +198,9 @@ export function MCPSettingsPanel() {
           </div>
           <div className="flex items-center justify-between gap-4">
             <div>
-              <Label htmlFor="mcp-statement-writes">Allow statement imports and deletion</Label>
+              <Label htmlFor="mcp-statement-writes">Allow statement and investment uploads</Label>
               <p className="text-sm text-muted-foreground">
-                All clients sharing your token can import CSV files by local path and
+                All clients sharing your token can import bank CSVs and investment workbooks by local path and
                 permanently delete specific uploads and their transactions, including manual edits.
               </p>
             </div>

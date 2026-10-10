@@ -583,11 +583,21 @@ remote hosting, or automatic app startup. Client configuration references:
 Tools cover accounts, transaction search and calendar ranges, categories and rules,
 overview, monthly review and its evidence, cash flow, salary, yearly Wrapped,
 credit-card portfolio/bills/reward rules and hypothetical card comparisons,
-budgets, existing subscriptions, reconciliation summaries, merchants, statement
+budgets, existing subscriptions, reconciliation summaries, merchants, investments, statement
 import history, parser capabilities, and the local app version. Optional write
 permissions below expose rule saves, verified CSV imports and upload deletion.
 No tool reads arbitrary files, executes SQL, exports the database, manages security,
 or checks/applies software updates.
+
+### Investment views and upload requirements
+
+`list_investments` returns dated portfolio summaries. Use `get_investment_snapshot`
+with a snapshot `id` for paginated normalized holdings. Missing costs/returns stay
+null; currencies remain separate. Use only the latest snapshot per `portfolio_key`
+for totals. Account references are masked; original worksheets and arbitrary
+provider fields remain available in the app and are omitted from MCP responses.
+`list_investment_formats` describes upload formats, provider layout requirements
+and the size limit; these three tools are available with read-only MCP access.
 
 ### Optional category and rule writes
 
@@ -614,9 +624,9 @@ Creation generates an id, so retrying without that id can create another record.
 Use the returned id for updates. Disable write permission to remove both tools;
 finance reads remain available while MCP is enabled.
 
-### Optional statement imports and deletion
+### Optional statement and investment uploads
 
-Enable **Settings → AI / MCP → Allow statement imports and deletion** separately
+Enable **Settings → AI / MCP → Allow statement and investment uploads** separately
 from category/rule writes. It is off by default. Refresh client tool discovery.
 
 - `import_statement_csv`: ask the agent to parse and verify a statement, save the
@@ -626,6 +636,11 @@ from category/rule writes. It is off by default. Refresh client tool discovery.
   resolves or creates the account. Imports use existing deduplication and preserve
   manual categories, notes and tags. Only regular local .csv files up to 20 MiB
   are supported; network paths and symlinks are rejected.
+- `import_investment_statement`: pass the absolute local `path` of an original
+  provider export (up to 10 MiB). Call `list_investment_formats` for supported
+  formats and provider requirements: Zerodha `.xlsx` and INDmoney `.xls`.
+  Returns a masked snapshot summary and duplicate status; identical files retain
+  the same snapshot ID. Investment snapshots never create bank transactions.
 - `delete_statement_import`: pass the exact `statement_import_id` returned by
   import or listed in `list_statement_imports`. Permanently removes transactions
   and bills currently associated with that upload, including their manual edits,

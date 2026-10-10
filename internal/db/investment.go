@@ -40,6 +40,21 @@ func (d *DB) ListInvestmentSnapshots() ([]models.InvestmentSnapshot, error) {
 	return d.listInvestmentSnapshots()
 }
 
+// GetInvestmentSnapshot loads one portfolio without decoding unrelated history.
+func (d *DB) GetInvestmentSnapshot(id string) (*models.InvestmentSnapshot, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	var data string
+	if err := d.conn.QueryRow(`SELECT data_json FROM investment_snapshots WHERE id = ?`, id).Scan(&data); err != nil {
+		return nil, err
+	}
+	var snapshot models.InvestmentSnapshot
+	if err := json.Unmarshal([]byte(data), &snapshot); err != nil {
+		return nil, err
+	}
+	return &snapshot, nil
+}
+
 // listInvestmentSnapshots requires the caller to hold d.mu. Export already
 // holds a read lock, so it must not recursively acquire it with a writer waiting.
 func (d *DB) listInvestmentSnapshots() ([]models.InvestmentSnapshot, error) {

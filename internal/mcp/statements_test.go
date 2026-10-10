@@ -27,7 +27,7 @@ func TestStatementWritesImportReimportDeleteAndPermissions(t *testing.T) {
 	for _, permissions := range []struct {
 		categories, statements bool
 		count                  int
-	}{{false, false, 23}, {true, false, 25}, {false, true, 25}, {true, true, 27}} {
+	}{{false, false, 26}, {true, false, 28}, {false, true, 29}, {true, true, 31}} {
 		if _, err := m.ConfigureAccess(true, m.Status().Port, &permissions.categories, &permissions.statements); err != nil {
 			t.Fatal(err)
 		}
@@ -124,12 +124,12 @@ func TestStatementWritesImportReimportDeleteAndPermissions(t *testing.T) {
 
 func TestLocalCSVPathPolicy(t *testing.T) {
 	for _, path := range []string{`\\server\share\statement.csv`, `//server/share/statement.csv`, `\/server/share/statement.csv`, `/\server/share/statement.csv`, `\\?\C:\statement.csv`, `\\.\pipe\statement.csv`, `C:\statement.csv:secret.csv`, "relative.csv"} {
-		if validLocalCSVPath(path) {
+		if validLocalStatementPath(path, []string{".csv"}) {
 			t.Errorf("accepted network/device/relative path %q", path)
 		}
 	}
 	root := t.TempDir()
-	if !validLocalCSVPath(filepath.Join(root, "statement.csv")) {
+	if !validLocalStatementPath(filepath.Join(root, "statement.csv"), []string{".csv"}) {
 		t.Fatal("rejected local absolute path")
 	}
 	t.Run("symlink ancestors", func(t *testing.T) {
@@ -141,7 +141,7 @@ func TestLocalCSVPathPolicy(t *testing.T) {
 		if err := os.Symlink(target, link); err != nil {
 			t.Skipf("symlinks unavailable: %v", err)
 		}
-		if err := checkCSVPathComponents(filepath.Join(link, "statement.csv")); err == nil {
+		if err := checkStatementPathComponents(filepath.Join(link, "statement.csv")); err == nil {
 			t.Fatal("followed symlink ancestor")
 		}
 	})

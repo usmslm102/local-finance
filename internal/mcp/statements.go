@@ -3,7 +3,6 @@ package mcp
 import (
 	"encoding/json"
 	"errors"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -25,27 +24,11 @@ func registerStatementWriteTools(server *sdk.Server, database *db.DB) {
 		if err := json.Unmarshal(raw, &input); err != nil {
 			return nil, errors.New("invalid statement arguments")
 		}
-		if !validLocalCSVPath(input.Path) {
-			return nil, errors.New("path must be an absolute local .csv file path on the LocalFinance host")
-		}
-		input.Path = filepath.Clean(input.Path)
-		// Check before opening so named pipes/devices cannot block the MCP listener.
-		if err := checkCSVPathComponents(input.Path); err != nil {
-			return nil, errors.New("CSV must be an accessible regular file no larger than 20 MiB; symlinks are unsupported")
-		}
-		info, err := os.Lstat(input.Path)
-		if err != nil || !info.Mode().IsRegular() || info.Size() > service.MaxStatementFileSize {
-			return nil, errors.New("CSV must be an accessible regular file no larger than 20 MiB; symlinks are unsupported")
-		}
-		file, err := os.Open(input.Path)
+		file, err := openLocalStatementFile(input.Path, service.MaxStatementFileSize, []string{".csv"})
 		if err != nil {
-			return nil, errors.New("unable to open CSV on the LocalFinance host")
+			return nil, err
 		}
 		defer file.Close()
-		info, err = file.Stat()
-		if err != nil || !info.Mode().IsRegular() || info.Size() > service.MaxStatementFileSize {
-			return nil, errors.New("CSV must be a regular file no larger than 20 MiB")
-		}
 		result, err := service.NewTransactionService(database).ImportStatement(filepath.Base(input.Path), file, input.AccountID, parser.LocalFinanceCSVParserID, "")
 		if err != nil {
 			return nil, errors.New("statement import failed; check CSV v1 format and account_id; no statement changes were saved")
@@ -65,36 +48,4 @@ func registerStatementWriteTools(server *sdk.Server, database *db.DB) {
 		}
 		return result, nil
 	})
-}
-
-// Check Windows separator semantics even on other hosts before any filesystem call.
-func validLocalCSVPath(path string) bool {
-	normalized := strings.ReplaceAll(path, "\\", "/")
-	return filepath.IsAbs(path) && strings.EqualFold(filepath.Ext(path), ".csv") && !strings.HasPrefix(normalized, "//") && !strings.Contains(strings.TrimPrefix(path, filepath.VolumeName(path)), ":") && localCSVVolume(path)
-}
-
-// Inspect ancestors from the root so directory symlinks/reparse points are rejected
-// before a later Lstat or Open could follow them onto another filesystem.
-func checkCSVPathComponents(path string) error {
-	clean := filepath.Clean(path)
-	var paths []string
-	for current := clean; ; current = filepath.Dir(current) {
-		paths = append(paths, current)
-		if parent := filepath.Dir(current); parent == current {
-			break
-		}
-	}
-	for i := len(paths) - 1; i >= 0; i-- {
-		info, err := os.Lstat(paths[i])
-		if err != nil {
-			return err
-		}
-		if info.Mode()&os.ModeSymlink != 0 {
-			return errors.New("symlinks unsupported")
-		}
-		if i > 0 && !info.IsDir() {
-			return errors.New("CSV parent must be a directory")
-		}
-	}
-	return nil
 }
