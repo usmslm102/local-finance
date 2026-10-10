@@ -33,6 +33,7 @@ func TestMCPSettingsMigrationWithoutHistory(t *testing.T) {
 			// Mimic the observed legacy database: migration history stops at 13
 			// even though the original MCP table is already present.
 			if _, err := database.Exec(`
+                ALTER TABLE mcp_settings DROP COLUMN allow_statement_writes;
                 ALTER TABLE mcp_settings DROP COLUMN allow_categorization_writes;
                 DROP TABLE investment_snapshots;
                 DELETE FROM goose_db_version WHERE version_id >= 14;
@@ -67,11 +68,11 @@ func TestMCPSettingsMigrationWithoutHistory(t *testing.T) {
 					t.Fatal("migration changed transaction identity or user edits")
 				}
 				var count int
-				if err := database.conn.QueryRow(`SELECT COUNT(*) FROM goose_db_version WHERE version_id BETWEEN 14 AND 16 AND is_applied = 1`).Scan(&count); err != nil {
+				if err := database.conn.QueryRow(`SELECT COUNT(*) FROM goose_db_version WHERE version_id BETWEEN 14 AND 17 AND is_applied = 1`).Scan(&count); err != nil {
 					t.Fatal(err)
 				}
-				if count != 3 {
-					t.Fatalf("expected migrations 14–16 to be recorded, got %d", count)
+				if count != 4 {
+					t.Fatalf("expected migrations 14–17 to be recorded, got %d", count)
 				}
 				if err := database.Close(); err != nil {
 					t.Fatal(err)
@@ -97,7 +98,8 @@ func TestMCPMigrationRecoveryFailsWithoutPartialChanges(t *testing.T) {
 			}
 			defer database.Close()
 			if _, err := database.Exec(`
-				ALTER TABLE mcp_settings DROP COLUMN allow_categorization_writes;
+				ALTER TABLE mcp_settings DROP COLUMN allow_statement_writes;
+                ALTER TABLE mcp_settings DROP COLUMN allow_categorization_writes;
 				DROP TABLE investment_snapshots;
 				DELETE FROM goose_db_version WHERE version_id >= 14;
 				DELETE FROM mcp_settings;

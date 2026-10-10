@@ -37,8 +37,8 @@ export function MCPSettingsPanel() {
   const [showRotate, setShowRotate] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const save = useMutation({
-    mutationFn: ({ enabled, port, allowCategorizationWrites }: { enabled: boolean; port: number; allowCategorizationWrites?: boolean }) =>
-      updateMCPSettings(enabled, port, allowCategorizationWrites),
+    mutationFn: ({ enabled, port, allowCategorizationWrites, allowStatementWrites }: { enabled: boolean; port: number; allowCategorizationWrites?: boolean; allowStatementWrites?: boolean }) =>
+      updateMCPSettings(enabled, port, allowCategorizationWrites, allowStatementWrites),
     onSuccess: (settings) => {
       client.setQueryData(['mcp-settings'], settings)
       setPortDraft(null)
@@ -86,7 +86,9 @@ export function MCPSettingsPanel() {
             <CardTitle className="text-base">AI access through MCP</CardTitle>
             <Badge variant="outline">
               {settings.listening
-                ? settings.allow_categorization_writes
+                ? settings.allow_statement_writes
+                  ? "Listening · statement and investment writes"
+                  : settings.allow_categorization_writes
                   ? 'Listening · category and rule writes'
                   : 'Listening · read-only'
                 : settings.enabled
@@ -112,7 +114,7 @@ export function MCPSettingsPanel() {
           <div className="space-y-2">
             <p className="text-sm">
               One shared token grants finance reads to all connected AI tools,
-              plus category and rule writes when allowed above.
+              plus any write permissions enabled in advanced settings.
             </p>
             <Button
               variant={settings.has_token ? "outline" : "default"}
@@ -156,8 +158,8 @@ export function MCPSettingsPanel() {
               <Label htmlFor="mcp-categorization-writes">Allow category and rule writes</Label>
               <p className="text-sm text-muted-foreground">
                 All clients sharing your token can create or update custom categories
-                and categorization rules. Existing transactions stay unchanged;
-                re-apply rules to the ledger through the app.
+                and categorization rules. Rule saves automatically recategorize the
+                whole ledger; manually assigned categories, tags and notes are preserved.
               </p>
             </div>
             <Switch
@@ -168,6 +170,17 @@ export function MCPSettingsPanel() {
                 save.mutate({ enabled: settings.enabled, port: settings.port, allowCategorizationWrites })
               }
             />
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <Label htmlFor="mcp-statement-writes">Allow statement and investment uploads</Label>
+              <p className="text-sm text-muted-foreground">
+                All clients sharing your token can import bank CSVs and investment workbooks by local path and
+                permanently delete specific uploads and their transactions, including manual edits.
+              </p>
+            </div>
+            <Switch id="mcp-statement-writes" checked={settings.allow_statement_writes} disabled={busy}
+              onCheckedChange={(allowStatementWrites) => save.mutate({ enabled: settings.enabled, port: settings.port, allowStatementWrites })} />
           </div>
           <div className="flex items-end gap-3 flex-wrap">
             <div className="space-y-2">
