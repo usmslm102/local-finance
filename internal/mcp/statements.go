@@ -70,7 +70,7 @@ func registerStatementWriteTools(server *sdk.Server, database *db.DB) {
 // Check Windows separator semantics even on other hosts before any filesystem call.
 func validLocalCSVPath(path string) bool {
 	normalized := strings.ReplaceAll(path, "\\", "/")
-	return filepath.IsAbs(path) && strings.EqualFold(filepath.Ext(path), ".csv") && !strings.HasPrefix(normalized, "//") && !strings.Contains(strings.TrimPrefix(path, filepath.VolumeName(path)), ":")
+	return filepath.IsAbs(path) && strings.EqualFold(filepath.Ext(path), ".csv") && !strings.HasPrefix(normalized, "//") && !strings.Contains(strings.TrimPrefix(path, filepath.VolumeName(path)), ":") && localCSVVolume(path)
 }
 
 // Inspect ancestors from the root so directory symlinks/reparse points are rejected
