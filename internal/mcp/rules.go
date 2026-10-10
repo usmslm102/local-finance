@@ -74,9 +74,17 @@ func registerRuleWriteTool(server *sdk.Server, database *db.DB) {
 			return nil, errors.New("target_category_id must identify an existing category")
 		}
 		if rule.ID == "" {
-			err = database.CreateRule(&rule)
+			err = database.InsertRule(&rule)
 		} else {
-			err = database.UpdateRule(&rule)
+			var fields []string
+			for field := range values {
+				fields = append(fields, field)
+			}
+			var saved *models.CategorizationRule
+			saved, err = database.PatchRule(&rule, fields)
+			if err == nil {
+				rule = *saved
+			}
 		}
 		if err != nil {
 			return nil, errors.New("unable to save categorization rule")

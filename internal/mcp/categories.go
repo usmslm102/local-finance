@@ -58,7 +58,15 @@ func registerCategoryWriteTool(server *sdk.Server, database *db.DB) {
 		if category.ID == "" {
 			err = database.CreateCategory(&category)
 		} else {
-			err = database.UpdateCategory(&category)
+			var fields []string
+			for field := range values {
+				fields = append(fields, field)
+			}
+			var saved *models.Category
+			saved, err = database.UpdateCategory(&category, fields)
+			if err == nil {
+				category = *saved
+			}
 		}
 		if err != nil {
 			return nil, errors.New("unable to save category")

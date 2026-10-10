@@ -91,6 +91,14 @@ func TestCategorizationWritesAndPermissionChanges(t *testing.T) {
 	if rule.ID == "" || rule.MatchField != "cleaned_payee" || rule.MatchType != "CONTAINS" || rule.Priority != 50 || !rule.IsActive || rule.TargetCategory != "Shopping" {
 		t.Fatalf("rule defaults: %+v", rule)
 	}
+	zeroPriority := decodeWrite[models.CategorizationRule](t, callWrite(t, session, "save_categorization_rule", map[string]any{"match_pattern": "Fallback", "target_category_id": category.ID, "priority": 0}, false))
+	if zeroPriority.Priority != 0 {
+		t.Fatalf("explicit creation priority lost: %+v", zeroPriority)
+	}
+	storedZero, err := database.GetRule(zeroPriority.ID)
+	if err != nil || storedZero.Priority != 0 {
+		t.Fatalf("persisted creation priority: %+v %v", storedZero, err)
+	}
 	rule = decodeWrite[models.CategorizationRule](t, callWrite(t, session, "save_categorization_rule", map[string]any{"id": rule.ID, "match_pattern": "Shop", "target_category_id": category.ID, "is_active": false, "priority": 0}, false))
 	if rule.IsActive || rule.Priority != 0 || rule.TxType != "DEBIT" || rule.AssignTags != "shopping" || rule.ExcludePattern != "REFUND" {
 		t.Fatalf("rule patch: %+v", rule)
