@@ -8,9 +8,11 @@ Thank you for your interest in contributing to **LocalFinance**! LocalFinance is
 
 ### Prerequisites
 
-* **Go 1.22+** (Go toolchain 1.26 recommended)
+* **Go 1.27.2+** (must satisfy the version in `go.mod`)
 * **Node.js 20+**
 * **pnpm** (v10+ recommended)
+
+Frontend dependencies and scripts are declared in `frontend/package.json`. The patched transitive dependency override is declared in `frontend/pnpm-workspace.yaml`, which is the project configuration supported by pnpm 10 and 11. Keep its override and `pnpm-lock.yaml` synchronized when updating dependencies.
 
 ### Clone & Install
 

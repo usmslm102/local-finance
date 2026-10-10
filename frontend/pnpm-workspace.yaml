@@ -1,0 +1,3 @@
+# Patched source-map parser used by the frontend build tools.
+overrides:
+  "source-map-js@1.2.1": "1.2.2"

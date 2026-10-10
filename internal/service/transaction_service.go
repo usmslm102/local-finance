@@ -23,6 +23,19 @@ type TransactionService struct {
 	registry *parser.Registry
 }
 
+const MaxStatementFileSize int64 = 20 << 20
+
+func readStatement(r io.Reader) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(r, MaxStatementFileSize+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > MaxStatementFileSize {
+		return nil, fmt.Errorf("statement exceeds 20 MB")
+	}
+	return data, nil
+}
+
 func NewTransactionService(database *db.DB) *TransactionService {
 	return &TransactionService{
 		db:       database,
@@ -31,7 +44,7 @@ func NewTransactionService(database *db.DB) *TransactionService {
 }
 
 func (s *TransactionService) ImportStatement(filename string, r io.Reader, manualAccountID string, manualParserID string, password string) (*models.ImportResult, error) {
-	fileBytes, err := io.ReadAll(r)
+	fileBytes, err := readStatement(r)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
@@ -88,11 +101,17 @@ func (s *TransactionService) ImportStatement(filename string, r io.Reader, manua
 		return nil, fmt.Errorf("no transactions found in statement. Please verify the file format")
 	}
 
-	// 4. Resolve Account
 	var account *models.Account
-	if manualAccountID != "" {
-		accounts, err := s.db.ListAccounts()
-		if err == nil {
+	var stmtImportID string
+	var insertedCount, duplicateCount int
+	err = s.db.WithStatementImport(func(writer *db.StatementWriter) error {
+		// 4. Resolve Account
+		account = nil
+		if manualAccountID != "" {
+			accounts, err := writer.ListAccounts()
+			if err != nil {
+				return err
+			}
 			for _, a := range accounts {
 				if a.ID == manualAccountID {
 					account = &a
@@ -100,154 +119,171 @@ func (s *TransactionService) ImportStatement(filename string, r io.Reader, manua
 				}
 			}
 		}
-	}
 
-	if account == nil {
-		bankName := meta.BankName
-		if bankName == "" {
-			bankName = detectedMeta.BankName
+		if manualAccountID != "" && account == nil {
+			return fmt.Errorf("selected account no longer exists")
 		}
-		if bankName == "" {
-			bankName = "Imported Bank Account"
-		}
-		accType := meta.AccountType
-		if accType == "" {
-			accType = detectedMeta.AccountType
-		}
-		if accType == "" {
-			accType = models.AccountTypeSavings
+		if account == nil {
+			bankName := meta.BankName
+			if bankName == "" {
+				bankName = detectedMeta.BankName
+			}
+			if bankName == "" {
+				bankName = "Imported Bank Account"
+			}
+			accType := meta.AccountType
+			if accType == "" {
+				accType = detectedMeta.AccountType
+			}
+			if accType == "" {
+				accType = models.AccountTypeSavings
+			}
+
+			var credLimitPtr *float64
+			if meta.CreditLimit > 0 {
+				credLimitPtr = &meta.CreditLimit
+			}
+
+			acc, err := writer.GetOrCreateAccount(bankName, accType, meta.AccountNumber, meta.AccountNumberMask, meta.CustomerID, meta.IFSCCode, meta.BranchName, meta.CardNetwork, meta.CardVariant, meta.AccountHolderName, credLimitPtr)
+			if err != nil {
+				return fmt.Errorf("failed to get/create account: %w", err)
+			}
+			account = acc
 		}
 
-		var credLimitPtr *float64
-		if meta.CreditLimit > 0 {
-			credLimitPtr = &meta.CreditLimit
+		// 5. Create Statement Import Log
+		stmtImportID = uuid.New().String()
+		stmtImport := &models.StatementImport{
+			ID:                stmtImportID,
+			AccountID:         account.ID,
+			Filename:          filename,
+			FileHash:          fileHash,
+			StatementFormat:   meta.StatementFormat,
+			ParserUsed:        selectedParser.ID(),
+			StartDate:         &meta.StartDate,
+			EndDate:           &meta.EndDate,
+			TotalTransactions: len(parsedTxList),
+			ImportedAt:        time.Now(),
+		}
+		if meta.OpeningBalance > 0 {
+			stmtImport.OpeningBalance = &meta.OpeningBalance
+		}
+		if meta.ClosingBalance > 0 {
+			stmtImport.ClosingBalance = &meta.ClosingBalance
+		}
+		if meta.TotalDebits > 0 {
+			stmtImport.TotalDebits = &meta.TotalDebits
+		}
+		if meta.TotalCredits > 0 {
+			stmtImport.TotalCredits = &meta.TotalCredits
 		}
 
-		acc, err := s.db.GetOrCreateAccount(bankName, accType, meta.AccountNumber, meta.AccountNumberMask, meta.CustomerID, meta.IFSCCode, meta.BranchName, meta.CardNetwork, meta.CardVariant, meta.AccountHolderName, credLimitPtr)
+		if err := writer.CreateStatementImport(stmtImport); err != nil {
+			return fmt.Errorf("failed to record statement: %w", err)
+		}
+
+		// 6. Record Credit Card Bill if dates present
+		stmtDate := meta.StatementDate
+		if stmtDate == "" && meta.EndDate != "" {
+			stmtDate = meta.EndDate
+		}
+		if stmtDate != "" && meta.PaymentDueDate != "" {
+			var credLimit *float64
+			if meta.CreditLimit > 0 {
+				credLimit = &meta.CreditLimit
+			}
+			var availLimit *float64
+			if meta.AvailableCreditLimit > 0 {
+				availLimit = &meta.AvailableCreditLimit
+			}
+
+			if err := writer.CreateOrUpdateCreditCardBill(&models.CreditCardBill{
+				AccountID:            account.ID,
+				StatementImportID:    &stmtImportID,
+				StatementDate:        stmtDate,
+				PaymentDueDate:       meta.PaymentDueDate,
+				TotalDueAmount:       meta.TotalDueAmount,
+				MinimumDueAmount:     &meta.MinimumDueAmount,
+				RewardPointsEarned:   meta.RewardPointsEarned,
+				RewardPointsBalance:  meta.RewardPointsBalance,
+				CashbackEarned:       meta.CashbackEarned,
+				CashbackCredited:     meta.CashbackCredited,
+				FinanceCharges:       meta.FinanceCharges,
+				CreditLimit:          credLimit,
+				AvailableCreditLimit: availLimit,
+				PaymentStatus:        "UNPAID",
+			}); err != nil {
+				return fmt.Errorf("failed to record card bill: %w", err)
+			}
+		}
+
+		// 7. Fetch Categorization Rules for auto-tagging
+		rules, err := writer.ListRules()
 		if err != nil {
-			return nil, fmt.Errorf("failed to get/create account: %w", err)
-		}
-		account = acc
-	}
-
-	// 5. Create Statement Import Log
-	stmtImportID := uuid.New().String()
-	stmtImport := &models.StatementImport{
-		ID:                stmtImportID,
-		AccountID:         account.ID,
-		Filename:          filename,
-		FileHash:          fileHash,
-		StatementFormat:   meta.StatementFormat,
-		ParserUsed:        selectedParser.ID(),
-		StartDate:         &meta.StartDate,
-		EndDate:           &meta.EndDate,
-		TotalTransactions: len(parsedTxList),
-		ImportedAt:        time.Now(),
-	}
-	if meta.OpeningBalance > 0 {
-		stmtImport.OpeningBalance = &meta.OpeningBalance
-	}
-	if meta.ClosingBalance > 0 {
-		stmtImport.ClosingBalance = &meta.ClosingBalance
-	}
-	if meta.TotalDebits > 0 {
-		stmtImport.TotalDebits = &meta.TotalDebits
-	}
-	if meta.TotalCredits > 0 {
-		stmtImport.TotalCredits = &meta.TotalCredits
-	}
-
-	_ = s.db.CreateStatementImport(stmtImport)
-
-	// 6. Record Credit Card Bill if dates present
-	stmtDate := meta.StatementDate
-	if stmtDate == "" && meta.EndDate != "" {
-		stmtDate = meta.EndDate
-	}
-	if stmtDate != "" && meta.PaymentDueDate != "" {
-		var credLimit *float64
-		if meta.CreditLimit > 0 {
-			credLimit = &meta.CreditLimit
-		}
-		var availLimit *float64
-		if meta.AvailableCreditLimit > 0 {
-			availLimit = &meta.AvailableCreditLimit
+			return err
 		}
 
-		_ = s.db.CreateOrUpdateCreditCardBill(&models.CreditCardBill{
-			AccountID:            account.ID,
-			StatementImportID:    &stmtImportID,
-			StatementDate:        stmtDate,
-			PaymentDueDate:       meta.PaymentDueDate,
-			TotalDueAmount:       meta.TotalDueAmount,
-			MinimumDueAmount:     &meta.MinimumDueAmount,
-			RewardPointsEarned:   meta.RewardPointsEarned,
-			RewardPointsBalance:  meta.RewardPointsBalance,
-			CashbackEarned:       meta.CashbackEarned,
-			CashbackCredited:     meta.CashbackCredited,
-			FinanceCharges:       meta.FinanceCharges,
-			CreditLimit:          credLimit,
-			AvailableCreditLimit: availLimit,
-			PaymentStatus:        "UNPAID",
-		})
+		// 8. Upsert Transactions
+		insertedCount = 0
+		duplicateCount = 0
+
+		for _, pt := range parsedTxList {
+			// Calculate deterministic fingerprint hash
+			txHash := s.calculateTxHash(account.ID, pt.Date, pt.Amount, pt.RawNarration, pt.ReferenceNumber, pt.TxType)
+
+			// Auto-categorize
+			catID := s.matchCategory(pt, rules)
+
+			var merchCat *string
+			if pt.MerchantCategory != "" {
+				merchCat = &pt.MerchantCategory
+			}
+
+			tx := &models.Transaction{
+				AccountID:          account.ID,
+				StatementImportID:  &stmtImportID,
+				TxHash:             txHash,
+				TxDate:             pt.Date,
+				ValueDate:          pt.ValueDate,
+				RawNarration:       pt.RawNarration,
+				CleanedPayee:       pt.CleanedPayee,
+				PaymentMode:        pt.PaymentMode,
+				ReferenceNumber:    pt.ReferenceNumber,
+				TxType:             pt.TxType,
+				Amount:             pt.Amount,
+				RunningBalance:     pt.RunningBalance,
+				CategoryID:         catID,
+				UPIVPA:             pt.UPIVPA,
+				CardLast4:          pt.CardLast4,
+				MerchantCategory:   merchCat,
+				CashbackAmount:     pt.CashbackAmount,
+				RewardPointsEarned: pt.RewardPointsEarned,
+				IsTransfer:         pt.IsTransfer,
+				OriginalCurrency:   pt.OriginalCurrency,
+				OriginalAmount:     pt.OriginalAmount,
+			}
+
+			isNew, err := writer.UpsertTransaction(tx)
+			if err != nil {
+				return fmt.Errorf("failed to save transaction: %w", err)
+			}
+			if isNew {
+				insertedCount++
+			} else {
+				duplicateCount++
+			}
+		}
+
+		// 9. Recalculate account balance
+		if err := writer.RecalculateAccountBalance(account.ID); err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
-
-	// 7. Fetch Categorization Rules for auto-tagging
-	rules, _ := s.db.ListRules()
-
-	// 8. Upsert Transactions
-	insertedCount := 0
-	duplicateCount := 0
-
-	for _, pt := range parsedTxList {
-		// Calculate deterministic fingerprint hash
-		txHash := s.calculateTxHash(account.ID, pt.Date, pt.Amount, pt.RawNarration, pt.ReferenceNumber, pt.TxType)
-
-		// Auto-categorize
-		catID := s.matchCategory(pt, rules)
-
-		var merchCat *string
-		if pt.MerchantCategory != "" {
-			merchCat = &pt.MerchantCategory
-		}
-
-		tx := &models.Transaction{
-			AccountID:          account.ID,
-			StatementImportID:  &stmtImportID,
-			TxHash:             txHash,
-			TxDate:             pt.Date,
-			ValueDate:          pt.ValueDate,
-			RawNarration:       pt.RawNarration,
-			CleanedPayee:       pt.CleanedPayee,
-			PaymentMode:        pt.PaymentMode,
-			ReferenceNumber:    pt.ReferenceNumber,
-			TxType:             pt.TxType,
-			Amount:             pt.Amount,
-			RunningBalance:     pt.RunningBalance,
-			CategoryID:         catID,
-			UPIVPA:             pt.UPIVPA,
-			CardLast4:          pt.CardLast4,
-			MerchantCategory:   merchCat,
-			CashbackAmount:     pt.CashbackAmount,
-			RewardPointsEarned: pt.RewardPointsEarned,
-			IsTransfer:         pt.IsTransfer,
-			OriginalCurrency:   pt.OriginalCurrency,
-			OriginalAmount:     pt.OriginalAmount,
-		}
-
-		isNew, err := s.db.UpsertTransaction(tx)
-		if err != nil {
-			continue
-		}
-		if isNew {
-			insertedCount++
-		} else {
-			duplicateCount++
-		}
-	}
-
-	// 9. Recalculate account balance
-	_ = s.db.RecalculateAccountBalance(account.ID)
 
 	// 10. Automatically scan and update recurring subscriptions
 	subService := NewSubscriptionService(s.db)
@@ -269,7 +305,7 @@ func (s *TransactionService) ImportStatement(filename string, r io.Reader, manua
 }
 
 func (s *TransactionService) PreviewStatement(filename string, r io.Reader, manualAccountID string, manualParserID string, password string) (*models.StatementPreviewResult, error) {
-	fileBytes, err := io.ReadAll(r)
+	fileBytes, err := readStatement(r)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}

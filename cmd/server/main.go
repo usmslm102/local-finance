@@ -36,7 +36,9 @@ func main() {
 			finalDBPath = "./local_finance.db"
 		} else {
 			appDir := filepath.Join(homeDir, ".localfinance")
-			_ = os.MkdirAll(appDir, 0755)
+			if err := os.MkdirAll(appDir, 0700); err != nil {
+				log.Fatalf("Failed to create data directory: %v", err)
+			}
 			finalDBPath = filepath.Join(appDir, "local_finance.db")
 		}
 	}
@@ -76,8 +78,12 @@ func main() {
 	url := fmt.Sprintf("http://%s", actualAddr)
 
 	srv := &http.Server{
-		Addr:    actualAddr,
-		Handler: router,
+		Addr:              actualAddr,
+		Handler:           router,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       2 * time.Minute,
+		WriteTimeout:      5 * time.Minute,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	// Register server details and graceful shutdown hook with updater
