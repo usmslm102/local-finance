@@ -328,6 +328,7 @@ Future Roadmap Priorities
 
 - [x] Local Streamable HTTP endpoint, disabled by default, embedded in the single Go binary.
 - [x] Shared read-only bearer token, independent of the UI lock, with rotation and disable controls.
+- [x] Optional MCP tools to create/update custom categories and categorization rules; default-off write permission, with ledger re-application remaining in the app.
 - [x] Finance tools across all existing views, using the existing database/service calculations.
 - [x] Settings setup instructions for Codex, Claude Code, and generic HTTP MCP clients.
 - [x] Account metadata masking, bounded collection responses, and restore/reset revocation.

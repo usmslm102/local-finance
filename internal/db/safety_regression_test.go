@@ -200,7 +200,7 @@ func TestSafetyRestoreMigratesOlderLedger(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if _, e = old.Exec("DROP TABLE investment_snapshots; DELETE FROM goose_db_version WHERE version_id = 15"); e != nil {
+	if _, e = old.Exec("DROP TABLE investment_snapshots; ALTER TABLE mcp_settings DROP COLUMN allow_categorization_writes; DELETE FROM goose_db_version WHERE version_id >= 15"); e != nil {
 		t.Fatal(e)
 	}
 	old.Close()

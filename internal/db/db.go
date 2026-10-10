@@ -603,23 +603,43 @@ func (d *DB) ListRules() ([]models.CategorizationRule, error) {
 }
 
 func (d *DB) CreateRule(r *models.CategorizationRule) error {
+	if r.Priority == 0 {
+		r.Priority = 50
+	}
+	return d.InsertRule(r)
+}
+
+// InsertRule preserves an explicit priority, including zero. CreateRule retains
+// the application's historical zero-as-default behavior for existing callers.
+func (d *DB) InsertRule(r *models.CategorizationRule) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
 	if r.ID == "" {
 		r.ID = uuid.New().String()
 	}
-	if r.Priority == 0 {
-		r.Priority = 50
-	}
 	if r.TxType == "" {
 		r.TxType = "ALL"
 	}
 
-	_, err := d.conn.Exec(`
+	result, err := d.conn.Exec(`
 		INSERT INTO categorization_rules (id, priority, match_field, match_type, match_pattern, exclude_pattern, tx_type, target_category_id, assign_tags, is_active)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, r.ID, r.Priority, r.MatchField, r.MatchType, r.MatchPattern, r.ExcludePattern, r.TxType, r.TargetCategoryID, r.AssignTags, r.IsActive)
+		SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM categories WHERE id = ?)
+	`, r.ID, r.Priority, r.MatchField, r.MatchType, r.MatchPattern, r.ExcludePattern, r.TxType, r.TargetCategoryID, r.AssignTags, r.IsActive, r.TargetCategoryID)
+	if err != nil {
+		return err
+	}
+	count, err := result.RowsAffected()
+	if err == nil && count == 0 {
+		return sql.ErrNoRows
+	}
+	if err != nil {
+		return err
+	}
+	saved, err := d.getRule(r.ID)
+	if err == nil {
+		*r = *saved
+	}
 	return err
 }
 

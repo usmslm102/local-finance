@@ -1,4 +1,4 @@
-// Package mcp exposes LocalFinance's read-only finance operations over local MCP.
+// Package mcp exposes LocalFinance's finance operations over local MCP.
 package mcp
 
 import (
@@ -35,12 +35,13 @@ type Manager struct {
 }
 
 type Status struct {
-	Enabled   bool   `json:"enabled"`
-	Port      int    `json:"port"`
-	HasToken  bool   `json:"has_token"`
-	Listening bool   `json:"listening"`
-	Endpoint  string `json:"endpoint"`
-	Error     string `json:"error,omitempty"`
+	AllowCategorizationWrites bool   `json:"allow_categorization_writes"`
+	Enabled                   bool   `json:"enabled"`
+	Port                      int    `json:"port"`
+	HasToken                  bool   `json:"has_token"`
+	Listening                 bool   `json:"listening"`
+	Endpoint                  string `json:"endpoint"`
+	Error                     string `json:"error,omitempty"`
 }
 
 func NewManager(database *db.DB) *Manager {
@@ -51,8 +52,14 @@ func NewManager(database *db.DB) *Manager {
 	} else {
 		m.settings = settings
 	}
-	server := newServer(database)
-	m.handler = sdk.NewStreamableHTTPHandler(func(*http.Request) *sdk.Server { return server }, &sdk.StreamableHTTPOptions{Stateless: true, JSONResponse: true, MaxRequestBodyBytes: 1 << 20})
+	readServer := newServer(database, false)
+	writeServer := newServer(database, true)
+	m.handler = sdk.NewStreamableHTTPHandler(func(r *http.Request) *sdk.Server {
+		if allowed, _ := r.Context().Value(categorizationWriteAccessKey{}).(bool); allowed {
+			return writeServer
+		}
+		return readServer
+	}, &sdk.StreamableHTTPOptions{Stateless: true, JSONResponse: true, MaxRequestBodyBytes: 1 << 20})
 	return m
 }
 
@@ -112,7 +119,7 @@ func (m *Manager) Status() Status {
 	return m.statusLocked()
 }
 func (m *Manager) statusLocked() Status {
-	return Status{Enabled: m.settings.Enabled, Port: m.settings.Port, HasToken: m.settings.TokenHash != "", Listening: m.server != nil, Endpoint: fmt.Sprintf("http://127.0.0.1:%d/mcp", m.settings.Port), Error: m.lastError}
+	return Status{Enabled: m.settings.Enabled, Port: m.settings.Port, AllowCategorizationWrites: m.settings.AllowCategorizationWrites, HasToken: m.settings.TokenHash != "", Listening: m.server != nil, Endpoint: fmt.Sprintf("http://127.0.0.1:%d/mcp", m.settings.Port), Error: m.lastError}
 }
 func (m *Manager) stopLocked() {
 	// Close the raw listener too: Server.Close may run before Serve registers it.
@@ -133,10 +140,18 @@ func (m *Manager) stopLocked() {
 func (m *Manager) Close() { m.mu.Lock(); defer m.mu.Unlock(); m.stopLocked() }
 
 func (m *Manager) Configure(enabled bool, port int) (Status, error) {
+	return m.ConfigureAccess(enabled, port, nil)
+}
+
+// ConfigureAccess preserves the saved categorization-write preference when omitted.
+func (m *Manager) ConfigureAccess(enabled bool, port int, allowCategorizationWrites *bool) (Status, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	s := m.settings
 	s.Enabled, s.Port = enabled, port
+	if allowCategorizationWrites != nil {
+		s.AllowCategorizationWrites = *allowCategorizationWrites
+	}
 	if err := m.database.SetMCPSettings(s); err != nil {
 		return m.statusLocked(), err
 	}
@@ -168,13 +183,14 @@ func (m *Manager) RotateToken() (string, error) {
 	return token, nil
 }
 
-// Revoke removes credentials and drains reads before reset/restore proceeds.
+// Revoke removes credentials and drains requests before reset/restore proceeds.
 func (m *Manager) Revoke() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.stopLocked()
 	m.settings.Enabled = false
 	m.settings.TokenHash = ""
+	m.settings.AllowCategorizationWrites = false
 	return m.database.SetMCPSettings(m.settings)
 }
 
@@ -211,8 +227,11 @@ func (m *Manager) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid MCP token", http.StatusUnauthorized)
 		return
 	}
+	allowed := m.settings.AllowCategorizationWrites
 	m.active.Add(1)
 	m.mu.Unlock()
 	defer m.active.Done()
-	m.handler.ServeHTTP(w, r)
+	m.handler.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), categorizationWriteAccessKey{}, allowed)))
 }
+
+type categorizationWriteAccessKey struct{}
