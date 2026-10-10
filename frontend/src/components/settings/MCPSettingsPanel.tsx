@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertCircle, Check, Copy, ShieldCheck } from 'lucide-react'
+import { AlertCircle, ShieldCheck } from 'lucide-react'
 import { fetchMCPSettings, rotateMCPToken, updateMCPSettings } from '@/lib/api'
 import {
   Card,
@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
-import { Textarea } from '@/components/ui/textarea'
+import { MCPConnectionSetup } from './MCPConnectionSetup'
 import {
   Dialog,
   DialogContent,
@@ -24,44 +24,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-
-function ConfigSnippet({ title, value }: { title: string; value: string }) {
-  const [copied, setCopied] = useState(false)
-  const [error, setError] = useState('')
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(value)
-      setCopied(true)
-      setError('')
-    } catch {
-      setError(
-        'Clipboard unavailable. Select and copy the configuration below.',
-      )
-    }
-  }
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between gap-3">
-        <Label>{title}</Label>
-        <Button size="sm" variant="outline" onClick={copy}>
-          {copied ? <Check /> : <Copy />}
-          {copied ? 'Copied' : 'Copy'}
-        </Button>
-      </div>
-      <Textarea
-        aria-label={`${title} configuration`}
-        readOnly
-        value={value}
-        className="font-mono text-xs min-h-24"
-      />
-      {error && (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
-      )}
-    </div>
-  )
-}
 
 export function MCPSettingsPanel() {
   const client = useQueryClient()
@@ -73,8 +35,7 @@ export function MCPSettingsPanel() {
   const [portDraft, setPortDraft] = useState<string | null>(null)
   const [token, setToken] = useState('')
   const [showRotate, setShowRotate] = useState(false)
-  const [copied, setCopied] = useState(false)
-  const [copyError, setCopyError] = useState('')
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const save = useMutation({
     mutationFn: ({ enabled, port, allowCategorizationWrites, allowStatementWrites }: { enabled: boolean; port: number; allowCategorizationWrites?: boolean; allowStatementWrites?: boolean }) =>
       updateMCPSettings(enabled, port, allowCategorizationWrites, allowStatementWrites),
@@ -86,26 +47,17 @@ export function MCPSettingsPanel() {
   const rotate = useMutation({
     mutationFn: rotateMCPToken,
     onSuccess: (result) => {
+      const firstSetup = !query.data?.has_token
       setToken(result.token)
-      setCopied(false)
-      setCopyError('')
       client.setQueryData(['mcp-settings'], result.settings)
       setShowRotate(false)
+      if (firstSetup && !result.settings.enabled) save.mutate({ enabled: true, port: result.settings.port })
     },
   })
   const settings = query.data
   const busy = save.isPending || rotate.isPending
   const port = Number(portDraft ?? settings?.port ?? 8081)
   const validPort = Number.isInteger(port) && port >= 1024 && port <= 65535
-  const copyToken = async () => {
-    try {
-      await navigator.clipboard.writeText(token)
-      setCopied(true)
-      setCopyError('')
-    } catch {
-      setCopyError('Clipboard unavailable. Select and copy the token field.')
-    }
-  }
   if (query.isPending)
     return (
       <p role="status" className="text-sm text-muted-foreground">
@@ -145,8 +97,8 @@ export function MCPSettingsPanel() {
             </Badge>
           </div>
           <CardDescription>
-            Connect Codex, Claude Code, or another AI tool to your local finance
-            data.
+            Connect your AI tool in a few steps: enable access, choose a client,
+            then copy and run its setup command.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
@@ -154,12 +106,31 @@ export function MCPSettingsPanel() {
             <ShieldCheck />
             <AlertTitle>Choose what you share</AlertTitle>
             <AlertDescription>
-              LocalFinance serves data only on this computer. Connected AI tools
-              can read transactions, notes, payees, balances, and reports, and
-              may send them to their model provider. MCP stays available while
-              the app is locked. Disable MCP to stop access.
+              Connected AI tools can read your financial data and may send it
+              to their model provider. Access stays available while the app is
+              locked. Disable MCP to stop access.
             </AlertDescription>
           </Alert>
+          <div className="space-y-2">
+            <p className="text-sm">
+              One shared token grants finance reads to all connected AI tools,
+              plus any write permissions enabled in advanced settings.
+            </p>
+            <Button
+              variant={settings.has_token ? "outline" : "default"}
+              disabled={busy}
+              onClick={() =>
+                settings.has_token ? setShowRotate(true) : rotate.mutate()
+              }
+            >
+              {rotate.isPending
+                ? 'Creating…'
+                : settings.has_token
+                  ? 'Rotate access token'
+                  : 'Create token & enable MCP'}
+            </Button>
+            {token && <p role="status" className="text-sm text-muted-foreground">Token ready. It’s included in the setup commands below.</p>}
+          </div>
           <div className="flex items-center justify-between gap-4">
             <div>
               <Label htmlFor="mcp-enabled">Enable MCP</Label>
@@ -178,6 +149,10 @@ export function MCPSettingsPanel() {
               }
             />
           </div>
+          <Button variant="ghost" size="sm" onClick={() => setShowAdvanced(!showAdvanced)} aria-expanded={showAdvanced} aria-controls="mcp-advanced">
+            {showAdvanced ? 'Hide advanced settings' : 'Advanced settings & permissions'}
+          </Button>
+          {showAdvanced && <div id="mcp-advanced" className="space-y-5">
           <div className="flex items-center justify-between gap-4">
             <div>
               <Label htmlFor="mcp-categorization-writes">Allow category and rule writes</Label>
@@ -233,6 +208,7 @@ export function MCPSettingsPanel() {
             Use a port from 1024 to 65535. Changing it requires updating your AI
             tool configuration.
           </p>
+          </div>}
           {settings.error && (
             <Alert variant="destructive">
               <AlertCircle />
@@ -240,57 +216,6 @@ export function MCPSettingsPanel() {
               <AlertDescription>{settings.error}</AlertDescription>
             </Alert>
           )}
-          <div className="border-t pt-4 space-y-2">
-            <p className="text-sm">
-              One shared token grants finance reads to all connected AI tools,
-              plus the write operations allowed above.
-            </p>
-            <Button
-              variant="outline"
-              disabled={busy}
-              onClick={() =>
-                settings.has_token ? setShowRotate(true) : rotate.mutate()
-              }
-            >
-              {rotate.isPending
-                ? 'Creating…'
-                : settings.has_token
-                  ? 'Rotate access token'
-                  : 'Create access token'}
-            </Button>
-            {token && (
-              <div className="space-y-3 rounded-lg border p-4">
-                <Label htmlFor="mcp-new-token">
-                  New token — save it before leaving this tab
-                </Label>
-                <Input
-                  id="mcp-new-token"
-                  readOnly
-                  value={token}
-                  className="font-mono"
-                  onFocus={(event) => event.target.select()}
-                />
-                <div className="flex gap-2 flex-wrap">
-                  <Button variant="outline" onClick={copyToken}>
-                    {copied ? <Check /> : <Copy />}
-                    {copied ? 'Token copied' : 'Copy token'}
-                  </Button>
-                  <Button variant="ghost" onClick={() => setToken('')}>
-                    Dismiss token
-                  </Button>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Shown once. LocalFinance stores only its hash. Do not commit
-                  the token to a repository.
-                </p>
-                {copyError && (
-                  <p role="alert" className="text-sm text-destructive">
-                    {copyError}
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
           {(save.error || rotate.error || query.error) && (
             <p role="alert" className="text-sm text-destructive">
               {save.error?.message ||
@@ -304,55 +229,12 @@ export function MCPSettingsPanel() {
         <CardHeader>
           <CardTitle className="text-base">Connect your AI tool</CardTitle>
           <CardDescription>
-            Replace YOUR_TOKEN with the token you saved. Use private user
-            configuration.
+            Choose your client, copy one command, and run it on this computer.
+            No configuration editing or separate token copying needed.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-5">
-          <ConfigSnippet
-            title="Codex · config.toml"
-            value={`[mcp_servers.localfinance]\nurl = "${endpoint}"\nbearer_token_env_var = "LOCALFINANCE_MCP_TOKEN"`}
-          />
-          <p className="text-sm text-muted-foreground">
-            Set LOCALFINANCE_MCP_TOKEN in the environment that launches Codex.
-            If your desktop client does not inherit it, replace
-            bearer_token_env_var with the static header below in private
-            configuration.
-          </p>
-          <ConfigSnippet
-            title="Codex · alternative static header"
-            value={`[mcp_servers.localfinance]\nurl = "${endpoint}"\nhttp_headers = { Authorization = "Bearer YOUR_TOKEN" }`}
-          />
-          <ConfigSnippet
-            title="Claude Code · private user configuration"
-            value={JSON.stringify(
-              {
-                mcpServers: {
-                  localfinance: {
-                    type: 'http',
-                    url: endpoint,
-                    headers: { Authorization: 'Bearer YOUR_TOKEN' },
-                  },
-                },
-              },
-              null,
-              2,
-            )}
-          />
-          <p className="text-sm text-muted-foreground">
-            Add this entry to your private Claude Code configuration, or use
-            claude mcp add --transport http --scope user localfinance with this
-            URL and the Authorization header.
-          </p>
-          <ConfigSnippet
-            title="Other clients · Streamable HTTP"
-            value={`URL: ${endpoint}\nTransport: Streamable HTTP\nAuthorization: Bearer YOUR_TOKEN`}
-          />
-          <p className="text-sm text-muted-foreground">
-            Verify tool discovery in your AI client. Cloud-only clients cannot
-            reach this computer’s loopback address. Rotating the token requires
-            updating every client.
-          </p>
+        <CardContent>
+          <MCPConnectionSetup endpoint={endpoint} token={token} setToken={setToken} listening={settings.listening} />
         </CardContent>
       </Card>
       <Dialog open={showRotate} onOpenChange={setShowRotate}>
