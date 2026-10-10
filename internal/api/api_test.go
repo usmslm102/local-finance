@@ -229,10 +229,10 @@ func TestAPIRoutes(t *testing.T) {
 			var req *http.Request
 			if tt.body != nil {
 				jsonBytes, _ := json.Marshal(tt.body)
-				req = httptest.NewRequest(tt.method, tt.url, bytes.NewBuffer(jsonBytes))
+				req = localTestRequest(tt.method, tt.url, bytes.NewBuffer(jsonBytes))
 				req.Header.Set("Content-Type", "application/json")
 			} else {
-				req = httptest.NewRequest(tt.method, tt.url, nil)
+				req = localTestRequest(tt.method, tt.url, nil)
 			}
 
 			w := httptest.NewRecorder()

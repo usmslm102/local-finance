@@ -11,7 +11,7 @@ import (
 func TestMCPManagementProtection(t *testing.T) {
 	server, database := setupTestRouter(t)
 	send := func(method, path, body, token, origin, host string) *httptest.ResponseRecorder {
-		req := httptest.NewRequest(method, "http://127.0.0.1:8080"+path, bytes.NewBufferString(body))
+		req := localTestRequest(method, "http://127.0.0.1:8080"+path, bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
 		if token != "" {
 			req.Header.Set("Authorization", "Bearer "+token)

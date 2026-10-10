@@ -31,7 +31,7 @@ func TestMonthlyReviewAPIValidationAndAuthentication(t *testing.T) {
 	} {
 		t.Run(test.url, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, test.url, nil))
+			router.ServeHTTP(w, localTestRequest(http.MethodGet, test.url, nil))
 			if w.Code != test.status {
 				t.Fatalf("status %d, expected %d: %s", w.Code, test.status, w.Body.String())
 			}
@@ -47,7 +47,7 @@ func TestMonthlyReviewAPIValidationAndAuthentication(t *testing.T) {
 		})
 	}
 	payload, _ := json.Marshal(models.AuthSetupRequest{Password: "disposable-review-test", AutoLockMinutes: 30})
-	req := httptest.NewRequest(http.MethodPost, "/api/auth/setup", bytes.NewReader(payload))
+	req := localTestRequest(http.MethodPost, "/api/auth/setup", bytes.NewReader(payload))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -62,11 +62,11 @@ func TestMonthlyReviewAPIValidationAndAuthentication(t *testing.T) {
 	}
 	for _, url := range []string{"/api/analytics/monthly-review", "/api/analytics/monthly-review/transactions?month=2024-02&category="} {
 		w := httptest.NewRecorder()
-		router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, url, nil))
+		router.ServeHTTP(w, localTestRequest(http.MethodGet, url, nil))
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("review exposed without authentication: %d", w.Code)
 		}
-		req := httptest.NewRequest(http.MethodGet, url, nil)
+		req := localTestRequest(http.MethodGet, url, nil)
 		req.Header.Set("Authorization", "Bearer "+session.Token)
 		w = httptest.NewRecorder()
 		router.ServeHTTP(w, req)

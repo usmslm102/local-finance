@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -28,8 +29,17 @@ func NewReconciliationService(database *db.DB) *ReconciliationService {
 }
 
 var (
-	ccBillPaymentPayeeRegex = regexp.MustCompile(`(?i)(CRED|CREDIT\s*CARD|BILLDESK|CC\s*PAYMENT|AUTODEBIT\s*CC|CARD\s*PAYMENT|BBPS\s*CC|HDFC\s*CARD|ICICI\s*CARD|AXIS\s*CARD|SBI\s*CARD|KOTAK\s*CARD|AUTO\s*DEBIT)`)
+	ccBillPaymentPayeeRegex = regexp.MustCompile(`(?i)(\bCRED\b|\bBILLDESK\b|(?:CREDIT\s*CARD|CC|CARD)\s*(?:BILL\s*)?PAYMENT|AUTODEBIT\s*CC|BBPS\s*CC|AUTO\s*DEBIT|PAYMENT\s+(?:RECEIVED|THANKS))`)
+	cardRefundRegex         = regexp.MustCompile(`(?i)\b(?:REFUND|REVERSAL|REVERSED|CASHBACK|REWARDS?)\b`)
 	walletLoadRegex         = regexp.MustCompile(`(?i)(UPI\s*LITE|PAYTM\s*WALLET|AMAZON\s*PAY\s*WALLET|MOBIKWIK|FREECHARGE\s*WALLET|WALLET\s*LOAD|WALLET\s*TOPUP|LITE\s*LOAD)`)
+)
+
+const (
+	autoTransferConfidence         = 0.85
+	suggestionConfidence           = 0.70
+	exactAmountConfidenceBonus     = 0.15
+	paymentEvidenceConfidenceBonus = 0.15
+	nearDateConfidenceBonus        = 0.05
 )
 
 func (s *ReconciliationService) GetSummary() (*models.ReconciliationSummary, error) {
@@ -93,7 +103,7 @@ func (s *ReconciliationService) ScanAndAutoReconcile() (int, int, error) {
 	autoLinkedCount := 0
 	for _, c := range candidates {
 		// Auto-link if high confidence (>= 0.85)
-		if c.MatchConfidence >= 0.85 {
+		if c.MatchConfidence >= autoTransferConfidence {
 			if err := s.LinkPair(c.DebitTx.ID, c.CreditTx.ID, c.MatchReason); err == nil {
 				autoLinkedCount++
 			}
@@ -221,7 +231,6 @@ func (s *ReconciliationService) getCandidatePairs() ([]models.TransferPair, erro
 	cRows.Close()
 
 	candidates := make([]models.TransferPair, 0)
-	matchedCreditIDs := make(map[string]bool)
 
 	for _, d := range debits {
 		dDate, err := parseDate(d.TxDate)
@@ -232,10 +241,6 @@ func (s *ReconciliationService) getCandidatePairs() ([]models.TransferPair, erro
 		isDebitPayeeMatch := ccBillPaymentPayeeRegex.MatchString(d.RawNarration) || ccBillPaymentPayeeRegex.MatchString(d.CleanedPayee)
 
 		for _, c := range credits {
-			if matchedCreditIDs[c.ID] {
-				continue
-			}
-
 			cDate, err := parseDate(c.TxDate)
 			if err != nil {
 				continue
@@ -255,22 +260,26 @@ func (s *ReconciliationService) getCandidatePairs() ([]models.TransferPair, erro
 
 			isCreditPayeeMatch := ccBillPaymentPayeeRegex.MatchString(c.RawNarration) || ccBillPaymentPayeeRegex.MatchString(c.CleanedPayee)
 
-			confidence := 0.70
+			confidence := suggestionConfidence
 			if amtDiff < 0.05 {
-				confidence += 0.15
+				confidence += exactAmountConfidenceBonus
 			}
 			if isDebitPayeeMatch || isCreditPayeeMatch {
-				confidence += 0.15
+				confidence += paymentEvidenceConfidenceBonus
 			}
 			if dayDiff <= 1 {
-				confidence += 0.05
+				confidence += nearDateConfidenceBonus
 			}
 
+			// An amount/date coincidence alone is never sufficient evidence
+			// of an internal payment. Refunds must remain financial activity.
+			if !(isDebitPayeeMatch || isCreditPayeeMatch) || cardRefundRegex.MatchString(c.RawNarration+" "+c.CleanedPayee) {
+				confidence = suggestionConfidence
+			}
 			if confidence > 1.0 {
 				confidence = 1.0
 			}
 
-			matchedCreditIDs[c.ID] = true
 			candidates = append(candidates, models.TransferPair{
 				ID:                 fmt.Sprintf("cand_%s_%s", d.ID, c.ID),
 				DebitTx:            d,
@@ -281,10 +290,40 @@ func (s *ReconciliationService) getCandidatePairs() ([]models.TransferPair, erro
 				DateDifferenceDays: int(dayDiff),
 				AmountDifference:   amtDiff,
 			})
-			break
 		}
 	}
 
+	// Assess ambiguity before selecting any pairs. Neither a refund nor a
+	// low-confidence suggestion should consume a stronger payment candidate.
+	strongDebits, strongCredits := map[string]int{}, map[string]int{}
+	for _, pair := range candidates {
+		if pair.MatchConfidence >= autoTransferConfidence {
+			strongDebits[pair.DebitTx.ID]++
+			strongCredits[pair.CreditTx.ID]++
+		}
+	}
+	for i := range candidates {
+		pair := &candidates[i]
+		if strongDebits[pair.DebitTx.ID] > 1 || strongCredits[pair.CreditTx.ID] > 1 {
+			pair.MatchConfidence = suggestionConfidence
+		}
+	}
+	sort.Slice(candidates, func(i, j int) bool {
+		a, b := candidates[i], candidates[j]
+		if a.MatchConfidence != b.MatchConfidence {
+			return a.MatchConfidence > b.MatchConfidence
+		}
+		if a.DateDifferenceDays != b.DateDifferenceDays {
+			return a.DateDifferenceDays < b.DateDifferenceDays
+		}
+		if a.AmountDifference != b.AmountDifference {
+			return a.AmountDifference < b.AmountDifference
+		}
+		return a.ID < b.ID
+	})
+	// Keep competing suggestions visible for manual selection. Automatic
+	// linking sees only unambiguous high-confidence pairs, and LinkPair also
+	// validates reciprocal one-to-one relationships atomically.
 	return candidates, nil
 }
 

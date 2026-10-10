@@ -17,7 +17,7 @@ func TestSampleDownloadsWithoutLocalFiles(t *testing.T) {
 	defer cleanup()
 
 	list := httptest.NewRecorder()
-	router.ServeHTTP(list, httptest.NewRequest(http.MethodGet, "/api/samples", nil))
+	router.ServeHTTP(list, localTestRequest(http.MethodGet, "/api/samples", nil))
 	if list.Code != http.StatusOK {
 		t.Fatalf("sample list status = %d", list.Code)
 	}
@@ -42,7 +42,7 @@ func TestSampleDownloadsWithoutLocalFiles(t *testing.T) {
 	for _, sample := range samples {
 		t.Run(sample.Filename, func(t *testing.T) {
 			response := httptest.NewRecorder()
-			router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/samples/download?path="+url.QueryEscape(sample.Path), nil))
+			router.ServeHTTP(response, localTestRequest(http.MethodGet, "/api/samples/download?path="+url.QueryEscape(sample.Path), nil))
 			if response.Code != http.StatusOK {
 				t.Fatalf("download status = %d, body = %s", response.Code, response.Body.String())
 			}
@@ -65,7 +65,7 @@ func TestSampleDownloadsWithoutLocalFiles(t *testing.T) {
 	} {
 		t.Run(tc.path, func(t *testing.T) {
 			response := httptest.NewRecorder()
-			router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/samples/download?path="+url.QueryEscape(tc.path), nil))
+			router.ServeHTTP(response, localTestRequest(http.MethodGet, "/api/samples/download?path="+url.QueryEscape(tc.path), nil))
 			if response.Code != tc.code {
 				t.Fatalf("status = %d, want %d", response.Code, tc.code)
 			}

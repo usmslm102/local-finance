@@ -25,7 +25,7 @@ func TestSystemVersionEndpoint(t *testing.T) {
 	router := SetupRouter(database, svc, nil)
 
 	// Test GET /api/system/version
-	req := httptest.NewRequest(http.MethodGet, "/api/system/version", nil)
+	req := localTestRequest(http.MethodGet, "/api/system/version", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -55,7 +55,7 @@ func TestHealthCheckVersion(t *testing.T) {
 	svc := service.NewTransactionService(database)
 	router := SetupRouter(database, svc, nil)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+	req := localTestRequest(http.MethodGet, "/api/health", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 

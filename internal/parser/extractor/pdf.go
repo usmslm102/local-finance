@@ -58,6 +58,10 @@ func ExtractPDFPositionalRows(r io.Reader, password string) ([]PositionalRow, er
 
 	var allRows []PositionalRow
 	numPages := pdfReader.NumPage()
+	if numPages > 1000 {
+		return nil, fmt.Errorf("statement exceeds 1000 PDF pages")
+	}
+	textElements := 0
 
 	for pageIndex := 1; pageIndex <= numPages; pageIndex++ {
 		p := pdfReader.Page(pageIndex)
@@ -66,6 +70,10 @@ func ExtractPDFPositionalRows(r io.Reader, password string) ([]PositionalRow, er
 		}
 		content := p.Content()
 		texts := content.Text
+		textElements += len(texts)
+		if textElements > 2_000_000 {
+			return nil, fmt.Errorf("PDF statement contains too much text")
+		}
 
 		// Sort text by Y desc (top to bottom), X asc (left to right)
 		sort.SliceStable(texts, func(i, j int) bool {

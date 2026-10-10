@@ -3,6 +3,7 @@ package api
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"net/http"
 	"strings"
 	"sync"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
+	"local-finance/internal/db"
 	"local-finance/internal/models"
 )
 
@@ -20,8 +22,9 @@ type SessionInfo struct {
 
 // SessionManager manages in-memory authentication sessions
 type SessionManager struct {
-	mu       sync.RWMutex
-	sessions map[string]SessionInfo
+	mu            sync.RWMutex
+	sessions      map[string]SessionInfo
+	credentialsMu sync.Mutex
 }
 
 func NewSessionManager() *SessionManager {
@@ -88,6 +91,12 @@ func (sm *SessionManager) RevokeSession(token string) {
 	delete(sm.sessions, token)
 }
 
+func (sm *SessionManager) RevokeAll() {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	clear(sm.sessions)
+}
+
 func (sm *SessionManager) CleanupExpired() {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
@@ -136,11 +145,11 @@ func extractToken(c *gin.Context) string {
 func (h *Handler) AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		settings, _, err := h.db.GetSecuritySettings()
-		if err != nil && strings.HasPrefix(c.Request.URL.Path, "/api/mcp/") {
+		if err != nil {
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Unable to read security settings"})
 			return
 		}
-		if err != nil || !settings.AuthEnabled {
+		if !settings.AuthEnabled {
 			c.Next()
 			return
 		}
@@ -198,6 +207,8 @@ func (h *Handler) GetAuthStatus(c *gin.Context) {
 
 // SetupAuth configures the master password for the first time and enables local auth
 func (h *Handler) SetupAuth(c *gin.Context) {
+	h.sessionManager.credentialsMu.Lock()
+	defer h.sessionManager.credentialsMu.Unlock()
 	var req models.AuthSetupRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Password is required"})
@@ -221,13 +232,19 @@ func (h *Handler) SetupAuth(c *gin.Context) {
 		autoLock = 60
 	}
 
-	if err := h.db.SetSecurityPassword(hash, autoLock); err != nil {
+	if err := h.db.SetupSecurityPassword(hash, autoLock); err != nil {
+		if errors.Is(err, db.ErrSecurityConfigured) {
+			c.JSON(http.StatusConflict, gin.H{"error": "Authentication is already configured"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to store security settings: " + err.Error()})
 		return
 	}
 
 	// Create session for the user immediately
+	h.sessionManager.RevokeAll()
 	token, expiresAt := h.sessionManager.CreateSession(autoLock)
+	c.SetSameSite(http.SameSiteStrictMode)
 	c.SetCookie("local_finance_session", token, int(autoLock*60), "/", "", false, true)
 
 	c.JSON(http.StatusOK, gin.H{
@@ -239,6 +256,8 @@ func (h *Handler) SetupAuth(c *gin.Context) {
 
 // Login verifies the master password and creates a new session
 func (h *Handler) Login(c *gin.Context) {
+	h.sessionManager.credentialsMu.Lock()
+	defer h.sessionManager.credentialsMu.Unlock()
 	var req models.AuthLoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Password is required"})
@@ -267,6 +286,7 @@ func (h *Handler) Login(c *gin.Context) {
 	}
 
 	token, expiresAt := h.sessionManager.CreateSession(autoLock)
+	c.SetSameSite(http.SameSiteStrictMode)
 	c.SetCookie("local_finance_session", token, int(autoLock*60), "/", "", false, true)
 
 	c.JSON(http.StatusOK, gin.H{
@@ -291,6 +311,8 @@ func (h *Handler) Logout(c *gin.Context) {
 
 // ChangePassword updates the master password after verifying the existing one
 func (h *Handler) ChangePassword(c *gin.Context) {
+	h.sessionManager.credentialsMu.Lock()
+	defer h.sessionManager.credentialsMu.Unlock()
 	var req models.AuthChangePasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Current and new password are required"})
@@ -330,11 +352,17 @@ func (h *Handler) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Master password updated successfully"})
+	h.sessionManager.RevokeAll()
+	token, expiresAt := h.sessionManager.CreateSession(settings.AutoLockMinutes)
+	c.SetSameSite(http.SameSiteStrictMode)
+	c.SetCookie("local_finance_session", token, settings.AutoLockMinutes*60, "/", "", false, true)
+	c.JSON(http.StatusOK, gin.H{"message": "Master password updated successfully", "token": token, "expires_at": expiresAt.Format(time.RFC3339)})
 }
 
 // DisableAuth turns off local authentication after verifying the master password
 func (h *Handler) DisableAuth(c *gin.Context) {
+	h.sessionManager.credentialsMu.Lock()
+	defer h.sessionManager.credentialsMu.Unlock()
 	var req models.AuthDisableRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Password confirmation is required to disable security"})
@@ -358,10 +386,7 @@ func (h *Handler) DisableAuth(c *gin.Context) {
 	}
 
 	// Revoke current session & cookie
-	token := extractToken(c)
-	if token != "" {
-		h.sessionManager.RevokeSession(token)
-	}
+	h.sessionManager.RevokeAll()
 	c.SetCookie("local_finance_session", "", -1, "/", "", false, true)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Local authentication disabled successfully"})
