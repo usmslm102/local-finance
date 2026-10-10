@@ -70,3 +70,29 @@ func TestConcurrentCategorizationPatchesPreserveOmittedFields(t *testing.T) {
 		t.Fatal("category missing")
 	}
 }
+
+func TestRulePatchValidatesCurrentMatcher(t *testing.T) {
+	database, err := NewDB(filepath.Join(t.TempDir(), "finance.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	rule := models.CategorizationRule{MatchField: "cleaned_payee", MatchType: "CONTAINS", MatchPattern: "Shop", TargetCategoryID: "cat_groceries", IsActive: true}
+	if err := database.CreateRule(&rule); err != nil {
+		t.Fatal(err)
+	}
+	stale := rule
+	stale.MatchPattern = "[" // Valid literal for the matcher this client loaded.
+	rule.MatchType = "REGEX"
+	rule.MatchPattern = "^Shop$"
+	if _, err := database.PatchRule(&rule, []string{"match_type", "match_pattern"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.PatchRule(&stale, []string{"match_pattern"}); err == nil {
+		t.Fatal("stale client saved invalid regex")
+	}
+	saved, err := database.GetRule(rule.ID)
+	if err != nil || saved.MatchType != "REGEX" || saved.MatchPattern != "^Shop$" {
+		t.Fatalf("rejected patch changed rule: %+v %v", saved, err)
+	}
+}

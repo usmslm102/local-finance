@@ -1522,10 +1522,10 @@ func (d *DB) GetAnalyticsOverview() (*models.AnalyticsOverview, error) {
 	var totalIncome, totalExpense sql.NullFloat64
 	err := d.conn.QueryRow(`
 		SELECT 
-			SUM(CASE WHEN `+incomeFilter("")+` THEN amount ELSE 0 END),
-			SUM(CASE WHEN `+spendingFilter("")+` THEN amount ELSE 0 END)
+			SUM(CASE WHEN ` + incomeFilter("") + ` THEN amount ELSE 0 END),
+			SUM(CASE WHEN ` + spendingFilter("") + ` THEN amount ELSE 0 END)
 		FROM transactions
-		WHERE `+financialActivityFilter("")+`
+		WHERE ` + financialActivityFilter("") + `
 	`).Scan(&totalIncome, &totalExpense)
 	if err != nil {
 		return nil, err
@@ -2233,34 +2233,15 @@ func (d *DB) GetCardPortfolioOverview() (*models.CardPortfolioOverview, error) {
 			return nil, err
 		}
 
-		if credLimit.Valid {
-			a.CreditLimit = &credLimit.Float64
-		}
-		if billCycle.Valid {
-			val := int(billCycle.Int32)
-			a.BillingCycleDay = &val
-		}
-		if nickname.Valid {
-			a.Nickname = &nickname.String
-		}
-		if custID.Valid {
-			a.CustomerID = &custID.String
-		}
-		if ifsc.Valid {
-			a.IFSCCode = &ifsc.String
-		}
-		if branch.Valid {
-			a.BranchName = &branch.String
-		}
-		if cardNet.Valid {
-			a.CardNetwork = &cardNet.String
-		}
-		if cardVar.Valid {
-			a.CardVariant = &cardVar.String
-		}
-		if holderName.Valid {
-			a.AccountHolderName = &holderName.String
-		}
+		if credLimit.Valid { a.CreditLimit = &credLimit.Float64 }
+		if billCycle.Valid { val := int(billCycle.Int32); a.BillingCycleDay = &val }
+		if nickname.Valid { a.Nickname = &nickname.String }
+		if custID.Valid { a.CustomerID = &custID.String }
+		if ifsc.Valid { a.IFSCCode = &ifsc.String }
+		if branch.Valid { a.BranchName = &branch.String }
+		if cardNet.Valid { a.CardNetwork = &cardNet.String }
+		if cardVar.Valid { a.CardVariant = &cardVar.String }
+		if holderName.Valid { a.AccountHolderName = &holderName.String }
 
 		rawRows = append(rawRows, rawCardRow{
 			a:           a,
@@ -2285,44 +2266,20 @@ func (d *DB) GetCardPortfolioOverview() (*models.CardPortfolioOverview, error) {
 		var cd models.CardDetails
 		cd.Account = r.a
 		cd.RewardRules = make([]models.CardRewardRule, 0)
-		if r.annFee.Valid {
-			cd.AnnualFee = r.annFee.Float64
-		}
-		if r.feeWaiver.Valid {
-			cd.FeeWaiverThreshold = r.feeWaiver.Float64
-		}
-		if r.billDay.Valid && r.billDay.Int32 > 0 {
-			cd.BillingDay = int(r.billDay.Int32)
-		} else {
-			cd.BillingDay = 12
-		}
-		if r.payDueDays.Valid && r.payDueDays.Int32 > 0 {
-			cd.PaymentDueDays = int(r.payDueDays.Int32)
-		} else {
-			cd.PaymentDueDays = 20
-		}
-		if r.cardColor.Valid && r.cardColor.String != "" {
-			cd.CardColor = r.cardColor.String
-		} else {
-			cd.CardColor = "#1E293B"
-		}
-		if r.rewType.Valid && r.rewType.String != "" {
-			cd.RewardType = r.rewType.String
-		} else {
-			cd.RewardType = "CASHBACK"
-		}
-		if r.baseRewRate.Valid && r.baseRewRate.Float64 > 0 {
-			cd.BaseRewardRate = r.baseRewRate.Float64
-		} else {
-			cd.BaseRewardRate = 1.0
-		}
+		if r.annFee.Valid { cd.AnnualFee = r.annFee.Float64 }
+		if r.feeWaiver.Valid { cd.FeeWaiverThreshold = r.feeWaiver.Float64 }
+		if r.billDay.Valid && r.billDay.Int32 > 0 { cd.BillingDay = int(r.billDay.Int32) } else { cd.BillingDay = 12 }
+		if r.payDueDays.Valid && r.payDueDays.Int32 > 0 { cd.PaymentDueDays = int(r.payDueDays.Int32) } else { cd.PaymentDueDays = 20 }
+		if r.cardColor.Valid && r.cardColor.String != "" { cd.CardColor = r.cardColor.String } else { cd.CardColor = "#1E293B" }
+		if r.rewType.Valid && r.rewType.String != "" { cd.RewardType = r.rewType.String } else { cd.RewardType = "CASHBACK" }
+		if r.baseRewRate.Valid && r.baseRewRate.Float64 > 0 { cd.BaseRewardRate = r.baseRewRate.Float64 } else { cd.BaseRewardRate = 1.0 }
 
 		// Fetch YTD spend
 		var ytdSpend float64
 		_ = d.conn.QueryRow(`
 			SELECT COALESCE(SUM(amount), 0)
 			FROM transactions
-			WHERE account_id = ? AND `+spendingFilter("")+` AND strftime('%Y', tx_date) = ?
+			WHERE account_id = ? AND ` + spendingFilter("") + ` AND strftime('%Y', tx_date) = ?
 		`, r.a.ID, fmt.Sprintf("%d", currentYear)).Scan(&ytdSpend)
 		cd.TotalSpendThisYear = ytdSpend
 
@@ -2408,12 +2365,8 @@ func (d *DB) GetCardPortfolioOverview() (*models.CardPortfolioOverview, error) {
 				var maxC, minS sql.NullFloat64
 				if err := rulesRows.Scan(&rule.ID, &rule.AccountID, &rule.MerchantPattern, &rule.CategoryName,
 					&rule.RewardPercentage, &rule.RewardDescription, &maxC, &minS, &rule.CreatedAt, &rule.UpdatedAt); err == nil {
-					if maxC.Valid {
-						rule.MaxCapPerMonth = &maxC.Float64
-					}
-					if minS.Valid {
-						rule.MinSpendPerTxn = &minS.Float64
-					}
+					if maxC.Valid { rule.MaxCapPerMonth = &maxC.Float64 }
+					if minS.Valid { rule.MinSpendPerTxn = &minS.Float64 }
 					cd.RewardRules = append(cd.RewardRules, rule)
 				}
 			}
@@ -2535,7 +2488,7 @@ func (d *DB) GetCategoryBudgetSummary(monthStr string) (*models.BudgetSummary, e
 		_ = d.conn.QueryRow(`
 			SELECT COALESCE(SUM(amount), 0)
 			FROM transactions
-			WHERE category_id = ? AND `+spendingFilter("")+` AND strftime('%Y-%m', tx_date) = ?
+			WHERE category_id = ? AND ` + spendingFilter("") + ` AND strftime('%Y-%m', tx_date) = ?
 		`, c.ID, monthStr).Scan(&spend)
 
 		// Calculate metrics
@@ -2836,14 +2789,14 @@ func (d *DB) ListMerchants(search, category, sortBy string) (*models.MerchantLis
 			COALESCE(c.name, 'Uncategorized') as category_name,
 			COALESCE(c.color_hex, '#64748B') as category_color,
 			COALESCE(c.icon, '') as category_icon,
-			COALESCE(SUM(CASE WHEN `+spendingFilter("t")+` THEN t.amount ELSE 0 END), 0) as total_spend,
-			COALESCE(SUM(CASE WHEN `+incomeFilter("t")+` THEN t.amount ELSE 0 END), 0) as total_credits,
+			COALESCE(SUM(CASE WHEN ` + spendingFilter("t") + ` THEN t.amount ELSE 0 END), 0) as total_spend,
+			COALESCE(SUM(CASE WHEN ` + incomeFilter("t") + ` THEN t.amount ELSE 0 END), 0) as total_credits,
 			COUNT(t.id) as tx_count,
-			COALESCE(AVG(CASE WHEN `+spendingFilter("t")+` THEN t.amount ELSE NULL END), 0) as average_order_value,
+			COALESCE(AVG(CASE WHEN ` + spendingFilter("t") + ` THEN t.amount ELSE NULL END), 0) as average_order_value,
 			MIN(t.tx_date) as first_tx_date,
 			MAX(t.tx_date) as last_tx_date,
 			COALESCE(
-				(SELECT a.bank_name FROM transactions st JOIN accounts a ON st.account_id = a.id WHERE st.cleaned_payee = t.cleaned_payee AND `+financialActivityFilter("st")+` ORDER BY st.tx_date DESC LIMIT 1),
+				(SELECT a.bank_name FROM transactions st JOIN accounts a ON st.account_id = a.id WHERE st.cleaned_payee = t.cleaned_payee AND ` + financialActivityFilter("st") + ` ORDER BY st.tx_date DESC LIMIT 1),
 				''
 			) as primary_source
 		FROM transactions t
@@ -2935,17 +2888,17 @@ func (d *DB) GetMerchantProfile(payeeName string) (*models.MerchantProfile, erro
 			COALESCE(c.name, 'Uncategorized'),
 			COALESCE(c.color_hex, '#64748B'),
 			COALESCE(c.icon, ''),
-			COALESCE(SUM(CASE WHEN `+spendingFilter("t")+` THEN t.amount ELSE 0 END), 0),
-			COALESCE(SUM(CASE WHEN `+incomeFilter("t")+` THEN t.amount ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN ` + spendingFilter("t") + ` THEN t.amount ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN ` + incomeFilter("t") + ` THEN t.amount ELSE 0 END), 0),
 			COUNT(t.id),
-			COALESCE(SUM(CASE WHEN `+spendingFilter("t")+` THEN 1 ELSE 0 END), 0),
-			COALESCE(SUM(CASE WHEN `+incomeFilter("t")+` THEN 1 ELSE 0 END), 0),
-			COALESCE(AVG(CASE WHEN `+spendingFilter("t")+` THEN t.amount ELSE NULL END), 0),
+			COALESCE(SUM(CASE WHEN ` + spendingFilter("t") + ` THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN ` + incomeFilter("t") + ` THEN 1 ELSE 0 END), 0),
+			COALESCE(AVG(CASE WHEN ` + spendingFilter("t") + ` THEN t.amount ELSE NULL END), 0),
 			MIN(t.tx_date),
 			MAX(t.tx_date)
 		FROM transactions t
 		LEFT JOIN categories c ON t.category_id = c.id
-		WHERE t.cleaned_payee = ? AND `+financialActivityFilter("t")+`
+		WHERE t.cleaned_payee = ? AND ` + financialActivityFilter("t") + `
 	`, payeeName).Scan(
 		&catName, &catColor, &catIcon,
 		&totalSpend, &totalCredits,
@@ -2956,37 +2909,17 @@ func (d *DB) GetMerchantProfile(payeeName string) (*models.MerchantProfile, erro
 		return nil, err
 	}
 
-	if catName.Valid {
-		p.CategoryName = catName.String
-	}
-	if catColor.Valid {
-		p.CategoryColor = catColor.String
-	}
-	if catIcon.Valid {
-		p.CategoryIcon = catIcon.String
-	}
-	if totalSpend.Valid {
-		p.TotalSpend = totalSpend.Float64
-	}
-	if totalCredits.Valid {
-		p.TotalCredits = totalCredits.Float64
-	}
+	if catName.Valid { p.CategoryName = catName.String }
+	if catColor.Valid { p.CategoryColor = catColor.String }
+	if catIcon.Valid { p.CategoryIcon = catIcon.String }
+	if totalSpend.Valid { p.TotalSpend = totalSpend.Float64 }
+	if totalCredits.Valid { p.TotalCredits = totalCredits.Float64 }
 	p.NetSpend = p.TotalSpend - p.TotalCredits
-	if totalTx.Valid {
-		p.TotalTxCount = int(totalTx.Int32)
-	}
-	if debitTx.Valid {
-		p.DebitTxCount = int(debitTx.Int32)
-	}
-	if creditTx.Valid {
-		p.CreditTxCount = int(creditTx.Int32)
-	}
-	if avgOrderVal.Valid {
-		p.AverageOrderValue = avgOrderVal.Float64
-	}
-	if firstDate.Valid {
-		p.FirstTxDate = firstDate.String
-	}
+	if totalTx.Valid { p.TotalTxCount = int(totalTx.Int32) }
+	if debitTx.Valid { p.DebitTxCount = int(debitTx.Int32) }
+	if creditTx.Valid { p.CreditTxCount = int(creditTx.Int32) }
+	if avgOrderVal.Valid { p.AverageOrderValue = avgOrderVal.Float64 }
+	if firstDate.Valid { p.FirstTxDate = firstDate.String }
 	if lastDate.Valid {
 		p.LastTxDate = lastDate.String
 		if lDate, err := time.Parse("2006-01-02", p.LastTxDate); err == nil {
@@ -3002,7 +2935,7 @@ func (d *DB) GetMerchantProfile(payeeName string) (*models.MerchantProfile, erro
 			COUNT(t.id) as cnt
 		FROM transactions t
 		JOIN accounts a ON t.account_id = a.id
-		WHERE t.cleaned_payee = ? AND `+spendingFilter("t")+`
+		WHERE t.cleaned_payee = ? AND ` + spendingFilter("t") + `
 		GROUP BY acc_name
 		ORDER BY spend DESC
 	`, payeeName)
@@ -3025,7 +2958,7 @@ func (d *DB) GetMerchantProfile(payeeName string) (*models.MerchantProfile, erro
 	// 3. Preferred Payment Mode
 	var prefMode sql.NullString
 	_ = d.conn.QueryRow(`
-		SELECT payment_mode FROM transactions WHERE cleaned_payee = ? AND `+financialActivityFilter("")+` GROUP BY payment_mode ORDER BY COUNT(*) DESC LIMIT 1
+		SELECT payment_mode FROM transactions WHERE cleaned_payee = ? AND ` + financialActivityFilter("") + ` GROUP BY payment_mode ORDER BY COUNT(*) DESC LIMIT 1
 	`, payeeName).Scan(&prefMode)
 	if prefMode.Valid {
 		p.PreferredPaymentMode = prefMode.String
@@ -3038,7 +2971,7 @@ func (d *DB) GetMerchantProfile(payeeName string) (*models.MerchantProfile, erro
 			COALESCE(SUM(amount), 0),
 			COUNT(id)
 		FROM transactions
-		WHERE cleaned_payee = ? AND `+spendingFilter("")+`
+		WHERE cleaned_payee = ? AND ` + spendingFilter("") + `
 		GROUP BY m
 		ORDER BY m ASC
 	`, payeeName)
@@ -3060,7 +2993,7 @@ func (d *DB) GetMerchantProfile(payeeName string) (*models.MerchantProfile, erro
 			t.tx_type, t.amount, t.is_transfer, t.is_excluded, t.created_at
 		FROM transactions t
 		JOIN accounts a ON t.account_id = a.id
-		WHERE t.cleaned_payee = ? AND `+financialActivityFilter("t")+`
+		WHERE t.cleaned_payee = ? AND ` + financialActivityFilter("t") + `
 		ORDER BY t.tx_date DESC
 		LIMIT 50
 	`, payeeName)
@@ -3179,24 +3112,24 @@ func (d *DB) GetCashFlowIntelligence(period string) (*models.CashFlowIntelligenc
 			COALESCE(a.nickname, '') as nickname, COALESCE(a.card_variant, '') as variant
 		FROM transactions t
 		JOIN accounts a ON t.account_id = a.id
-		WHERE `+incomeFilter("t")+` AND %s
+		WHERE ` + incomeFilter("t") + ` AND %s
 	`, dateClause)
 
 	creditRows, err := d.conn.Query(inflowQuery, dateArgs...)
-	sourceTotals := make(map[string]float64)           // source_id -> total
-	sourceCounts := make(map[string]int)               // source_id -> count
+	sourceTotals := make(map[string]float64)       // source_id -> total
+	sourceCounts := make(map[string]int)           // source_id -> count
 	sourceToAcc := make(map[string]map[string]float64) // source_id -> acc_id -> amount
-	accNames := make(map[string]string)                // acc_id -> display_name
-	accTypes := make(map[string]string)                // acc_id -> account_type
-	accInflow := make(map[string]float64)              // acc_id -> total inflow
+	accNames := make(map[string]string)            // acc_id -> display_name
+	accTypes := make(map[string]string)            // acc_id -> account_type
+	accInflow := make(map[string]float64)          // acc_id -> total inflow
 
 	var totalInflow float64
 
 	if err == nil {
 		for creditRows.Next() {
 			var (
-				id, rawNarration, cleanedPayee, payMode       string
-				amount                                        float64
+				id, rawNarration, cleanedPayee, payMode string
+				amount                                  float64
 				accID, bankName, accType, mask, nick, variant string
 			)
 			if err := creditRows.Scan(&id, &rawNarration, &cleanedPayee, &payMode, &amount,
@@ -3263,20 +3196,20 @@ func (d *DB) GetCashFlowIntelligence(period string) (*models.CashFlowIntelligenc
 		FROM transactions t
 		JOIN accounts a ON t.account_id = a.id
 		LEFT JOIN categories c ON t.category_id = c.id
-		WHERE `+spendingFilter("t")+` AND %s
+		WHERE ` + spendingFilter("t") + ` AND %s
 	`, dateClause)
 
 	debitRows, err := d.conn.Query(outflowQuery, dateArgs...)
-	categoryTotals := make(map[string]float64) // cat_id -> amount
-	categoryCounts := make(map[string]int)     // cat_id -> count
+	categoryTotals := make(map[string]float64)     // cat_id -> amount
+	categoryCounts := make(map[string]int)         // cat_id -> count
 	categoryMeta := make(map[string]struct {
 		name, color, icon string
 	})
 
-	cardSpends := make(map[string]float64)           // card_acc_id -> amount
+	cardSpends := make(map[string]float64)         // card_acc_id -> amount
 	cardToCat := make(map[string]map[string]float64) // card_acc_id -> cat_id -> amount
 	bankToCat := make(map[string]map[string]float64) // bank_acc_id -> cat_id -> amount
-	accOutflow := make(map[string]float64)           // acc_id -> total outflow
+	accOutflow := make(map[string]float64)         // acc_id -> total outflow
 
 	var totalOutflow float64
 	var creditCardSpendTotal float64
@@ -3295,10 +3228,10 @@ func (d *DB) GetCashFlowIntelligence(period string) (*models.CashFlowIntelligenc
 	if err == nil {
 		for debitRows.Next() {
 			var (
-				id, payMode, cleanedPayee                     string
-				amount                                        float64
+				id, payMode, cleanedPayee string
+				amount                    float64
 				accID, bankName, accType, mask, nick, variant string
-				catID, catName, catColor, catIcon             string
+				catID, catName, catColor, catIcon string
 			)
 			if err := debitRows.Scan(&id, &amount, &payMode, &cleanedPayee,
 				&accID, &bankName, &accType, &mask, &nick, &variant,
@@ -3588,7 +3521,7 @@ func (d *DB) GetCashFlowIntelligence(period string) (*models.CashFlowIntelligenc
 		prevRows, err := d.conn.Query(`
 			SELECT COALESCE(category_id, 'cat_others'), SUM(amount)
 			FROM transactions
-			WHERE `+spendingFilter("")+`
+			WHERE ` + spendingFilter("") + `
 			  AND tx_date >= ? AND tx_date <= ?
 			GROUP BY category_id
 		`, res.PreviousMonth+"-01", res.PreviousMonth+"-31")
@@ -3629,7 +3562,7 @@ func (d *DB) GetCashFlowIntelligence(period string) (*models.CashFlowIntelligenc
 			SELECT strftime('%Y-%m', tx_date) as m, COALESCE(SUM(amount), 0)
 			FROM transactions
 			WHERE (category_id = ? OR (? = 'cat_others' AND category_id IS NULL))
-			  AND `+spendingFilter("")+`
+			  AND ` + spendingFilter("") + `
 			GROUP BY m
 			ORDER BY m DESC
 			LIMIT 6
@@ -3660,7 +3593,7 @@ func (d *DB) GetCashFlowIntelligence(period string) (*models.CashFlowIntelligenc
 			SELECT cleaned_payee, payment_mode, SUM(amount), COUNT(id)
 			FROM transactions
 			WHERE (category_id = ? OR (? = 'cat_others' AND category_id IS NULL))
-			  AND `+spendingFilter("")+` AND %s
+			  AND ` + spendingFilter("") + ` AND %s
 			GROUP BY cleaned_payee, payment_mode
 			ORDER BY SUM(amount) DESC
 			LIMIT 3
@@ -3859,13 +3792,13 @@ func (d *DB) GetWrappedStory(year string) (*models.WrappedStory, error) {
 	// 2. Aggregate stats
 	statsQuery := fmt.Sprintf(`
 		SELECT 
-			COALESCE(SUM(CASE WHEN `+incomeFilter("")+` THEN amount ELSE 0 END), 0) as income,
-			COALESCE(SUM(CASE WHEN `+spendingFilter("")+` THEN amount ELSE 0 END), 0) as expense,
-			COUNT(CASE WHEN `+financialActivityFilter("")+` THEN id ELSE NULL END) as total_txs,
-			COUNT(CASE WHEN payment_mode = 'UPI' AND `+financialActivityFilter("")+` THEN id ELSE NULL END) as upi_txs,
-			COUNT(CASE WHEN payment_mode IN ('CARD_POS', 'CARD_ONLINE') AND `+financialActivityFilter("")+` THEN id ELSE NULL END) as card_txs,
-			COALESCE(SUM(CASE WHEN payment_mode = 'UPI' AND `+spendingFilter("")+` THEN amount ELSE 0 END), 0) as upi_spend,
-			COALESCE(SUM(CASE WHEN payment_mode IN ('CARD_POS', 'CARD_ONLINE') AND `+spendingFilter("")+` THEN amount ELSE 0 END), 0) as card_spend,
+			COALESCE(SUM(CASE WHEN ` + incomeFilter("") + ` THEN amount ELSE 0 END), 0) as income,
+			COALESCE(SUM(CASE WHEN ` + spendingFilter("") + ` THEN amount ELSE 0 END), 0) as expense,
+			COUNT(CASE WHEN ` + financialActivityFilter("") + ` THEN id ELSE NULL END) as total_txs,
+			COUNT(CASE WHEN payment_mode = 'UPI' AND ` + financialActivityFilter("") + ` THEN id ELSE NULL END) as upi_txs,
+			COUNT(CASE WHEN payment_mode IN ('CARD_POS', 'CARD_ONLINE') AND ` + financialActivityFilter("") + ` THEN id ELSE NULL END) as card_txs,
+			COALESCE(SUM(CASE WHEN payment_mode = 'UPI' AND ` + spendingFilter("") + ` THEN amount ELSE 0 END), 0) as upi_spend,
+			COALESCE(SUM(CASE WHEN payment_mode IN ('CARD_POS', 'CARD_ONLINE') AND ` + spendingFilter("") + ` THEN amount ELSE 0 END), 0) as card_spend,
 			COALESCE(SUM(cashback_amount), 0) as cashback,
 			COALESCE(SUM(reward_points_earned), 0) as reward_pts
 		FROM transactions
@@ -3894,7 +3827,7 @@ func (d *DB) GetWrappedStory(year string) (*models.WrappedStory, error) {
 	merchQuery := fmt.Sprintf(`
 		SELECT cleaned_payee, SUM(amount) as spent, COUNT(id) as cnt, payment_mode
 		FROM transactions
-		WHERE `+spendingFilter("")+` AND %s
+		WHERE ` + spendingFilter("") + ` AND %s
 		  AND cleaned_payee != '' AND cleaned_payee != 'ATM Cash Withdrawal'
 		GROUP BY cleaned_payee
 		ORDER BY cnt DESC, spent DESC
@@ -3919,7 +3852,7 @@ func (d *DB) GetWrappedStory(year string) (*models.WrappedStory, error) {
 	bigQuery := fmt.Sprintf(`
 		SELECT id, account_id, tx_hash, tx_date, raw_narration, cleaned_payee, payment_mode, reference_number, tx_type, amount
 		FROM transactions
-		WHERE `+spendingFilter("")+` AND %s
+		WHERE ` + spendingFilter("") + ` AND %s
 		ORDER BY amount DESC
 		LIMIT 1
 	`, dateFilter)
@@ -3936,7 +3869,7 @@ func (d *DB) GetWrappedStory(year string) (*models.WrappedStory, error) {
 	busyQuery := fmt.Sprintf(`
 		SELECT tx_date, SUM(amount), COUNT(id)
 		FROM transactions
-		WHERE `+spendingFilter("")+` AND %s
+		WHERE ` + spendingFilter("") + ` AND %s
 		GROUP BY tx_date
 		ORDER BY SUM(amount) DESC
 		LIMIT 1
@@ -3949,7 +3882,7 @@ func (d *DB) GetWrappedStory(year string) (*models.WrappedStory, error) {
 		SELECT c.id, c.name, c.color_hex, c.icon, SUM(t.amount) as amt, COUNT(t.id) as cnt
 		FROM transactions t
 		JOIN categories c ON t.category_id = c.id
-		WHERE `+spendingFilter("t")+` AND %s
+		WHERE ` + spendingFilter("t") + ` AND %s
 		GROUP BY c.id
 		ORDER BY amt DESC
 		LIMIT 5

@@ -39,7 +39,8 @@ management tool is added.
   nonempty patterns and identifiers, regex syntax, category existence, and update
   target existence. Share rule insertion with DB.CreateRule via DB.InsertRule,
   preserving explicit zero priority while keeping the app's historical defaults.
-  DB.PatchRule atomically writes only supplied fields and checks target existence.
+  DB.PatchRule atomically writes only supplied fields, validates the merged current
+  matcher/pattern invariant, and checks target existence.
   Add DB.GetRule to load a rule by id regardless of active state. Errors contain
   no SQL or credentials.
 - Return the saved rule in the existing data envelope with a text fallback.

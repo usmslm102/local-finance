@@ -3,7 +3,6 @@ package mcp
 import (
 	"encoding/json"
 	"errors"
-	"regexp"
 	"strings"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -48,14 +47,9 @@ func registerRuleWriteTool(server *sdk.Server, database *db.DB) {
 		if strings.TrimSpace(rule.MatchPattern) == "" || strings.TrimSpace(rule.TargetCategoryID) == "" {
 			return nil, errors.New("match_pattern and target_category_id cannot be empty")
 		}
-		if rule.MatchType == "REGEX" {
-			if _, err := regexp.Compile("(?i)" + rule.MatchPattern); err != nil {
-				return nil, errors.New("invalid match_pattern regex")
-			}
-		}
-		if strings.ContainsAny(rule.ExcludePattern, "|.*+?^$") {
-			if _, err := regexp.Compile("(?i)" + strings.TrimSpace(rule.ExcludePattern)); err != nil {
-				return nil, errors.New("invalid exclude_pattern regex")
+		if rule.ID == "" {
+			if err := rule.ValidatePatterns(); err != nil {
+				return nil, err
 			}
 		}
 		categories, err := database.ListCategories()
