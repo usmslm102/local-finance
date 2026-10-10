@@ -522,7 +522,7 @@ export const TransactionTable: React.FC = () => {
                   <p className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors truncate">
                     {payeeText}
                   </p>
-                  {row.splitwise_entry_id && <Badge variant="secondary" className="text-[9px] px-1 py-0 shrink-0">{row.is_split ? 'Split' : 'Splitwise settlement'}</Badge>}
+                  {row.splitwise_entry_id && <Badge variant="secondary" className="text-[9px] px-1 py-0 shrink-0">{row.is_split ? 'Split' : 'Self transfer · Splitwise'}</Badge>}
                   {row.is_transfer && !row.splitwise_entry_id && (
                     <Badge variant="outline" className="text-[9px] px-1 py-0 font-medium text-muted-foreground shrink-0">
                       <ArrowLeftRight className="h-2.5 w-2.5 mr-0.5" /> Transfer
@@ -532,6 +532,7 @@ export const TransactionTable: React.FC = () => {
                 <p className="text-xs text-muted-foreground truncate" title={row.raw_narration}>
                   {row.raw_narration}
                 </p>
+                {row.splitwise_description && row.splitwise_description !== row.raw_narration && <p className="text-xs text-muted-foreground truncate" title={row.splitwise_description}>{row.splitwise_description}</p>}
               </div>
             </div>
           )
@@ -1345,7 +1346,7 @@ export const TransactionTable: React.FC = () => {
                   </span>
                 </div>
                 {selectedTx.splitwise_entry_id && <div className="flex justify-between items-center"><span>{selectedTx.is_split ? 'Split · your expense:' : 'Splitwise settlement · your expense:'}</span><PrivacyAmount amount={selectedTx.personal_expense_amount ?? 0} /></div>}
-                {selectedTx.splitwise_entry_id && <a className="text-primary underline block" href="/import?tab=splitwise">Review Splitwise link</a>}
+                {selectedTx.splitwise_entry_id && <a className="text-primary underline block" href="/splitwise">View Splitwise mapping</a>}
                 {selectedTx.running_balance !== undefined && selectedTx.running_balance !== null && (
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Running Balance:</span>

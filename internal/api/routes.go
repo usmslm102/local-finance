@@ -54,6 +54,11 @@ func SetupRouter(database *db.DB, svc *service.TransactionService, staticFS fs.F
 		apiGroup.POST("/mcp/token/rotate", h.RotateMCPToken)
 
 		apiGroup.GET("/splitwise", h.ListSplitwise)
+		apiGroup.GET("/splitwise/members", h.ListSplitwiseMembers)
+		apiGroup.GET("/splitwise/mappings", h.ListSplitwiseMappings)
+		apiGroup.POST("/splitwise/members", h.SaveSplitwiseMemberAliases)
+		apiGroup.GET("/splitwise/settlements", h.SplitwiseSettlementCandidates)
+		apiGroup.POST("/splitwise/settlements", h.ConfirmSplitwiseSettlement)
 		apiGroup.POST("/splitwise/preview", h.PreviewSplitwise)
 		apiGroup.POST("/splitwise/import", h.ImportSplitwise)
 		apiGroup.POST("/splitwise/:id/confirm", h.ConfirmSplitwise)

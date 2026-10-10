@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-func TestSplitwiseUploadPreviewConfirmAndProtection(t *testing.T) {
+func TestSplitwiseAutomaticUploadPreviewAndProtection(t *testing.T) {
 	_, router, d, cleanup := setupTestRouter(t)
 	defer cleanup()
 	data, err := os.ReadFile("../../samples/splitwise/fictional-group.csv")
@@ -48,8 +48,33 @@ func TestSplitwiseUploadPreviewConfirmAndProtection(t *testing.T) {
 	if w := upload("/api/splitwise/import", data); w.Code != 200 {
 		t.Fatalf("import: %d %s", w.Code, w.Body)
 	}
-	if w := upload("/api/splitwise/import", data); w.Code != 200 || !bytes.Contains(w.Body.Bytes(), []byte(`"duplicates":7`)) {
+	if w := upload("/api/splitwise/import", data); w.Code != 200 || !bytes.Contains(w.Body.Bytes(), []byte(`"duplicates":1`)) {
 		t.Fatalf("duplicate: %d %s", w.Code, w.Body)
+	}
+	wMembers := httptest.NewRecorder()
+	router.ServeHTTP(wMembers, localTestRequest("GET", "/api/splitwise/members", nil))
+	var members []models.SplitwiseMember
+	if err := json.Unmarshal(wMembers.Body.Bytes(), &members); err != nil || wMembers.Code != 200 || len(members) != 2 {
+		t.Fatalf("members: %d %s", wMembers.Code, wMembers.Body)
+	}
+	aliasesReq := localTestRequest("POST", "/api/splitwise/members", bytes.NewBufferString(`{"group":"Example","name":"Asha Example","aliases":["asha@fictional"]}`))
+	aliasesReq.Header.Set("Content-Type", "application/json")
+	wMembers = httptest.NewRecorder()
+	router.ServeHTTP(wMembers, aliasesReq)
+	if wMembers.Code != 204 {
+		t.Fatalf("aliases: %d %s", wMembers.Code, wMembers.Body)
+	}
+	wMembers = httptest.NewRecorder()
+	router.ServeHTTP(wMembers, localTestRequest("GET", "/api/splitwise/settlements", nil))
+	if wMembers.Code != 200 || wMembers.Body.String() != "[]" {
+		t.Fatalf("settlement suggestions: %d %s", wMembers.Code, wMembers.Body)
+	}
+	invalidSettlement := localTestRequest("POST", "/api/splitwise/settlements", bytes.NewBufferString(`{"transaction_id":"missing","group":"Example","member":"Asha Example"}`))
+	invalidSettlement.Header.Set("Content-Type", "application/json")
+	wMembers = httptest.NewRecorder()
+	router.ServeHTTP(wMembers, invalidSettlement)
+	if wMembers.Code != 400 {
+		t.Fatalf("invalid settlement: %d", wMembers.Code)
 	}
 	entries, _ = d.ListSplitwise()
 	var other models.SplitwiseEntry
@@ -72,7 +97,7 @@ func TestSplitwiseUploadPreviewConfirmAndProtection(t *testing.T) {
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, localTestRequest("GET", "/api/splitwise", nil))
 	var list []models.SplitwiseEntry
-	if err := json.Unmarshal(w.Body.Bytes(), &list); w.Code != 200 || err != nil || len(list) != 7 {
+	if err := json.Unmarshal(w.Body.Bytes(), &list); w.Code != 200 || err != nil || len(list) != 1 {
 		t.Fatalf("list: %d %v", w.Code, err)
 	}
 	if w := upload("/api/splitwise/import", []byte("broken")); w.Code != 400 {

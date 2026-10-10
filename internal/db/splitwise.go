@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -43,9 +44,30 @@ func (d *DB) ImportSplitwise(entries []models.SplitwiseEntry) (int, error) {
 		return 0, err
 	}
 	defer tx.Rollback()
+	inserted, err := importSplitwise(tx, entries)
+	if err != nil {
+		return 0, err
+	}
+	return inserted, tx.Commit()
+}
+
+func importSplitwise(tx statementConnection, entries []models.SplitwiseEntry) (int, error) {
 	inserted := 0
 	for _, e := range entries {
-		result, err := tx.Exec(`INSERT INTO splitwise_entries(id,group_name,person,tx_date,description,category,cost_cents,net_cents,share_cents,kind,status) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING`, e.ID, e.Group, e.Person, e.Date, e.Description, e.Category, e.Cost, e.Net, e.Share, e.Kind, e.Status)
+		var exists bool
+		if err := tx.QueryRow(`SELECT EXISTS(SELECT 1 FROM splitwise_entries WHERE id=?)`, e.ID).Scan(&exists); err != nil {
+			return 0, err
+		}
+		members, err := json.Marshal(e.Members)
+		if err != nil {
+			return 0, err
+		}
+		if len(e.Members) > 0 {
+			if _, err := tx.Exec(`INSERT INTO splitwise_groups(group_name,person,member_names) VALUES(?,?,?) ON CONFLICT(group_name) DO UPDATE SET person=excluded.person,member_names=excluded.member_names`, e.Group, e.Person, string(members)); err != nil {
+				return 0, err
+			}
+		}
+		result, err := tx.Exec(`INSERT INTO splitwise_entries(id,group_name,person,tx_date,description,category,cost_cents,net_cents,share_cents,kind,status,member_names) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET member_names=excluded.member_names WHERE splitwise_entries.member_names != excluded.member_names`, e.ID, e.Group, e.Person, e.Date, e.Description, e.Category, e.Cost, e.Net, e.Share, e.Kind, e.Status, string(members))
 		if err != nil {
 			return 0, err
 		}
@@ -53,9 +75,12 @@ func (d *DB) ImportSplitwise(entries []models.SplitwiseEntry) (int, error) {
 		if err != nil {
 			return 0, err
 		}
-		inserted += int(count)
+		// Membership refreshes must not be reported as newly imported expenses.
+		if count > 0 && !exists {
+			inserted++
+		}
 	}
-	return inserted, tx.Commit()
+	return inserted, nil
 }
 
 func (d *DB) ListSplitwise() ([]models.SplitwiseEntry, error) {
@@ -65,7 +90,11 @@ func (d *DB) ListSplitwise() ([]models.SplitwiseEntry, error) {
 }
 
 func (d *DB) listSplitwise() ([]models.SplitwiseEntry, error) {
-	rows, err := d.conn.Query(`SELECT id,group_name,person,tx_date,description,category,cost_cents,net_cents,share_cents,kind,status,transaction_id,category_id FROM splitwise_entries ORDER BY tx_date DESC,id`)
+	return listSplitwise(d.conn)
+}
+
+func listSplitwise(conn statementConnection) ([]models.SplitwiseEntry, error) {
+	rows, err := conn.Query(`SELECT id,group_name,person,tx_date,description,category,cost_cents,net_cents,share_cents,kind,status,transaction_id,category_id,member_names,notes,tags,is_manual_category,removed_transaction_id FROM splitwise_entries ORDER BY tx_date DESC,id`)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +102,11 @@ func (d *DB) listSplitwise() ([]models.SplitwiseEntry, error) {
 	entries := []models.SplitwiseEntry{}
 	for rows.Next() {
 		var e models.SplitwiseEntry
-		if err := rows.Scan(&e.ID, &e.Group, &e.Person, &e.Date, &e.Description, &e.Category, &e.Cost, &e.Net, &e.Share, &e.Kind, &e.Status, &e.TransactionID, &e.CategoryID); err != nil {
+		var members string
+		if err := rows.Scan(&e.ID, &e.Group, &e.Person, &e.Date, &e.Description, &e.Category, &e.Cost, &e.Net, &e.Share, &e.Kind, &e.Status, &e.TransactionID, &e.CategoryID, &members, &e.Notes, &e.Tags, &e.IsManualCategory, &e.RemovedTransactionID); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal([]byte(members), &e.Members); err != nil {
 			return nil, err
 		}
 		entries = append(entries, e)
@@ -148,7 +181,7 @@ func (d *DB) ConfirmSplitwise(id string, req models.SplitwiseConfirmation) error
 			return fmt.Errorf("choose an expense category")
 		}
 	}
-	_, err = tx.Exec(`UPDATE splitwise_entries SET status=?,share_cents=?,transaction_id=?,category_id=NULLIF(?,'') WHERE id=?`, status, req.Share, link, req.CategoryID, id)
+	_, err = tx.Exec(`UPDATE splitwise_entries SET removed_transaction_id=CASE WHEN ?='IGNORED' THEN COALESCE(transaction_id,removed_transaction_id) ELSE NULL END,status=?,share_cents=?,transaction_id=?,category_id=NULLIF(?,'') WHERE id=?`, status, status, req.Share, link, req.CategoryID, id)
 	if err != nil {
 		return err
 	}
@@ -177,9 +210,13 @@ func (d *DB) ResetSplitwise(id string) error {
 func (d *DB) SplitwiseCandidates(id string, options models.SplitwiseMatchOptions) ([]models.Transaction, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
+	return splitwiseCandidates(d.conn, id, options)
+}
+
+func splitwiseCandidates(conn statementConnection, id string, options models.SplitwiseMatchOptions) ([]models.Transaction, error) {
 	var cost, net int64
 	var kind, date string
-	err := d.conn.QueryRow(`SELECT cost_cents,net_cents,kind,tx_date FROM splitwise_entries WHERE id=?`, id).Scan(&cost, &net, &kind, &date)
+	err := conn.QueryRow(`SELECT cost_cents,net_cents,kind,tx_date FROM splitwise_entries WHERE id=?`, id).Scan(&cost, &net, &kind, &date)
 	if err == sql.ErrNoRows {
 		return nil, ErrSplitwiseNotFound
 	}
@@ -195,7 +232,7 @@ func (d *DB) SplitwiseCandidates(id string, options models.SplitwiseMatchOptions
 		return items, nil
 	}
 	search := "%" + strings.TrimSpace(options.Search) + "%"
-	rows, err := d.conn.Query(`SELECT t.id,t.tx_date,t.raw_narration,t.amount,t.tx_type,COALESCE(NULLIF(a.nickname,''),a.bank_name),t.is_transfer FROM transactions t JOIN accounts a ON a.id=t.account_id WHERE a.currency='INR' AND t.tx_type=? AND t.amount>0 AND ABS(ROUND(t.amount*100)-?)<=? AND t.tx_date BETWEEN date(?,'-15 days') AND ? AND COALESCE(t.transfer_peer_id,'')='' AND t.is_excluded=0 AND (t.raw_narration LIKE ? OR t.cleaned_payee LIKE ?) AND NOT EXISTS(SELECT 1 FROM splitwise_entries s WHERE s.transaction_id=t.id AND s.id!=?) ORDER BY CASE WHEN ROUND(t.amount*100)=? THEN 0 ELSE 1 END,ABS(julianday(t.tx_date)-julianday(?)),ABS(ROUND(t.amount*100)-?),t.id LIMIT 50`, direction, paid, splitwiseAmountTolerance, date, date, search, search, id, paid, date, paid)
+	rows, err := conn.Query(`SELECT t.id,t.tx_date,t.raw_narration,t.amount,t.tx_type,COALESCE(NULLIF(a.nickname,''),a.bank_name),t.is_transfer FROM transactions t JOIN accounts a ON a.id=t.account_id WHERE a.currency='INR' AND t.tx_type=? AND t.amount>0 AND ABS(ROUND(t.amount*100)-?)<=? AND t.tx_date BETWEEN date(?,'-15 days') AND ? AND COALESCE(t.transfer_peer_id,'')='' AND t.is_excluded=0 AND (t.raw_narration LIKE ? OR t.cleaned_payee LIKE ?) AND NOT EXISTS(SELECT 1 FROM splitwise_entries s WHERE (s.transaction_id=t.id AND s.id!=? AND NOT (? AND s.id='sw-settlement-' || t.id AND s.status='CONFIRMED' AND s.kind='PAYMENT')) OR (s.status='IGNORED' AND s.removed_transaction_id=t.id)) ORDER BY CASE WHEN ROUND(t.amount*100)=? THEN 0 ELSE 1 END,ABS(julianday(t.tx_date)-julianday(?)),ABS(ROUND(t.amount*100)-?),t.id LIMIT 50`, direction, paid, splitwiseAmountTolerance, date, date, search, search, id, options.AllowMemberSettlement, paid, date, paid)
 	if err != nil {
 		return nil, err
 	}

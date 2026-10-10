@@ -12,4 +12,13 @@ export interface SplitwiseEntry {
   status: 'REVIEW' | 'CONFIRMED' | 'IGNORED'
   transaction_id?: string
   category_id?: string
+  members: string[]
+}
+
+export interface SplitwiseMember {
+  group: string
+  name: string
+  person: string
+  aliases: string[]
+  pattern: string
 }

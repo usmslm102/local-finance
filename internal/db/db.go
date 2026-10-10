@@ -12,7 +12,6 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -98,6 +97,12 @@ func (d *DB) ResetDatabase() error {
 	defer tx.Rollback()
 
 	if _, err := tx.Exec(`DELETE FROM splitwise_entries`); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM splitwise_member_aliases`); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM splitwise_groups`); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(`DELETE FROM investment_snapshots`); err != nil {
@@ -313,18 +318,19 @@ func (d *DB) RecalculateAccountBalance(accountID string) error {
 }
 
 type TransactionFilter struct {
-	ID         string
-	AccountID  string
-	CategoryID string
-	TxType     string
-	Search     string
-	StartDate  string
-	EndDate    string
-	IsTransfer *bool
-	MinAmount  *float64
-	MaxAmount  *float64
-	Limit      int
-	Offset     int
+	StatementOnly bool
+	ID            string
+	AccountID     string
+	CategoryID    string
+	TxType        string
+	Search        string
+	StartDate     string
+	EndDate       string
+	IsTransfer    *bool
+	MinAmount     *float64
+	MaxAmount     *float64
+	Limit         int
+	Offset        int
 }
 
 func (d *DB) ListTransactions(f TransactionFilter) ([]models.Transaction, int, error) {
@@ -360,9 +366,9 @@ func (d *DB) ListTransactions(f TransactionFilter) ([]models.Transaction, int, e
 		args = append(args, *f.IsTransfer)
 	}
 	if f.Search != "" {
-		where = append(where, "(t.raw_narration LIKE ? OR t.cleaned_payee LIKE ? OR t.reference_number LIKE ? OR t.upi_vpa LIKE ?)")
+		where = append(where, "(t.raw_narration LIKE ? OR t.cleaned_payee LIKE ? OR t.reference_number LIKE ? OR t.upi_vpa LIKE ? OR EXISTS(SELECT 1 FROM splitwise_entries s WHERE (s.transaction_id=t.id OR s.id=t.id) AND s.status='CONFIRMED' AND s.description LIKE ?))")
 		searchTerm := "%" + f.Search + "%"
-		args = append(args, searchTerm, searchTerm, searchTerm, searchTerm)
+		args = append(args, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm)
 	}
 	if f.MinAmount != nil {
 		where = append(where, "t.amount >= ?")
@@ -377,7 +383,11 @@ func (d *DB) ListTransactions(f TransactionFilter) ([]models.Transaction, int, e
 
 	// Count total
 	var total int
-	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM transactions t WHERE %s", whereClause)
+	source := "ledger_transactions"
+	if f.StatementOnly {
+		source = "transactions"
+	}
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s t WHERE %s", source, whereClause)
 	if err := d.conn.QueryRow(countQuery, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
@@ -393,7 +403,7 @@ func (d *DB) ListTransactions(f TransactionFilter) ([]models.Transaction, int, e
 
 	query := fmt.Sprintf(`
 		SELECT 
-			t.id, t.account_id, a.bank_name || ' (' || a.account_type || ')' as account_name,
+			t.id, t.account_id, COALESCE(a.bank_name || ' (' || a.account_type || ')', 'Splitwise') as account_name,
 			t.statement_import_id, t.tx_hash, t.tx_date, t.value_date,
 			t.raw_narration, t.cleaned_payee, t.payment_mode, t.reference_number,
 			t.tx_type, t.amount, t.running_balance,
@@ -401,16 +411,16 @@ func (d *DB) ListTransactions(f TransactionFilter) ([]models.Transaction, int, e
 			t.upi_vpa, t.card_last4, t.merchant_category, t.cashback_amount, t.reward_points_earned,
 			t.is_transfer, t.is_excluded, t.transfer_peer_id, t.transfer_match_reason, t.net_amount,
 			t.original_currency, t.original_amount,
-			t.is_recurring, COALESCE(t.is_manual_category, 0), COALESCE(t.notes, ''), COALESCE(t.tags, ''), t.created_at,
-			s.id,s.kind,CASE WHEN s.kind='PAYMENT' THEN 0 ELSE s.share_cents / 100.0 END
-		FROM transactions t
+			t.is_recurring, COALESCE(t.is_manual_category, 0), COALESCE(t.notes, ''), COALESCE(t.tags, ''), COALESCE(strftime('%%Y-%%m-%%dT%%H:%%M:%%fZ',t.created_at),t.created_at),
+			s.id,s.kind,CASE WHEN s.kind='PAYMENT' THEN 0 ELSE s.share_cents / 100.0 END,s.description
+		FROM %s t
 		LEFT JOIN accounts a ON t.account_id = a.id
 		LEFT JOIN categories c ON t.category_id = c.id
-		LEFT JOIN splitwise_entries s ON s.transaction_id=t.id AND s.status='CONFIRMED'
+		LEFT JOIN splitwise_entries s ON (s.transaction_id=t.id OR (t.account_id='' AND s.id=t.id)) AND s.status='CONFIRMED'
 		WHERE %s
 		ORDER BY t.tx_date DESC, t.created_at DESC
 		LIMIT ? OFFSET ?
-	`, whereClause)
+	`, source, whereClause)
 
 	queryArgs := append(args, limit, offset)
 	rows, err := d.conn.Query(query, queryArgs...)
@@ -425,8 +435,9 @@ func (d *DB) ListTransactions(f TransactionFilter) ([]models.Transaction, int, e
 		var stmtID, valDate, catID, catName, catColor, catIcon, upiVpa, cardLast4, merchCat, peerID, matchReason, origCurr sql.NullString
 		var runBal, netAmt, origAmt sql.NullFloat64
 		var isManualCat sql.NullBool
-		var splitID, splitKind sql.NullString
+		var splitID, splitKind, splitDescription sql.NullString
 		var personalExpense sql.NullFloat64
+		var createdAt string
 
 		if err := rows.Scan(
 			&t.ID, &t.AccountID, &t.AccountName,
@@ -437,16 +448,25 @@ func (d *DB) ListTransactions(f TransactionFilter) ([]models.Transaction, int, e
 			&upiVpa, &cardLast4, &merchCat, &t.CashbackAmount, &t.RewardPointsEarned,
 			&t.IsTransfer, &t.IsExcluded, &peerID, &matchReason, &netAmt,
 			&origCurr, &origAmt,
-			&t.IsRecurring, &isManualCat, &t.Notes, &t.Tags, &t.CreatedAt,
-			&splitID, &splitKind, &personalExpense,
+			&t.IsRecurring, &isManualCat, &t.Notes, &t.Tags, &createdAt,
+			&splitID, &splitKind, &personalExpense, &splitDescription,
 		); err != nil {
 			return nil, 0, err
+		}
+		createdAt = strings.Split(createdAt, " m=")[0]
+		if parsed, err := time.Parse(time.RFC3339Nano, createdAt); err == nil {
+			t.CreatedAt = parsed
+		} else if parsed, err := time.Parse("2006-01-02 15:04:05.999999999 -0700 MST", createdAt); err == nil {
+			t.CreatedAt = parsed
+		} else {
+			return nil, 0, fmt.Errorf("invalid transaction timestamp: %s", createdAt)
 		}
 
 		if stmtID.Valid {
 			t.StatementImportID = &stmtID.String
 		}
 		if splitID.Valid {
+			t.SplitwiseDescription = &splitDescription.String
 			t.SplitwiseEntryID = &splitID.String
 			t.SplitwiseKind = &splitKind.String
 			t.IsSplit = splitKind.String == "EXPENSE"
@@ -526,7 +546,7 @@ func (d *DB) UpdateTransaction(id string, req models.UpdateTransactionRequest) (
 
 	// Verify transaction exists
 	var currentCatID sql.NullString
-	err := d.conn.QueryRow(`SELECT category_id FROM transactions WHERE id = ?`, id).Scan(&currentCatID)
+	err := d.conn.QueryRow(`SELECT category_id FROM ledger_transactions WHERE id = ?`, id).Scan(&currentCatID)
 	if err != nil {
 		return nil, err
 	}
@@ -573,7 +593,15 @@ func (d *DB) UpdateTransaction(id string, req models.UpdateTransactionRequest) (
 	}
 
 	if len(sets) > 0 {
-		query := fmt.Sprintf(`UPDATE transactions SET %s WHERE id = ?`, strings.Join(sets, ", "))
+		table := "transactions"
+		var synthetic bool
+		if err := d.conn.QueryRow(`SELECT EXISTS(SELECT 1 FROM splitwise_entries WHERE id=? AND transaction_id IS NULL AND status='CONFIRMED' AND kind='EXPENSE')`, id).Scan(&synthetic); err != nil {
+			return nil, err
+		}
+		if synthetic {
+			table = "splitwise_entries"
+		}
+		query := fmt.Sprintf(`UPDATE %s SET %s WHERE id = ?`, table, strings.Join(sets, ", "))
 		args = append(args, id)
 		if _, err := d.conn.Exec(query, args...); err != nil {
 			return nil, err
@@ -775,48 +803,7 @@ func (d *DB) ReapplyRules() (int, error) {
 
 	for _, item := range txs {
 		var matchedCatID *string
-		for _, r := range rules {
-			if !r.MatchesTxType(item.txType) {
-				continue
-			}
-			if r.MatchesException(item.narration, item.payee) {
-				continue
-			}
-
-			targetVal := ""
-			switch r.MatchField {
-			case "cleaned_payee":
-				targetVal = item.payee
-			case "raw_narration":
-				targetVal = item.narration
-			case "reference_number":
-				targetVal = item.ref
-			case "upi_vpa":
-				targetVal = item.vpa
-			default:
-				targetVal = item.narration
-			}
-
-			matched := false
-			switch r.MatchType {
-			case "CONTAINS":
-				matched = strings.Contains(strings.ToUpper(targetVal), strings.ToUpper(r.MatchPattern))
-			case "EXACT":
-				matched = strings.EqualFold(targetVal, r.MatchPattern)
-			case "STARTS_WITH":
-				matched = strings.HasPrefix(strings.ToUpper(targetVal), strings.ToUpper(r.MatchPattern))
-			case "REGEX":
-				if re, err := regexp.Compile(r.MatchPattern); err == nil {
-					matched = re.MatchString(targetVal)
-				}
-			}
-
-			if matched {
-				cid := r.TargetCategoryID
-				matchedCatID = &cid
-				break
-			}
-		}
+		matchedCatID = models.MatchCategoryRule(models.Transaction{RawNarration: item.narration, CleanedPayee: item.payee, ReferenceNumber: item.ref, UPIVPA: &item.vpa, TxType: models.TxType(item.txType)}, rules)
 
 		if matchedCatID != nil {
 			if item.currentCat == nil || *item.currentCat != *matchedCatID {
@@ -838,7 +825,8 @@ func (d *DB) ReapplyRules() (int, error) {
 		}
 	}
 
-	return updatedCount, nil
+	extra, err := reapplySplitwiseRules(d.conn, rules)
+	return updatedCount + extra, err
 }
 
 func (d *DB) CreateOrUpdateCreditCardBill(b *models.CreditCardBill) error {
@@ -1385,6 +1373,10 @@ func (d *DB) ExportAllDataJSON() (*models.FullExportData, error) {
 	if err != nil {
 		return nil, err
 	}
+	members, err := d.listSplitwiseMembers()
+	if err != nil {
+		return nil, err
+	}
 	investments, err := d.listInvestmentSnapshots()
 	if err != nil {
 		return nil, err
@@ -1394,7 +1386,7 @@ func (d *DB) ExportAllDataJSON() (*models.FullExportData, error) {
 	if err != nil {
 		return nil, err
 	}
-	txs, _, err := d.ListTransactions(TransactionFilter{Limit: 100000})
+	txs, _, err := d.ListTransactions(TransactionFilter{Limit: 100000, StatementOnly: true})
 	if err != nil {
 		return nil, err
 	}
@@ -1417,6 +1409,7 @@ func (d *DB) ExportAllDataJSON() (*models.FullExportData, error) {
 
 	return &models.FullExportData{
 		Splitwise:        splitwise,
+		SplitwiseMembers: members,
 		Investments:      investments,
 		ExportedAt:       time.Now(),
 		Version:          "1.0",
@@ -1433,7 +1426,7 @@ func (d *DB) ExportTransactionsCSV(w io.Writer) error {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	txs, _, err := d.ListTransactions(TransactionFilter{Limit: 100000})
+	txs, _, err := d.ListTransactions(TransactionFilter{Limit: 100000, StatementOnly: true})
 	if err != nil {
 		return err
 	}

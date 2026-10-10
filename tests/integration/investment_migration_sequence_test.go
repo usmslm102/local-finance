@@ -65,7 +65,7 @@ func TestInvestmentMigrationsUpgradeMainVersion14(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer conn.Close()
-	if _, err := conn.Exec(`DROP VIEW personal_transactions; DROP TABLE splitwise_entries; DROP TABLE investment_snapshots`); err != nil {
+	if _, err := conn.Exec(`DROP VIEW ledger_transactions; DROP VIEW personal_transactions; DROP TABLE splitwise_entries; DROP TABLE splitwise_member_aliases; DROP TABLE splitwise_groups; DROP TABLE investment_snapshots`); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := conn.Exec(`ALTER TABLE mcp_settings DROP COLUMN allow_categorization_writes`); err != nil {

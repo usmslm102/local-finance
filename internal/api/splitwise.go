@@ -38,12 +38,12 @@ func (h *Handler) splitwiseUpload(c *gin.Context, preview bool) {
 		c.JSON(200, entries)
 		return
 	}
-	inserted, err := h.db.ImportSplitwise(entries)
+	result, err := h.db.ImportSplitwiseAutomatically(entries)
 	if err != nil {
 		c.JSON(500, gin.H{"error": "could not import Splitwise entries"})
 		return
 	}
-	c.JSON(200, gin.H{"inserted": inserted, "duplicates": len(entries) - inserted})
+	c.JSON(200, result)
 }
 
 func (h *Handler) ConfirmSplitwise(c *gin.Context) {
@@ -84,4 +84,57 @@ func splitwiseError(c *gin.Context, err error) {
 		status = http.StatusNotFound
 	}
 	c.JSON(status, gin.H{"error": err.Error()})
+}
+
+func (h *Handler) ListSplitwiseMembers(c *gin.Context) {
+	items, err := h.db.ListSplitwiseMembers()
+	if err != nil {
+		c.JSON(500, gin.H{"error": "could not load group members"})
+		return
+	}
+	c.JSON(200, items)
+}
+
+func (h *Handler) ListSplitwiseMappings(c *gin.Context) {
+	items, err := h.db.ListSplitwiseMappings()
+	if err != nil {
+		c.JSON(500, gin.H{"error": "could not load Splitwise mappings"})
+		return
+	}
+	c.JSON(200, items)
+}
+
+func (h *Handler) SaveSplitwiseMemberAliases(c *gin.Context) {
+	var req models.SplitwiseMember
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": "invalid member aliases"})
+		return
+	}
+	if err := h.db.SaveSplitwiseMemberAliases(req); err != nil {
+		splitwiseError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func (h *Handler) SplitwiseSettlementCandidates(c *gin.Context) {
+	items, err := h.db.SplitwiseSettlementCandidates()
+	if err != nil {
+		c.JSON(500, gin.H{"error": "could not load settlement suggestions"})
+		return
+	}
+	c.JSON(200, items)
+}
+
+func (h *Handler) ConfirmSplitwiseSettlement(c *gin.Context) {
+	var req models.SplitwiseSettlementConfirmation
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": "invalid settlement"})
+		return
+	}
+	if err := h.db.ConfirmSplitwiseSettlement(req); err != nil {
+		splitwiseError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
 }

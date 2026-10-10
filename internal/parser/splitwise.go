@@ -64,6 +64,14 @@ func ParseSplitwise(r io.Reader, group, person string) ([]models.SplitwiseEntry,
 		return nil, fmt.Errorf("member %q is not in this export", person)
 	}
 	person = strings.TrimSpace(header[member])
+	members := make([]string, 0, len(header)-5)
+	for _, name := range header[5:] {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			return nil, fmt.Errorf("member names cannot be empty")
+		}
+		members = append(members, name)
+	}
 	result := []models.SplitwiseEntry{}
 	occurrences := map[string]int{}
 	for row := 2; ; row++ {
@@ -103,6 +111,7 @@ func ParseSplitwise(r io.Reader, group, person string) ([]models.SplitwiseEntry,
 			return nil, fmt.Errorf("row %d: member balances must sum to zero", row)
 		}
 		entry := models.SplitwiseEntry{Group: group, Person: person, Date: date, Description: strings.TrimSpace(record[1]), Category: strings.TrimSpace(record[2]), Cost: cost, Net: net, Kind: "EXPENSE", Status: "REVIEW"}
+		entry.Members = members
 		if entry.Description == "" {
 			return nil, fmt.Errorf("row %d: description is required", row)
 		}

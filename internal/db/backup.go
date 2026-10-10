@@ -184,6 +184,12 @@ func (d *DB) validateRestoreQueries() error {
 	if _, err := d.ListSplitwise(); err != nil {
 		return fmt.Errorf("Splitwise ledger: %w", err)
 	}
+	if _, err := d.ListSplitwiseMembers(); err != nil {
+		return fmt.Errorf("Splitwise members: %w", err)
+	}
+	if _, _, err := d.ListTransactions(TransactionFilter{Limit: 1}); err != nil {
+		return fmt.Errorf("transaction ledger view: %w", err)
+	}
 	if _, err := d.GetAnalyticsOverview(); err != nil {
 		return fmt.Errorf("personal spending projection: %w", err)
 	}
