@@ -35,6 +35,7 @@ type Manager struct {
 }
 
 type Status struct {
+	AllowStatementWrites      bool   `json:"allow_statement_writes"`
 	AllowCategorizationWrites bool   `json:"allow_categorization_writes"`
 	Enabled                   bool   `json:"enabled"`
 	Port                      int    `json:"port"`
@@ -52,13 +53,10 @@ func NewManager(database *db.DB) *Manager {
 	} else {
 		m.settings = settings
 	}
-	readServer := newServer(database, false)
-	writeServer := newServer(database, true)
+	servers := [4]*sdk.Server{newServer(database, false, false), newServer(database, true, false), newServer(database, false, true), newServer(database, true, true)}
 	m.handler = sdk.NewStreamableHTTPHandler(func(r *http.Request) *sdk.Server {
-		if allowed, _ := r.Context().Value(categorizationWriteAccessKey{}).(bool); allowed {
-			return writeServer
-		}
-		return readServer
+		policy, _ := r.Context().Value(writeAccessKey{}).(int)
+		return servers[policy]
 	}, &sdk.StreamableHTTPOptions{Stateless: true, JSONResponse: true, MaxRequestBodyBytes: 1 << 20})
 	return m
 }
@@ -119,7 +117,7 @@ func (m *Manager) Status() Status {
 	return m.statusLocked()
 }
 func (m *Manager) statusLocked() Status {
-	return Status{Enabled: m.settings.Enabled, Port: m.settings.Port, AllowCategorizationWrites: m.settings.AllowCategorizationWrites, HasToken: m.settings.TokenHash != "", Listening: m.server != nil, Endpoint: fmt.Sprintf("http://127.0.0.1:%d/mcp", m.settings.Port), Error: m.lastError}
+	return Status{AllowStatementWrites: m.settings.AllowStatementWrites, Enabled: m.settings.Enabled, Port: m.settings.Port, AllowCategorizationWrites: m.settings.AllowCategorizationWrites, HasToken: m.settings.TokenHash != "", Listening: m.server != nil, Endpoint: fmt.Sprintf("http://127.0.0.1:%d/mcp", m.settings.Port), Error: m.lastError}
 }
 func (m *Manager) stopLocked() {
 	// Close the raw listener too: Server.Close may run before Serve registers it.
@@ -143,14 +141,17 @@ func (m *Manager) Configure(enabled bool, port int) (Status, error) {
 	return m.ConfigureAccess(enabled, port, nil)
 }
 
-// ConfigureAccess preserves the saved categorization-write preference when omitted.
-func (m *Manager) ConfigureAccess(enabled bool, port int, allowCategorizationWrites *bool) (Status, error) {
+// ConfigureAccess preserves saved write preferences when omitted.
+func (m *Manager) ConfigureAccess(enabled bool, port int, allowCategorizationWrites *bool, statementAccess ...*bool) (Status, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	s := m.settings
 	s.Enabled, s.Port = enabled, port
 	if allowCategorizationWrites != nil {
 		s.AllowCategorizationWrites = *allowCategorizationWrites
+	}
+	if len(statementAccess) > 0 && statementAccess[0] != nil {
+		s.AllowStatementWrites = *statementAccess[0]
 	}
 	if err := m.database.SetMCPSettings(s); err != nil {
 		return m.statusLocked(), err
@@ -191,6 +192,7 @@ func (m *Manager) Revoke() error {
 	m.settings.Enabled = false
 	m.settings.TokenHash = ""
 	m.settings.AllowCategorizationWrites = false
+	m.settings.AllowStatementWrites = false
 	return m.database.SetMCPSettings(m.settings)
 }
 
@@ -227,11 +229,17 @@ func (m *Manager) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid MCP token", http.StatusUnauthorized)
 		return
 	}
-	allowed := m.settings.AllowCategorizationWrites
+	policy := 0
+	if m.settings.AllowCategorizationWrites {
+		policy |= 1
+	}
+	if m.settings.AllowStatementWrites {
+		policy |= 2
+	}
 	m.active.Add(1)
 	m.mu.Unlock()
 	defer m.active.Done()
-	m.handler.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), categorizationWriteAccessKey{}, allowed)))
+	m.handler.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), writeAccessKey{}, policy)))
 }
 
-type categorizationWriteAccessKey struct{}
+type writeAccessKey struct{}

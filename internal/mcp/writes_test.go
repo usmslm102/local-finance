@@ -68,7 +68,7 @@ func TestCategorizationWritesAndPermissionChanges(t *testing.T) {
 	}
 	for _, tool := range tools.Tools {
 		if tool.Name == "save_category" || tool.Name == "save_categorization_rule" {
-			if tool.Annotations.ReadOnlyHint || tool.Annotations.IdempotentHint || tool.Annotations.DestructiveHint == nil || *tool.Annotations.DestructiveHint || tool.Annotations.OpenWorldHint == nil || *tool.Annotations.OpenWorldHint {
+			if tool.Annotations.ReadOnlyHint || tool.Annotations.IdempotentHint || tool.Annotations.DestructiveHint == nil || *tool.Annotations.DestructiveHint != (tool.Name == "save_categorization_rule") || tool.Annotations.OpenWorldHint == nil || *tool.Annotations.OpenWorldHint {
 				t.Fatalf("write annotations: %+v", tool.Annotations)
 			}
 		} else if !tool.Annotations.ReadOnlyHint {
