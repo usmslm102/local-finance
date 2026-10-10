@@ -441,8 +441,9 @@ export const TransactionTable: React.FC = () => {
     let debits = 0
     let credits = 0
     filteredItems.forEach((tx) => {
-      if (tx.is_transfer || tx.is_excluded || tx.category_id === CATEGORY_TRANSFERS_ID) return
-      if (tx.tx_type === 'DEBIT') debits += tx.amount
+      if (tx.is_excluded || tx.splitwise_kind === 'PAYMENT') return
+      if (!tx.is_split && (tx.is_transfer || tx.category_id === CATEGORY_TRANSFERS_ID)) return
+      if (tx.tx_type === 'DEBIT') debits += tx.personal_expense_amount ?? tx.amount
       else if (tx.tx_type === 'CREDIT') credits += tx.amount
     })
     return {
@@ -521,7 +522,8 @@ export const TransactionTable: React.FC = () => {
                   <p className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors truncate">
                     {payeeText}
                   </p>
-                  {row.is_transfer && (
+                  {row.splitwise_entry_id && <Badge variant="secondary" className="text-[9px] px-1 py-0 shrink-0">{row.is_split ? 'Split' : 'Self transfer · Splitwise'}</Badge>}
+                  {row.is_transfer && !row.splitwise_entry_id && (
                     <Badge variant="outline" className="text-[9px] px-1 py-0 font-medium text-muted-foreground shrink-0">
                       <ArrowLeftRight className="h-2.5 w-2.5 mr-0.5" /> Transfer
                     </Badge>
@@ -530,6 +532,7 @@ export const TransactionTable: React.FC = () => {
                 <p className="text-xs text-muted-foreground truncate" title={row.raw_narration}>
                   {row.raw_narration}
                 </p>
+                {row.splitwise_description && row.splitwise_description !== row.raw_narration && <p className="text-xs text-muted-foreground truncate" title={row.splitwise_description}>{row.splitwise_description}</p>}
               </div>
             </div>
           )
@@ -617,7 +620,7 @@ export const TransactionTable: React.FC = () => {
           const row = info.row.original
           const isCredit = row.tx_type === 'CREDIT'
           return (
-            <div className="flex items-center justify-end space-x-1 font-mono font-bold text-sm tabular-nums">
+            <div className="text-right"><div className="flex items-center justify-end space-x-1 font-mono font-bold text-sm tabular-nums">
               {isCredit ? (
                 <ArrowDownLeft className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
               ) : (
@@ -628,7 +631,7 @@ export const TransactionTable: React.FC = () => {
                 prefix={isCredit ? '+ ' : '- '}
                 className={isCredit ? 'text-emerald-400' : 'text-rose-400'}
               />
-            </div>
+            </div>{row.personal_expense_amount !== undefined && <div className="text-[10px] text-muted-foreground mt-1">Your expense: <PrivacyAmount amount={row.personal_expense_amount} /></div>}</div>
           )
         },
       }),
@@ -1342,6 +1345,8 @@ export const TransactionTable: React.FC = () => {
                     />
                   </span>
                 </div>
+                {selectedTx.splitwise_entry_id && <div className="flex justify-between items-center"><span>{selectedTx.is_split ? 'Split · your expense:' : 'Splitwise settlement · your expense:'}</span><PrivacyAmount amount={selectedTx.personal_expense_amount ?? 0} /></div>}
+                {selectedTx.splitwise_entry_id && <a className="text-primary underline block" href="/splitwise">View Splitwise mapping</a>}
                 {selectedTx.running_balance !== undefined && selectedTx.running_balance !== null && (
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Running Balance:</span>

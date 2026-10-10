@@ -24,7 +24,7 @@ func financialActivityFilter(alias string) string {
 }
 
 func spendingFilter(alias string) string {
-	return sqlColumnPrefix(alias) + "tx_type = 'DEBIT' AND " + financialActivityFilter(alias)
+	return sqlColumnPrefix(alias) + "tx_type = 'DEBIT' AND " + sqlColumnPrefix(alias) + "amount > 0 AND " + financialActivityFilter(alias)
 }
 
 func incomeFilter(alias string) string {

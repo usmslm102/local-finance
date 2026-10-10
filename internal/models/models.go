@@ -154,6 +154,11 @@ func (r *CategorizationRule) MatchesException(narration, payee string) bool {
 }
 
 type Transaction struct {
+	SplitwiseDescription *string `json:"splitwise_description,omitempty"`
+	IsSplit              bool       `json:"is_split"`
+	SplitwiseEntryID     *string    `json:"splitwise_entry_id,omitempty"`
+	SplitwiseKind        *string    `json:"splitwise_kind,omitempty"`
+	PersonalExpenseAmount *float64  `json:"personal_expense_amount,omitempty"`
 	ID                 string      `json:"id"`
 	AccountID          string      `json:"account_id"`
 	AccountName        string      `json:"account_name,omitempty"`
@@ -344,6 +349,8 @@ type DatabaseInfo struct {
 }
 
 type FullExportData struct {
+	SplitwiseMembers []SplitwiseMember `json:"splitwise_members"`
+	Splitwise []SplitwiseEntry `json:"splitwise"`
 	Investments      []InvestmentSnapshot `json:"investments"`
 	ExportedAt       time.Time            `json:"exported_at"`
 	Version          string               `json:"version"`

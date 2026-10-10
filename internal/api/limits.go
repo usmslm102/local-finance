@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"local-finance/internal/db"
+	"local-finance/internal/parser"
 	"local-finance/internal/service"
 )
 
@@ -28,6 +29,9 @@ func requestBodyLimits() gin.HandlerFunc {
 			limit, batch = maxBatchBytes+(1<<20), true
 		case "/api/database/restore":
 			fileLimit = db.MaxRestoreSize
+			limit = fileLimit + (1 << 20)
+		case "/api/splitwise/import", "/api/splitwise/preview":
+			fileLimit = parser.MaxSplitwiseFileSize
 			limit = fileLimit + (1 << 20)
 		case "/api/investments/import", "/api/investments/preview":
 			fileLimit = service.MaxInvestmentFileSize

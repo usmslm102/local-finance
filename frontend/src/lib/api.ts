@@ -12,6 +12,34 @@ import {
 
 const BASE_URL = '/api'
 
+export async function splitwiseRequest<T = void>(path: string, body?: unknown): Promise<T> {
+  const res = await fetchWithAuth(`${BASE_URL}/splitwise${path}`, body === undefined ? undefined : {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ error: 'Unable to update Splitwise' }))
+    throw new Error(error.error)
+  }
+  return res.status === 204 ? undefined as T : res.json()
+}
+
+export async function fetchTransaction(id: string): Promise<Transaction> {
+  const res = await fetchWithAuth(`${BASE_URL}/transactions/${encodeURIComponent(id)}`)
+  if (!res.ok) throw new Error('Unable to load the linked statement transaction')
+  return res.json()
+}
+
+export async function splitwiseUpload<T>(action: 'preview' | 'import', file: File, group: string, person: string): Promise<T> {
+  const body = new FormData()
+  body.append('file', file); body.append('group', group); body.append('person', person)
+  const res = await fetchWithAuth(`${BASE_URL}/splitwise/${action}`, { method: 'POST', body })
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ error: 'Unable to read Splitwise CSV' }))
+    throw new Error(error.error)
+  }
+  return res.json()
+}
+
 export async function fetchInvestments(): Promise<import('../types/investments').InvestmentSnapshot[]> {
   const res = await fetchWithAuth(`${BASE_URL}/investments`)
   if (!res.ok) throw new Error('Unable to load investments')

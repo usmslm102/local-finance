@@ -192,6 +192,7 @@ func (s *ReconciliationService) getCandidatePairs() ([]models.TransferPair, erro
 		FROM transactions t
 		JOIN accounts a ON t.account_id = a.id
 		WHERE t.tx_type = 'DEBIT' AND (t.transfer_peer_id IS NULL OR t.transfer_peer_id = '') AND a.account_type IN ('SAVINGS', 'CURRENT')
+		AND NOT EXISTS(SELECT 1 FROM splitwise_entries s WHERE s.transaction_id=t.id)
 		ORDER BY t.tx_date DESC
 		LIMIT 200
 	`
@@ -200,6 +201,7 @@ func (s *ReconciliationService) getCandidatePairs() ([]models.TransferPair, erro
 		FROM transactions t
 		JOIN accounts a ON t.account_id = a.id
 		WHERE t.tx_type = 'CREDIT' AND (t.transfer_peer_id IS NULL OR t.transfer_peer_id = '') AND a.account_type = 'CREDIT_CARD'
+		AND NOT EXISTS(SELECT 1 FROM splitwise_entries s WHERE s.transaction_id=t.id)
 		ORDER BY t.tx_date DESC
 		LIMIT 200
 	`
@@ -357,6 +359,7 @@ func (s *ReconciliationService) autoExcludeWalletLoads() (int, error) {
 		SET is_excluded = 1
 		WHERE (raw_narration LIKE '%UPI LITE%' OR raw_narration LIKE '%PAYTM WALLET%' OR raw_narration LIKE '%WALLET TOPUP%' OR raw_narration LIKE '%WALLET LOAD%')
 		  AND is_excluded = 0
+		  AND NOT EXISTS(SELECT 1 FROM splitwise_entries s WHERE s.transaction_id=transactions.id)
 	`)
 	if err != nil {
 		return 0, err

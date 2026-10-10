@@ -37,6 +37,7 @@ import { WhatsNewView } from '@/components/whatsnew/WhatsNewView'
 import { WrappedView } from '@/components/wrapped/WrappedView'
 import { SalaryView } from '@/components/salary/SalaryView'
 import { InvestmentsView } from '@/components/investments/InvestmentsView'
+import { SplitwiseView } from '@/components/splitwise/SplitwiseView'
 import { InvestmentTotals } from '@/components/investments/InvestmentTotals'
 import { PrivacyProvider } from '@/components/privacy-provider'
 import { PrivacyToggle } from '@/components/layout/PrivacyToggle'
@@ -83,6 +84,7 @@ const RootLayoutContent: React.FC = () => {
       case '/cashflow': return 'Cash Flow & Sankey'
       case '/salary': return 'Salary & Income Insights'
       case '/investments': return 'Investments'
+      case '/splitwise': return 'Splitwise'
       case '/calendar': return 'Spending Calendar'
       case '/budget': return 'Category Budgets'
       case '/cards': return 'Credit Cards & Rewards'
@@ -407,7 +409,7 @@ const calendarRoute = createRoute({
 const importRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/import',
-  validateSearch: (search: Record<string, unknown>): { tab?: 'investments' } => ({ tab: search.tab === 'investments' ? 'investments' : undefined }),
+  validateSearch: (search: Record<string, unknown>): { tab?: 'investments' | 'splitwise' } => ({ tab: search.tab === 'investments' || search.tab === 'splitwise' ? search.tab : undefined }),
   component: () => <StatementImportView initialTab={importRoute.useSearch().tab ?? 'bank'} />,
 })
 
@@ -559,6 +561,7 @@ const salaryRoute = createRoute({
 })
 
 const routeTree = rootRoute.addChildren([
+  createRoute({ getParentRoute: () => rootRoute, path: '/splitwise', component: SplitwiseView }),
   createRoute({ getParentRoute: () => rootRoute, path: '/investments', component: InvestmentsView }),
   indexRoute,
   transactionsRoute,
