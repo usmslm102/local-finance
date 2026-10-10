@@ -539,8 +539,10 @@ by default**, with an optional permission for custom category and rule writes.
 3. Select **Shell · macOS / Linux** or **PowerShell · Windows**, click
    **Copy command**, and run it on the computer running LocalFinance.
    Your chosen client CLI must already be installed and available on PATH.
-   Ollama setup requires both Ollama and a recent OpenCode CLI supporting
-   `mcp add --url` and `--header`. No additional Node.js installation is needed.
+   Ollama setup checks for a recent OpenCode CLI supporting `mcp add --url`
+   and `--header`. Ollama can run separately as an app or service; its CLI is
+   only needed for the optional launch command below. No additional Node.js
+   installation is needed.
 4. Restart your AI client and check its MCP tools. For Ollama, run
    `ollama launch opencode` after setup and choose your local model. Ask your client:
    “Use LocalFinance to summarize my spending last month.”
@@ -551,6 +553,8 @@ only the LocalFinance entry is replaced when you rerun setup after a port change
 or token rotation. Claude Code uses user scope. Codex registers the URL through
 its CLI, then appends the authorization header to `CODEX_HOME/config.toml`
 (or `~/.codex/config.toml`), since its CLI does not have a static-header flag.
+The Codex command restricts that file to your user before saving the token
+(Windows ACLs or POSIX permissions).
 OpenCode uses its CLI to save the connection in user configuration, including JSONC.
 Keep client configuration and copied commands private and out of repositories
 and shared terminal logs. Setup does not install clients or download scripts.
