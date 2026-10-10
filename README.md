@@ -629,7 +629,8 @@ from category/rule writes. It is off by default. Refresh client tool discovery.
 - `delete_statement_import`: pass the exact `statement_import_id` returned by
   import or listed in `list_statement_imports`. Permanently removes transactions
   and bills currently associated with that upload, including their manual edits,
-  clears surviving transfer links and updates the account balance. Duplicate rows
+  clears surviving transfer links, reapplies rules to their automatic categories,
+  and updates the account balance. Duplicate rows
   belong to their latest upload: deleting an older overlapping upload preserves
   them, while deleting the latest removes them. Accounts and rules remain.
 

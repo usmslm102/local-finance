@@ -141,6 +141,9 @@ func (*LocalFinanceCSVParser) Parse(r io.Reader, opts ParseOptions) ([]ParsedTra
 		pt := ParsedTransaction{Date: NormalizeDate(date), RawNarration: narration, Amount: amount, TxType: txType,
 			CleanedPayee: cleaned.CleanedPayee, ReferenceNumber: get("reference_number"), PaymentMode: cleaned.PaymentMode,
 			UPIVPA: cleaned.UPIVPA, CardLast4: cleaned.CardLast4, IsTransfer: cleaned.IsTransfer}
+		if pt.ReferenceNumber == "" {
+			pt.ReferenceNumber = cleaned.ReferenceNumber
+		}
 		if value := get("cleaned_payee"); value != "" {
 			pt.CleanedPayee = value
 		}

@@ -271,7 +271,7 @@ func TestRestoreAndResetRevokeCredentials(t *testing.T) {
 	m, database := testManager(t)
 	token := enable(t, m)
 	allowed := true
-	if _, err := m.ConfigureAccess(true, m.Status().Port, &allowed); err != nil {
+	if _, err := m.ConfigureAccess(true, m.Status().Port, &allowed, &allowed); err != nil {
 		t.Fatal(err)
 	}
 	backup := filepath.Join(t.TempDir(), "backup.db")
@@ -293,7 +293,7 @@ func TestRestoreAndResetRevokeCredentials(t *testing.T) {
 		t.Fatal(err)
 	}
 	settings, _ := database.GetMCPSettings()
-	if settings.Enabled || settings.TokenHash != "" || settings.AllowCategorizationWrites || m.Status().AllowCategorizationWrites || request(m, token, "", "") != 503 {
+	if settings.Enabled || settings.TokenHash != "" || settings.AllowCategorizationWrites || settings.AllowStatementWrites || m.Status().AllowCategorizationWrites || m.Status().AllowStatementWrites || request(m, token, "", "") != 503 {
 		t.Fatal("restore reactivated credential")
 	}
 	enable(t, m)

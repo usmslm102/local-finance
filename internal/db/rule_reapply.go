@@ -67,16 +67,21 @@ func (d *DB) SaveRuleAndReapply(id *string, patch models.CategorizationRulePatch
 	return saved, count, nil
 }
 func (d *statementStore) reapplyRules(resetUnmatched bool) (int, error) {
+	return d.reapplyRulesMatching(resetUnmatched, "")
+}
+
+// predicate is internal SQL; callers supply values separately.
+func (d *statementStore) reapplyRulesMatching(resetUnmatched bool, predicate string, args ...any) (int, error) {
 	rules, err := d.ListRules()
 	if err != nil {
 		return 0, err
 	}
 
 	rows, err := d.conn.Query(`
-		SELECT id, raw_narration, cleaned_payee, reference_number, upi_vpa, category_id, tx_type, COALESCE(is_transfer, 0)
+		SELECT id, raw_narration, COALESCE(cleaned_payee, ''), COALESCE(reference_number, ''), upi_vpa, category_id, tx_type, COALESCE(is_transfer, 0)
 		FROM transactions
 		WHERE COALESCE(is_manual_category, 0) = 0
-	`)
+	`+predicate, args...)
 	if err != nil {
 		return 0, err
 	}

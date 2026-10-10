@@ -16,9 +16,15 @@ func (d *DB) DeleteStatementImport(id string) (*StatementDeletion, error) {
 		if err := w.conn.QueryRow(`SELECT account_id FROM statement_imports WHERE id = ?`, id).Scan(&result.AccountID); err != nil {
 			return err
 		}
-		// Restore surviving counterparts to ordinary transactions, matching UnlinkTransferPair.
-		if _, err := w.conn.Exec(`UPDATE transactions SET is_transfer = 0, transfer_peer_id = NULL, transfer_match_reason = NULL
+		// Stop treating surviving counterparts as paired transfers before recategorizing them.
+		if _, err := w.conn.Exec(`UPDATE transactions SET is_transfer = 0
    WHERE transfer_peer_id IN (SELECT id FROM transactions WHERE statement_import_id = ?)`, id); err != nil {
+			return err
+		}
+		if _, err := w.reapplyRulesMatching(true, ` AND transfer_peer_id IN (SELECT id FROM transactions WHERE statement_import_id = ?) AND statement_import_id IS NOT ?`, id, id); err != nil {
+			return err
+		}
+		if _, err := w.conn.Exec(`UPDATE transactions SET transfer_peer_id = NULL, transfer_match_reason = NULL WHERE transfer_peer_id IN (SELECT id FROM transactions WHERE statement_import_id = ?)`, id); err != nil {
 			return err
 		}
 		deleted, err := w.conn.Exec(`DELETE FROM credit_card_bills WHERE statement_import_id = ?`, id)

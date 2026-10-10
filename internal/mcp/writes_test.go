@@ -58,7 +58,7 @@ func TestCategorizationWritesAndPermissionChanges(t *testing.T) {
 		}
 	}
 	allowed := true
-	if _, err := m.ConfigureAccess(true, m.Status().Port, &allowed); err != nil {
+	if _, err := m.ConfigureAccess(true, m.Status().Port, &allowed, nil); err != nil {
 		t.Fatal(err)
 	}
 	session := connect(t, m, token)
@@ -131,7 +131,7 @@ func TestCategorizationWritesAndPermissionChanges(t *testing.T) {
 		t.Fatalf("lost persisted permission: %v", err)
 	}
 	allowed = false
-	if _, err := m.ConfigureAccess(true, m.Status().Port, &allowed); err != nil {
+	if _, err := m.ConfigureAccess(true, m.Status().Port, &allowed, nil); err != nil {
 		t.Fatal(err)
 	}
 	// The same authenticated session must lose writes, even if its tool list is cached.
@@ -152,7 +152,7 @@ func TestInvalidCategorizationWritesDoNotMutateData(t *testing.T) {
 	m, database := testManager(t)
 	token := enable(t, m)
 	allowed := true
-	if _, err := m.ConfigureAccess(true, m.Status().Port, &allowed); err != nil {
+	if _, err := m.ConfigureAccess(true, m.Status().Port, &allowed, nil); err != nil {
 		t.Fatal(err)
 	}
 	session := connect(t, m, token)

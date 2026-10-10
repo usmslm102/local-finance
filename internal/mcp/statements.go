@@ -25,10 +25,14 @@ func registerStatementWriteTools(server *sdk.Server, database *db.DB) {
 		if err := json.Unmarshal(raw, &input); err != nil {
 			return nil, errors.New("invalid statement arguments")
 		}
-		if !filepath.IsAbs(input.Path) || !strings.EqualFold(filepath.Ext(input.Path), ".csv") || strings.HasPrefix(input.Path, `\\`) || strings.HasPrefix(input.Path, "//") {
+		if !validLocalCSVPath(input.Path) {
 			return nil, errors.New("path must be an absolute local .csv file path on the LocalFinance host")
 		}
+		input.Path = filepath.Clean(input.Path)
 		// Check before opening so named pipes/devices cannot block the MCP listener.
+		if err := checkCSVPathComponents(input.Path); err != nil {
+			return nil, errors.New("CSV must be an accessible regular file no larger than 20 MiB; symlinks are unsupported")
+		}
 		info, err := os.Lstat(input.Path)
 		if err != nil || !info.Mode().IsRegular() || info.Size() > service.MaxStatementFileSize {
 			return nil, errors.New("CSV must be an accessible regular file no larger than 20 MiB; symlinks are unsupported")
@@ -48,7 +52,7 @@ func registerStatementWriteTools(server *sdk.Server, database *db.DB) {
 		}
 		return result, nil
 	})
-	registerMutationTool(server, "delete_statement_import", "Permanently delete one upload using its exact statement_import_id from list_statement_imports or import output. Removes transactions and card bills currently associated with that upload, clears surviving transfer peer links and recalculates its account balance. Duplicate transactions belong to their latest upload: deleting an older overlapping upload preserves them; deleting the latest removes them even if they appeared in older uploads. Deletes manual edits on the removed transactions. Leaves accounts, categories and rules intact. Missing IDs fail. Explain this effect and use only an upload the user asks to delete.", map[string]any{"statement_import_id": text}, []string{"statement_import_id"}, true, func(raw json.RawMessage) (any, error) {
+	registerMutationTool(server, "delete_statement_import", "Permanently delete one upload using its exact statement_import_id from list_statement_imports or import output. Removes transactions and card bills currently associated with that upload, clears surviving transfer peer links, recategorizes their automatic categories using active rules, and recalculates its account balance. Duplicate transactions belong to their latest upload: deleting an older overlapping upload preserves them; deleting the latest removes them even if they appeared in older uploads. Deletes manual edits on the removed transactions. Leaves accounts, categories and rules intact. Missing IDs fail. Explain this effect and use only an upload the user asks to delete.", map[string]any{"statement_import_id": text}, []string{"statement_import_id"}, true, func(raw json.RawMessage) (any, error) {
 		var input struct {
 			ID string `json:"statement_import_id"`
 		}
@@ -61,4 +65,36 @@ func registerStatementWriteTools(server *sdk.Server, database *db.DB) {
 		}
 		return result, nil
 	})
+}
+
+// Check Windows separator semantics even on other hosts before any filesystem call.
+func validLocalCSVPath(path string) bool {
+	normalized := strings.ReplaceAll(path, "\\", "/")
+	return filepath.IsAbs(path) && strings.EqualFold(filepath.Ext(path), ".csv") && !strings.HasPrefix(normalized, "//") && !strings.Contains(strings.TrimPrefix(path, filepath.VolumeName(path)), ":")
+}
+
+// Inspect ancestors from the root so directory symlinks/reparse points are rejected
+// before a later Lstat or Open could follow them onto another filesystem.
+func checkCSVPathComponents(path string) error {
+	clean := filepath.Clean(path)
+	var paths []string
+	for current := clean; ; current = filepath.Dir(current) {
+		paths = append(paths, current)
+		if parent := filepath.Dir(current); parent == current {
+			break
+		}
+	}
+	for i := len(paths) - 1; i >= 0; i-- {
+		info, err := os.Lstat(paths[i])
+		if err != nil {
+			return err
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return errors.New("symlinks unsupported")
+		}
+		if i > 0 && !info.IsDir() {
+			return errors.New("CSV parent must be a directory")
+		}
+	}
+	return nil
 }

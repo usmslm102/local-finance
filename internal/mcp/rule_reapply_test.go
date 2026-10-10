@@ -12,7 +12,7 @@ func TestMCPRuleSavesReapplyWholeLedgerAndRollback(t *testing.T) {
 		`INSERT INTO accounts (id,bank_name,account_type) VALUES ('a','Fictional A','SAVINGS'),('b','Fictional B','SAVINGS')`,
 		`INSERT INTO transactions (id,account_id,tx_hash,tx_date,raw_narration,cleaned_payee,payment_mode,reference_number,tx_type,amount,category_id,notes,tags,is_manual_category,is_transfer) VALUES
   ('auto-a','a','ha','2026-01-10','QuasarShop','QuasarShop','OTHER','','DEBIT',10,'cat_others','keep note','keep tag',0,0),
-  ('auto-b','b','hb','2026-01-10','QuasarShop','QuasarShop','OTHER','','CREDIT',10,'cat_others','','',0,0),
+  ('auto-b','b','hb','2026-01-10','QuasarShop','QuasarShop','OTHER',NULL,'CREDIT',10,'cat_others','','',0,0),
   ('manual','b','hm','2026-01-10','QuasarShop','QuasarShop','OTHER','','DEBIT',10,'cat_groceries','manual note','manual tag',1,0),
   ('transfer','a','ht','2026-01-10','QuasarShop','QuasarShop','OTHER','','DEBIT',10,'cat_transfers','','',0,1)`,
 	} {
@@ -22,7 +22,7 @@ func TestMCPRuleSavesReapplyWholeLedgerAndRollback(t *testing.T) {
 	}
 	token := enable(t, m)
 	allowed := true
-	if _, err := m.ConfigureAccess(true, m.Status().Port, &allowed); err != nil {
+	if _, err := m.ConfigureAccess(true, m.Status().Port, &allowed, nil); err != nil {
 		t.Fatal(err)
 	}
 	session := connect(t, m, token)
@@ -40,6 +40,9 @@ func TestMCPRuleSavesReapplyWholeLedgerAndRollback(t *testing.T) {
 		if err != nil || tx.CategoryID == nil || *tx.CategoryID != category {
 			t.Fatalf("%s category: %+v %v", id, tx, err)
 		}
+	}
+	if _, err := database.Exec(`UPDATE transactions SET reference_number = '' WHERE id = 'auto-b'`); err != nil {
+		t.Fatal(err)
 	}
 	check("auto-a", "cat_entertainment")
 	check("auto-b", "cat_others")

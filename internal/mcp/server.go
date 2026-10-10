@@ -138,11 +138,11 @@ func (m *Manager) stopLocked() {
 func (m *Manager) Close() { m.mu.Lock(); defer m.mu.Unlock(); m.stopLocked() }
 
 func (m *Manager) Configure(enabled bool, port int) (Status, error) {
-	return m.ConfigureAccess(enabled, port, nil)
+	return m.ConfigureAccess(enabled, port, nil, nil)
 }
 
 // ConfigureAccess preserves saved write preferences when omitted.
-func (m *Manager) ConfigureAccess(enabled bool, port int, allowCategorizationWrites *bool, statementAccess ...*bool) (Status, error) {
+func (m *Manager) ConfigureAccess(enabled bool, port int, allowCategorizationWrites, allowStatementWrites *bool) (Status, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	s := m.settings
@@ -150,8 +150,8 @@ func (m *Manager) ConfigureAccess(enabled bool, port int, allowCategorizationWri
 	if allowCategorizationWrites != nil {
 		s.AllowCategorizationWrites = *allowCategorizationWrites
 	}
-	if len(statementAccess) > 0 && statementAccess[0] != nil {
-		s.AllowStatementWrites = *statementAccess[0]
+	if allowStatementWrites != nil {
+		s.AllowStatementWrites = *allowStatementWrites
 	}
 	if err := m.database.SetMCPSettings(s); err != nil {
 		return m.statusLocked(), err

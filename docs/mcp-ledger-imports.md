@@ -19,7 +19,8 @@ identity, bank parsers or the application's manual-edit protections.
 - `delete_statement_import` accepts an exact `statement_import_id` obtained from
   import output or `list_statement_imports`. It atomically removes the import,
   transactions currently attributed to it, and its card bills; clears surviving
-  reconciliation peer links; and recalculates the account balance. A missing ID is
+  reconciliation peer links and reapplies active rules to surviving automatic
+  counterparts; and recalculates the account balance. A missing ID is
   an error. Accounts, categories and rules remain.
 
 ## CSV v1 contract
@@ -35,6 +36,7 @@ with at most two fractional digits, no grouping separators or exponent notation.
 Optional columns: `account_number`, `reference_number`, `value_date`,
 `running_balance`, `cleaned_payee`. Full account number, when present, must be
 identical on every row. Preserve source references to retain deduplication.
+Absent references fall back to references extracted from narration.
 Absent cleaned payees are normalized with the shared narration cleaner. Other
 payment metadata is extracted from narration using the existing cleaner.
 Statement date range and debit/credit totals are derived from the rows. This

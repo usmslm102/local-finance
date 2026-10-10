@@ -35,7 +35,7 @@ func TestMCPWritePermissionUpgradeAndReset(t *testing.T) {
 		t.Fatalf("upgrade changed existing access: %+v %v", got, err)
 	}
 	got.AllowCategorizationWrites = true
- got.AllowStatementWrites = true
+	got.AllowStatementWrites = true
 	if err := database.SetMCPSettings(got); err != nil {
 		t.Fatal(err)
 	}

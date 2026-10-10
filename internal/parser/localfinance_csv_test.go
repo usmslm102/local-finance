@@ -23,6 +23,15 @@ func TestLocalFinanceCSVStrictRowsAndDetection(t *testing.T) {
 	if txs, _, err := p.Parse(strings.NewReader(quoted), ParseOptions{}); err != nil || txs[0].RawNarration != "Corner, Shop\nReceipt" {
 		t.Fatalf("quoted narration: %+v %v", txs, err)
 	}
+	withReference := strings.Replace(input, "Corner Shop", "UPI/DR/123456789012/Shop/Bank/shop@ybl", 1)
+	txs, _, err = p.Parse(strings.NewReader(withReference), ParseOptions{})
+	if err != nil || txs[0].ReferenceNumber != "ref-1" {
+		t.Fatalf("explicit reference lost: %+v %v", txs, err)
+	}
+	txs, _, err = p.Parse(strings.NewReader(strings.Replace(withReference, ",ref-1,", ",,", 1)), ParseOptions{})
+	if err != nil || txs[0].ReferenceNumber != "123456789012" {
+		t.Fatalf("reference fallback lost: %+v %v", txs, err)
+	}
 	for name, invalid := range map[string]string{
 		"empty":     fictionalCSVHeader,
 		"missing":   strings.Replace(input, "bank_name,", "", 1),
