@@ -1,7 +1,9 @@
 package db
 
 import (
+	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -74,6 +76,49 @@ func TestMCPSettingsMigrationWithoutHistory(t *testing.T) {
 				if err := database.Close(); err != nil {
 					t.Fatal(err)
 				}
+			}
+		})
+	}
+}
+
+func TestMCPMigrationRecoveryFailsWithoutPartialChanges(t *testing.T) {
+	for _, fixture := range []struct {
+		name     string
+		mutation string
+		wantErr  string
+	}{
+		{"unknown schema", `ALTER TABLE mcp_settings ADD COLUMN unexpected TEXT`, "schema differs"},
+		{"history write fails", `CREATE TRIGGER reject_history BEFORE INSERT ON goose_db_version WHEN NEW.version_id = 14 BEGIN SELECT RAISE(ABORT, 'fixture history failure'); END`, "fixture history failure"},
+	} {
+		t.Run(fixture.name, func(t *testing.T) {
+			database, err := NewDB(filepath.Join(t.TempDir(), "finance.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer database.Close()
+			if _, err := database.Exec(`
+				ALTER TABLE mcp_settings DROP COLUMN allow_categorization_writes;
+				DROP TABLE investment_snapshots;
+				DELETE FROM goose_db_version WHERE version_id >= 14;
+				DELETE FROM mcp_settings;
+			` + fixture.mutation); err != nil {
+				t.Fatal(err)
+			}
+			if err := database.recoverMCPMigrationHistory(context.Background()); err == nil || !strings.Contains(err.Error(), fixture.wantErr) {
+				t.Fatalf("expected %q, got %v", fixture.wantErr, err)
+			}
+			var count int
+			if err := database.conn.QueryRow(`SELECT COUNT(*) FROM mcp_settings`).Scan(&count); err != nil {
+				t.Fatal(err)
+			}
+			if count != 0 {
+				t.Fatal("failed recovery inserted settings")
+			}
+			if err := database.conn.QueryRow(`SELECT COUNT(*) FROM goose_db_version WHERE version_id >= 14`).Scan(&count); err != nil {
+				t.Fatal(err)
+			}
+			if count != 0 {
+				t.Fatal("failed recovery changed migration history")
 			}
 		})
 	}

@@ -132,6 +132,10 @@ func (d *DB) Close() error {
 }
 
 func (d *DB) migrate() error {
+	ctx := context.Background()
+	if err := d.recoverMCPMigrationHistory(ctx); err != nil {
+		return fmt.Errorf("failed to recover MCP migration history: %w", err)
+	}
 	migrationFS, err := fs.Sub(embedMigrations, "migrations")
 	if err != nil {
 		return fmt.Errorf("failed to open migrations: %w", err)
@@ -140,7 +144,6 @@ func (d *DB) migrate() error {
 	if err != nil {
 		return fmt.Errorf("failed to create migration provider: %w", err)
 	}
-	ctx := context.Background()
 	if _, err := provider.Up(ctx); err != nil {
 		return fmt.Errorf("failed to apply migrations: %w", err)
 	}
