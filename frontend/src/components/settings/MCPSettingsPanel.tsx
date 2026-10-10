@@ -76,8 +76,8 @@ export function MCPSettingsPanel() {
   const [copied, setCopied] = useState(false)
   const [copyError, setCopyError] = useState('')
   const save = useMutation({
-    mutationFn: ({ enabled, port }: { enabled: boolean; port: number }) =>
-      updateMCPSettings(enabled, port),
+    mutationFn: ({ enabled, port, allowCategorizationWrites }: { enabled: boolean; port: number; allowCategorizationWrites?: boolean }) =>
+      updateMCPSettings(enabled, port, allowCategorizationWrites),
     onSuccess: (settings) => {
       client.setQueryData(['mcp-settings'], settings)
       setPortDraft(null)
@@ -134,7 +134,9 @@ export function MCPSettingsPanel() {
             <CardTitle className="text-base">AI access through MCP</CardTitle>
             <Badge variant="outline">
               {settings.listening
-                ? 'Listening · read-only'
+                ? settings.allow_categorization_writes
+                  ? 'Listening · category and rule writes'
+                  : 'Listening · read-only'
                 : settings.enabled
                   ? 'Unavailable'
                   : 'Disabled'}
@@ -158,7 +160,7 @@ export function MCPSettingsPanel() {
           </Alert>
           <div className="flex items-center justify-between gap-4">
             <div>
-              <Label htmlFor="mcp-enabled">Enable read-only MCP</Label>
+              <Label htmlFor="mcp-enabled">Enable MCP</Label>
               <p className="text-sm text-muted-foreground">
                 {settings.has_token
                   ? 'LocalFinance must remain running.'
@@ -171,6 +173,24 @@ export function MCPSettingsPanel() {
               disabled={busy || (!settings.has_token && !settings.enabled)}
               onCheckedChange={(enabled) =>
                 save.mutate({ enabled, port: settings.port })
+              }
+            />
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <Label htmlFor="mcp-categorization-writes">Allow category and rule writes</Label>
+              <p className="text-sm text-muted-foreground">
+                All clients sharing your token can create or update custom categories
+                and categorization rules. Existing transactions stay unchanged;
+                re-apply rules to the ledger through the app.
+              </p>
+            </div>
+            <Switch
+              id="mcp-categorization-writes"
+              checked={settings.allow_categorization_writes}
+              disabled={busy}
+              onCheckedChange={(allowCategorizationWrites) =>
+                save.mutate({ enabled: settings.enabled, port: settings.port, allowCategorizationWrites })
               }
             />
           </div>
@@ -209,8 +229,8 @@ export function MCPSettingsPanel() {
           )}
           <div className="border-t pt-4 space-y-2">
             <p className="text-sm">
-              One shared token grants read-only access to all connected AI
-              tools.
+              One shared token grants finance reads to all connected AI tools,
+              plus category and rule writes when allowed above.
             </p>
             <Button
               variant="outline"

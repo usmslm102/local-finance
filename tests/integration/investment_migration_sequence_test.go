@@ -68,6 +68,9 @@ func TestInvestmentMigrationsUpgradeMainVersion14(t *testing.T) {
 	if _, err := conn.Exec(`DROP TABLE investment_snapshots`); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := conn.Exec(`ALTER TABLE mcp_settings DROP COLUMN allow_categorization_writes`); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := conn.Exec(`DELETE FROM goose_db_version WHERE version_id>=15`); err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +80,7 @@ func TestInvestmentMigrationsUpgradeMainVersion14(t *testing.T) {
 	}
 	defer upgraded.Close()
 	var applied int
-	if err := conn.QueryRow(`SELECT COUNT(*) FROM goose_db_version WHERE version_id>=15 AND is_applied=1`).Scan(&applied); err != nil {
+	if err := conn.QueryRow(`SELECT COUNT(*) FROM goose_db_version WHERE version_id=15 AND is_applied=1`).Scan(&applied); err != nil {
 		t.Fatal(err)
 	}
 	snapshots, err := upgraded.ListInvestmentSnapshots()
@@ -92,7 +95,7 @@ func TestInvestmentMigrationsUpgradeMainVersion14(t *testing.T) {
 		t.Fatalf("repeat startup failed: %v", err)
 	}
 	defer reopened.Close()
-	if err := conn.QueryRow(`SELECT COUNT(*) FROM goose_db_version WHERE version_id>=15 AND is_applied=1`).Scan(&applied); err != nil {
+	if err := conn.QueryRow(`SELECT COUNT(*) FROM goose_db_version WHERE version_id=15 AND is_applied=1`).Scan(&applied); err != nil {
 		t.Fatal(err)
 	}
 	if applied != 1 {

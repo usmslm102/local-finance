@@ -521,11 +521,12 @@ MIT License. Free and open source for local personal finance intelligence.
 
 ## AI tools and MCP (opt-in)
 
-LocalFinance can serve **read-only** finance data to AI tools through a local
+LocalFinance can serve finance data to AI tools through a local
 Streamable HTTP MCP endpoint. MCP is disabled by default, and LocalFinance must
 remain running. It does not call an AI provider itself. Your connected AI tool
 may send returned transactions, notes, payees, balances, and reports to its model
-provider. Review that tool's data policy before connecting.
+provider. Review that tool's data policy before connecting. Access is **read-only
+by default**, with an optional permission for custom category and rule writes.
 
 1. Open **Settings → AI / MCP** and click **Create access token**.
 2. Save the token; LocalFinance shows it once and stores only its SHA-256 hash.
@@ -564,12 +565,13 @@ remote hosting, or automatic app startup. Client configuration references:
 
 ### Access and revocation
 
-- The token grants read-only finance access and **remains usable while the UI is
+- The token grants finance reads and any enabled category/rule write permission,
+  and **remains usable while the UI is
   locked**. It cannot authenticate against LocalFinance's REST API or settings.
 - Disable MCP to close the listener and cancel active requests. Re-enabling uses
   the same token. Rotate the token to invalidate it and update every client.
 - Restoring or resetting the database disables MCP and clears its credentials,
-  including credentials present in a restored backup.
+  including credentials present in a restored backup, and revokes write permission.
 - If the port is occupied, the app keeps running and Settings shows the failure.
   Choose another port and save, then update your clients' endpoint URLs.
 - Returned data cannot be recalled from an AI client after disabling access.
@@ -581,8 +583,31 @@ overview, monthly review and its evidence, cash flow, salary, yearly Wrapped,
 credit-card portfolio/bills/reward rules and hypothetical card comparisons,
 budgets, existing subscriptions, reconciliation summaries, merchants, statement
 import history, parser capabilities, and the local app version. No tool imports,
-scans, changes data, reads arbitrary files, executes SQL, exports the database,
+scans, edits transactions, deletes data, reads arbitrary files, executes SQL, exports the database,
 manages security, or checks/applies software updates.
+
+### Optional category and rule writes
+
+Enable **Settings → AI / MCP → Allow category and rule writes** to expose two
+additional tools to all clients sharing the token. Existing installations remain
+read-only until this permission is enabled. Refresh tool discovery after changing it.
+
+- `save_category`: create a custom category with `name`, or update one by supplying
+  its `id` and `name`. Optional `color_hex` (`#RRGGBB`) and `icon` default to
+  `#64748B` and `tag` on creation; omitted fields are preserved on updates.
+  Built-in system categories cannot be edited. Identity and parent are preserved.
+- `save_categorization_rule`: provide `match_pattern` and `target_category_id`
+  from `list_categories`; omit `id` to create or provide an existing rule id to
+  update. Optional matcher fields are `match_field`, `match_type`, `tx_type`,
+  `exclude_pattern`, `priority`, `assign_tags`, and `is_active`. Creation defaults
+  match the app: `cleaned_payee`, `CONTAINS`, `ALL`, priority 50, active true.
+  Omitted optional fields are preserved on updates, including inactive rules.
+
+Neither tool recategorizes existing transactions. Saved rules affect future imports;
+use **Settings → Categories & Rules → Re-Apply to Ledger** for existing data.
+Creation generates an id, so retrying without that id can create another record.
+Use the returned id for updates. Disable write permission to remove both tools;
+finance reads remain available while MCP is enabled.
 
 Account numbers are represented by their existing masked identifiers; full
 account-number fields, customer IDs, and account-holder fields are omitted,

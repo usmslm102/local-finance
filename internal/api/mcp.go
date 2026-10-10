@@ -12,14 +12,15 @@ import (
 func (h *Handler) GetMCPSettings(c *gin.Context) { c.JSON(http.StatusOK, h.mcpManager.Status()) }
 func (h *Handler) UpdateMCPSettings(c *gin.Context) {
 	var request struct {
-		Enabled *bool `json:"enabled"`
-		Port    *int  `json:"port"`
+		Enabled                   *bool `json:"enabled"`
+		Port                      *int  `json:"port"`
+		AllowCategorizationWrites *bool `json:"allow_categorization_writes"`
 	}
 	if err := c.ShouldBindJSON(&request); err != nil || request.Enabled == nil || request.Port == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Provide enabled and port"})
 		return
 	}
-	status, err := h.mcpManager.Configure(*request.Enabled, *request.Port)
+	status, err := h.mcpManager.ConfigureAccess(*request.Enabled, *request.Port, request.AllowCategorizationWrites)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

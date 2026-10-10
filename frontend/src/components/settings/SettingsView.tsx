@@ -597,7 +597,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
       icon: Cpu,
       desc: 'Sniffing engines & statement plugins',
     },
-    { id: 'mcp', label: 'AI / MCP', icon: ShieldCheck, desc: 'Read-only AI connections' },
+    { id: 'mcp', label: 'AI / MCP', icon: ShieldCheck, desc: 'AI access permissions' },
     {
       id: 'database',
       label: 'Data & Storage',

@@ -4,16 +4,17 @@ import "fmt"
 
 // MCPSettings never contains the credential itself. TokenHash is not serialized.
 type MCPSettings struct {
-	Enabled   bool   `json:"enabled"`
-	Port      int    `json:"port"`
-	TokenHash string `json:"-"`
+	Enabled                   bool   `json:"enabled"`
+	Port                      int    `json:"port"`
+	TokenHash                 string `json:"-"`
+	AllowCategorizationWrites bool   `json:"allow_categorization_writes"`
 }
 
 func (d *DB) GetMCPSettings() (MCPSettings, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	var s MCPSettings
-	err := d.conn.QueryRow("SELECT enabled, port, token_hash FROM mcp_settings WHERE id = 1").Scan(&s.Enabled, &s.Port, &s.TokenHash)
+	err := d.conn.QueryRow("SELECT enabled, port, token_hash, allow_categorization_writes FROM mcp_settings WHERE id = 1").Scan(&s.Enabled, &s.Port, &s.TokenHash, &s.AllowCategorizationWrites)
 	return s, err
 }
 
@@ -26,12 +27,12 @@ func (d *DB) SetMCPSettings(s MCPSettings) error {
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	_, err := d.conn.Exec("UPDATE mcp_settings SET enabled = ?, port = ?, token_hash = ? WHERE id = 1", s.Enabled, s.Port, s.TokenHash)
+	_, err := d.conn.Exec("UPDATE mcp_settings SET enabled = ?, port = ?, token_hash = ?, allow_categorization_writes = ? WHERE id = 1", s.Enabled, s.Port, s.TokenHash, s.AllowCategorizationWrites)
 	return err
 }
 
 // clearMCPAccess is called with d.mu held before destructive database operations.
 func (d *DB) clearMCPAccess() error {
-	_, err := d.conn.Exec("UPDATE mcp_settings SET enabled = 0, token_hash = '' WHERE id = 1")
+	_, err := d.conn.Exec("UPDATE mcp_settings SET enabled = 0, token_hash = '', allow_categorization_writes = 0 WHERE id = 1")
 	return err
 }
