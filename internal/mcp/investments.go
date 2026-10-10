@@ -1,8 +1,6 @@
 package mcp
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"path/filepath"
@@ -20,7 +18,7 @@ type investmentSummary struct {
 	Provider         string   `json:"provider"`
 	ParserID         string   `json:"parser_id"`
 	AccountRefMask   string   `json:"account_ref_mask"`
-	PortfolioKey     string   `json:"portfolio_key"`
+	PortfolioKey     string   `json:"portfolio_key,omitempty"`
 	AsOf             string   `json:"as_of"`
 	Currency         string   `json:"currency"`
 	ImportedAt       string   `json:"imported_at"`
@@ -32,15 +30,13 @@ type investmentSummary struct {
 	Warnings         []string `json:"warnings"`
 }
 
-func summarizeInvestment(snapshot models.InvestmentSnapshot) investmentSummary {
-	identity, _ := json.Marshal([]string{snapshot.Provider, snapshot.AccountRef, snapshot.Currency})
-	key := sha256.Sum256(identity)
+func summarizeInvestment(snapshot models.InvestmentSnapshot, portfolioKey string) investmentSummary {
 	mask := "****"
 	if ref := []rune(snapshot.AccountRef); len(ref) > 4 {
 		mask += string(ref[len(ref)-4:])
 	}
 	return investmentSummary{ID: snapshot.ID, Provider: snapshot.Provider, ParserID: snapshot.ParserID,
-		AccountRefMask: mask, PortfolioKey: hex.EncodeToString(key[:]), AsOf: snapshot.AsOf,
+		AccountRefMask: mask, PortfolioKey: portfolioKey, AsOf: snapshot.AsOf,
 		Currency: snapshot.Currency, ImportedAt: snapshot.ImportedAt, InvestedValue: snapshot.InvestedValue,
 		CurrentValue: snapshot.CurrentValue, UnrealizedReturn: snapshot.UnrealizedReturn,
 		ReturnPercent: snapshot.ReturnPercent, HoldingCount: len(snapshot.Holdings), Warnings: snapshot.Warnings}
@@ -55,7 +51,11 @@ func investmentReadTools(database *db.DB) []toolSpec {
 			}
 			result := make([]investmentSummary, 0, len(snapshots))
 			for _, snapshot := range snapshots {
-				result = append(result, summarizeInvestment(snapshot))
+				key, err := database.InvestmentPortfolioKey(&snapshot)
+				if err != nil {
+					return nil, err
+				}
+				result = append(result, summarizeInvestment(snapshot, key))
 			}
 			return result, nil
 		}},
@@ -64,6 +64,10 @@ func investmentReadTools(database *db.DB) []toolSpec {
 			if err != nil {
 				return nil, errors.New("unable to load investment snapshot; check id")
 			}
+			key, err := database.InvestmentPortfolioKey(snapshot)
+			if err != nil {
+				return nil, errors.New("unable to load investment portfolio identity")
+			}
 			holdings := append([]models.InvestmentHolding{}, snapshot.Holdings...)
 			for i := range holdings {
 				holdings[i].Fields = nil
@@ -71,7 +75,7 @@ func investmentReadTools(database *db.DB) []toolSpec {
 			return struct {
 				investmentSummary
 				Holdings []models.InvestmentHolding `json:"holdings"`
-			}{summarizeInvestment(*snapshot), holdings}, nil
+			}{summarizeInvestment(*snapshot, key), holdings}, nil
 		}},
 		{name: "list_investment_formats", description: "Get supported investment export formats and upload requirements from the local adapter registry. Upload original provider workbooks using import_investment_statement when statement writes are enabled. Investment exports are complete dated portfolios, separate from bank transactions; the bank CSV v1 contract does not apply.", query: func(arguments) (any, error) {
 			return map[string]any{"parsers": investment.DefaultRegistry.List(), "max_file_size": service.MaxInvestmentFileSize, "requirements": []string{"Pass an absolute local path on the LocalFinance host; network/device paths and symlinks are unsupported.", "Use an original supported provider workbook, retaining account reference, valuation date, headers and holdings; do not invent missing values.", "Each upload is a complete snapshot. Reimporting identical bytes returns the existing snapshot; changed files create a new snapshot.", "Keep currencies separate. No live valuation, currency conversion or bank ledger changes."}}, nil
@@ -103,6 +107,6 @@ func registerInvestmentWriteTool(server *sdk.Server, database *db.DB) {
 		return struct {
 			Snapshot  investmentSummary `json:"snapshot"`
 			Duplicate bool              `json:"duplicate"`
-		}{summarizeInvestment(*snapshot), duplicate}, nil
+		}{summarizeInvestment(*snapshot, ""), duplicate}, nil
 	})
 }

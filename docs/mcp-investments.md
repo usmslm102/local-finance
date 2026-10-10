@@ -11,6 +11,9 @@ storage and the adapter registry without introducing a second portfolio model.
   worksheets or arbitrary provider fields through MCP; they may contain account
   details. Replace account references with a mask and a stable opaque portfolio key
   for grouping snapshots by provider/account/currency without revealing the reference.
+  The key is the earliest stored snapshot ID, stable across imports while that
+  anchor exists; deleting it through the app selects another anchor. Upload responses
+  omit the key; obtain it from the read tools.
 - `list_investment_formats`: current registry metadata, file limit and upload
   requirements. Native provider workbooks are the existing supported formats:
   Zerodha `.xlsx`, INDmoney `.xls`. Do not transcribe into the bank transaction CSV.

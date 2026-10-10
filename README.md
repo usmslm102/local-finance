@@ -594,7 +594,8 @@ or checks/applies software updates.
 `list_investments` returns dated portfolio summaries. Use `get_investment_snapshot`
 with a snapshot `id` for paginated normalized holdings. Missing costs/returns stay
 null; currencies remain separate. Use only the latest snapshot per `portfolio_key`
-for totals. Account references are masked; original worksheets and arbitrary
+for totals. The key uses the earliest stored snapshot ID and changes if that
+anchor is deleted in the app. Account references are masked; original worksheets and arbitrary
 provider fields remain available in the app and are omitted from MCP responses.
 `list_investment_formats` describes upload formats, provider layout requirements
 and the size limit; these three tools are available with read-only MCP access.

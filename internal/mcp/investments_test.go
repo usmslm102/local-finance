@@ -154,15 +154,45 @@ func TestInvestmentMCPRejectsInvalidFiles(t *testing.T) {
 }
 
 func TestInvestmentPortfolioKeysDisambiguateMaskedReferences(t *testing.T) {
-	a := models.InvestmentSnapshot{Provider: "Fictional", AccountRef: "AAA1234", Currency: "INR"}
+	_, database := testManager(t)
+	a := models.InvestmentSnapshot{ID: "anchor-a", Provider: "Fictional", AccountRef: "AAA1234", Currency: "INR", AsOf: "2026-01-01"}
 	b := a
+	b.ID = "anchor-b"
 	b.AccountRef = "BBB1234"
-	first, second := summarizeInvestment(a), summarizeInvestment(b)
+	for _, snapshot := range []*models.InvestmentSnapshot{&a, &b} {
+		if _, _, err := database.SaveInvestmentSnapshot(snapshot, snapshot.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	keyA, err := database.InvestmentPortfolioKey(&a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyB, err := database.InvestmentPortfolioKey(&b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, second := summarizeInvestment(a, keyA), summarizeInvestment(b, keyB)
 	if first.AccountRefMask != second.AccountRefMask || first.PortfolioKey == second.PortfolioKey {
 		t.Fatal("masked reference collision merged portfolios")
 	}
-	a.AsOf = "2026-01-10"
-	if summarizeInvestment(a).PortfolioKey != first.PortfolioKey {
-		t.Fatal("snapshot date changed portfolio identity")
+	a.ID = "later-a"
+	a.AsOf = "2026-02-01"
+	if _, _, err := database.SaveInvestmentSnapshot(&a, a.ID); err != nil {
+		t.Fatal(err)
+	}
+	laterKey, err := database.InvestmentPortfolioKey(&a)
+	if err != nil || laterKey != first.PortfolioKey {
+		t.Fatalf("new snapshot changed portfolio identity: %s %v", laterKey, err)
+	}
+	// A currency change is a separate portfolio even for the same broker reference.
+	a.ID = "usd-a"
+	a.Currency = "USD"
+	if _, _, err := database.SaveInvestmentSnapshot(&a, a.ID); err != nil {
+		t.Fatal(err)
+	}
+	usdKey, err := database.InvestmentPortfolioKey(&a)
+	if err != nil || usdKey == first.PortfolioKey {
+		t.Fatalf("currency merged portfolios: %s %v", usdKey, err)
 	}
 }

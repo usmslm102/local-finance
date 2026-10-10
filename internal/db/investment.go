@@ -55,6 +55,19 @@ func (d *DB) GetInvestmentSnapshot(id string) (*models.InvestmentSnapshot, error
 	return &snapshot, nil
 }
 
+// InvestmentPortfolioKey uses the earliest stored snapshot's random ID instead
+// of a reversible digest of a short broker reference. It remains stable while
+// that snapshot exists, and requires no additional portfolio storage.
+func (d *DB) InvestmentPortfolioKey(snapshot *models.InvestmentSnapshot) (string, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	var key string
+	err := d.conn.QueryRow(`SELECT id FROM investment_snapshots
+		WHERE provider = ? AND account_ref = ? AND json_extract(data_json, '$.currency') = ?
+		ORDER BY rowid ASC LIMIT 1`, snapshot.Provider, snapshot.AccountRef, snapshot.Currency).Scan(&key)
+	return key, err
+}
+
 // listInvestmentSnapshots requires the caller to hold d.mu. Export already
 // holds a read lock, so it must not recursively acquire it with a writer waiting.
 func (d *DB) listInvestmentSnapshots() ([]models.InvestmentSnapshot, error) {
