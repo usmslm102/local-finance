@@ -17,12 +17,13 @@ func SetupRouter(database *db.DB, svc *service.TransactionService, staticFS fs.F
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.Use(gin.Logger())
+	r.Use(localRequestProtection())
 
 	// Enable CORS for local dev server
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173", "http://127.0.0.1:3000"},
+		AllowOrigins:     localDevOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-LocalFinance-Request"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 	}))
@@ -35,8 +36,9 @@ func SetupRouter(database *db.DB, svc *service.TransactionService, staticFS fs.F
 
 	// API Group
 	apiGroup := r.Group("/api")
+	apiGroup.Use(sensitiveResponseNoStore())
 	apiGroup.Use(h.AuthMiddleware())
-	apiGroup.Use(mcpManagementProtection())
+	apiGroup.Use(requestBodyLimits())
 	{
 		apiGroup.GET("/health", h.HealthCheck)
 		apiGroup.GET("/auth/status", h.GetAuthStatus)

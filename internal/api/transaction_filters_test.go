@@ -46,7 +46,7 @@ func TestTransactionAmountFiltersBeforePagination(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			response := httptest.NewRecorder()
-			router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/transactions?page_size=2&"+tt.query, nil))
+			router.ServeHTTP(response, localTestRequest(http.MethodGet, "/api/transactions?page_size=2&"+tt.query, nil))
 			if response.Code != http.StatusOK {
 				t.Fatalf("status %d: %s", response.Code, response.Body.String())
 			}
@@ -71,7 +71,7 @@ func TestTransactionAmountFiltersBeforePagination(t *testing.T) {
 	for _, value := range []string{"invalid", "NaN", "Inf", "1e999"} {
 		for _, key := range []string{"min_amount", "max_amount"} {
 			response := httptest.NewRecorder()
-			router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/transactions?"+key+"="+value, nil))
+			router.ServeHTTP(response, localTestRequest(http.MethodGet, "/api/transactions?"+key+"="+value, nil))
 			if response.Code != http.StatusBadRequest {
 				t.Errorf("%s=%s: status %d, want 400", key, value, response.Code)
 			}

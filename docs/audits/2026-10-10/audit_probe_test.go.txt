@@ -1,0 +1,118 @@
+package api_test
+
+import (
+ "bytes"
+ "database/sql"
+ "encoding/json"
+ "net/http/httptest"
+ "os"
+ "path/filepath"
+ "testing"
+
+ "local-finance/internal/models"
+ "local-finance/internal/service"
+)
+
+// Temporary audit probes assert observed vulnerable behavior on disposable data.
+func TestAuditAuthOverwriteAndHost(t *testing.T) {
+ _, router, database, cleanup := setupTestRouter(t); defer cleanup()
+ hash := "$2a$10$unused"
+ if err := database.SetSecurityPassword(hash, 60); err != nil { t.Fatal(err) }
+ req := httptest.NewRequest("POST", "http://attacker.example:8080/api/auth/setup", bytes.NewBufferString(`{"password":"attacker-password"}`))
+ req.Header.Set("Content-Type", "application/json")
+ req.Header.Set("Origin", "http://attacker.example:8080")
+ w := httptest.NewRecorder(); router.ServeHTTP(w, req)
+ if w.Code != 200 { t.Fatalf("overwrite status=%d body=%s", w.Code, w.Body.String()) }
+ var result struct { Token string `json:"token"` }; json.Unmarshal(w.Body.Bytes(), &result)
+ req = httptest.NewRequest("GET", "http://attacker.example:8080/api/database/export/json", nil)
+ req.Header.Set("Origin", "http://attacker.example:8080")
+ req.Header.Set("Authorization", "Bearer " + result.Token)
+ w = httptest.NewRecorder(); router.ServeHTTP(w, req)
+ if w.Code != 200 { t.Fatalf("export status=%d", w.Code) }
+ t.Log("Unauthenticated setup replaced enabled password, attacker Host accepted, full export returned 200")
+}
+
+func TestAuditAuthFailOpen(t *testing.T) {
+ _, router, database, cleanup := setupTestRouter(t); defer cleanup()
+ if _, err := database.Exec("DROP TABLE app_security"); err != nil { t.Fatal(err) }
+ req := httptest.NewRequest("GET", "/api/database/export/json", nil)
+ w := httptest.NewRecorder(); router.ServeHTTP(w, req)
+ if w.Code != 200 { t.Fatalf("export status=%d", w.Code) }
+ t.Log("Missing security table: unauthenticated full export returned 200")
+}
+
+func TestAuditRestorePermissions(t *testing.T) {
+ _, _, database, cleanup := setupTestRouter(t); defer cleanup()
+ backup := filepath.Join(t.TempDir(), "backup.db")
+ if err := database.BackupTo(backup); err != nil { t.Fatal(err) }
+ f, err := os.Open(backup); if err != nil { t.Fatal(err) }; defer f.Close()
+ if err := database.RestoreFrom(f); err != nil { t.Fatal(err) }
+ stat, err := os.Stat(database.GetPath()); if err != nil { t.Fatal(err) }
+ t.Logf("Restored DB permissions: %04o; backup permissions: %s", stat.Mode().Perm(), func() string { s, _ := os.Stat(backup); return s.Mode().String() }())
+ if stat.Mode().Perm() & 0077 == 0 { t.Fatal("probe requires ordinary umask exposing group/other reads") }
+}
+
+func TestAuditInvalidRestoreReplacesDatabase(t *testing.T) {
+ _, _, database, cleanup := setupTestRouter(t); defer cleanup()
+ path := filepath.Join(t.TempDir(), "invalid.db")
+ conn, err := sql.Open("sqlite", path); if err != nil { t.Fatal(err) }
+ if _, err := conn.Exec("CREATE TABLE accounts (unrelated TEXT)"); err != nil { t.Fatal(err) }; conn.Close()
+ f, err := os.Open(path); if err != nil { t.Fatal(err) }; defer f.Close()
+ t.Logf("Restore returned: %v", database.RestoreFrom(f))
+ if _, err := database.ListAccounts(); err == nil { t.Fatal("expected active database to be broken") } else { t.Logf("Original database not restored: %v", err) }
+}
+
+func TestAuditImportSilentlyLosesRows(t *testing.T) {
+ _, _, database, cleanup := setupTestRouter(t); defer cleanup()
+ if _, err := database.Exec("CREATE TRIGGER audit_block_insert BEFORE INSERT ON transactions BEGIN SELECT RAISE(ABORT, 'simulated write failure'); END"); err != nil { t.Fatal(err) }
+ raw, err := os.ReadFile("../../samples/credit_cards/HDFC_Swiggy_Credit_Card.pdf"); if err != nil { t.Fatal(err) }
+ result, err := service.NewTransactionService(database).ImportStatement("HDFC_Swiggy_Credit_Card.pdf", bytes.NewReader(raw), "", "", "")
+ if err != nil { t.Fatal(err) }
+ if result.TotalParsed == 0 || result.InsertedCount != 0 { t.Fatalf("unexpected result %+v", result) }
+ t.Logf("Import returned success, parsed=%d inserted=%d duplicates=%d", result.TotalParsed, result.InsertedCount, result.DuplicateCount)
+}
+
+func TestAuditTransferRelink(t *testing.T) {
+ _, _, database, cleanup := setupTestRouter(t); defer cleanup()
+ account, err := database.GetOrCreateAccount("Audit", models.AccountTypeSavings, "123456", "3456", "", "", "", "", "", "", nil); if err != nil { t.Fatal(err) }
+ ids := []string{}
+ for _, hash := range []string{"auditA", "auditB", "auditC"} {
+  transaction := &models.Transaction{AccountID: account.ID, TxHash: hash, TxDate:"2026-10-01", TxType:models.TxTypeDebit, Amount:100, RawNarration:hash}
+  if _, err := database.UpsertTransaction(transaction); err != nil { t.Fatal(err) }; ids = append(ids, transaction.ID)
+ }
+ if err := database.LinkTransferPair(ids[0], ids[1], "MANUAL_PAIR"); err != nil { t.Fatal(err) }
+ if err := database.LinkTransferPair(ids[0], ids[2], "MANUAL_PAIR"); err != nil { t.Fatal(err) }
+ if err := database.UnlinkTransferPair(ids[1]); err != nil { t.Fatal(err) }
+ rows, err := database.Query("SELECT id, COALESCE(transfer_peer_id, '') FROM transactions ORDER BY raw_narration"); if err != nil { t.Fatal(err) }; defer rows.Close()
+ for rows.Next() { var id, peer string; rows.Scan(&id, &peer); t.Logf("%s -> %s", id, peer) }
+ t.Log("Relinking accepted two DEBITs, and unlinking old peer left new peer orphaned")
+}
+
+func TestAuditUnrelatedAutoTransfer(t *testing.T) {
+ _, _, database, cleanup := setupTestRouter(t); defer cleanup()
+ savings, err := database.GetOrCreateAccount("Audit Savings", models.AccountTypeSavings, "1", "1", "", "", "", "", "", "", nil); if err != nil { t.Fatal(err) }
+ card, err := database.GetOrCreateAccount("Audit Card", models.AccountTypeCreditCard, "2", "2", "", "", "", "", "", "", nil); if err != nil { t.Fatal(err) }
+ for _, transaction := range []*models.Transaction{
+  {AccountID:savings.ID, TxHash:"groceries", TxDate:"2026-10-01", TxType:models.TxTypeDebit, Amount:500, RawNarration:"GROCERY PURCHASE", CleanedPayee:"Local grocery"},
+  {AccountID:card.ID, TxHash:"refund", TxDate:"2026-10-01", TxType:models.TxTypeCredit, Amount:500, RawNarration:"MERCHANT REFUND", CleanedPayee:"Refund"},
+ } { if _, err := database.UpsertTransaction(transaction); err != nil { t.Fatal(err) } }
+ linked, _, err := service.NewReconciliationService(database).ScanAndAutoReconcile(); if err != nil { t.Fatal(err) }
+ if linked != 1 { t.Fatalf("expected unrelated auto pair, got %d", linked) }
+ t.Log("Unrelated grocery debit and card merchant refund automatically marked internal transfers")
+}
+
+func TestAuditPasswordChangeKeepsOldSessions(t *testing.T) {
+ _, router, _, cleanup := setupTestRouter(t); defer cleanup()
+ request := func(path, payload, token string) *httptest.ResponseRecorder {
+  req := httptest.NewRequest("POST", path, bytes.NewBufferString(payload)); req.Header.Set("Content-Type", "application/json")
+  if token != "" { req.Header.Set("Authorization", "Bearer " + token) }
+  w := httptest.NewRecorder(); router.ServeHTTP(w, req); if w.Code != 200 { t.Fatalf("status %d: %s", w.Code, w.Body.String()) }; return w
+ }
+ var first, second struct { Token string `json:"token"` }
+ json.Unmarshal(request("/api/auth/setup", `{"password":"old-password"}`, "").Body.Bytes(), &first)
+ json.Unmarshal(request("/api/auth/login", `{"password":"old-password"}`, "").Body.Bytes(), &second)
+ request("/api/auth/change-password", `{"current_password":"old-password","new_password":"new-password"}`, first.Token)
+ req := httptest.NewRequest("GET", "/api/database/export/json", nil); req.Header.Set("Authorization", "Bearer " + second.Token)
+ w := httptest.NewRecorder(); router.ServeHTTP(w, req); if w.Code != 200 { t.Fatalf("status %d", w.Code) }
+ t.Log("Second session retained full export access after master password change")
+}

@@ -408,6 +408,8 @@ func (h *Handler) ListParsers(c *gin.Context) {
 }
 
 func (h *Handler) ResetDatabase(c *gin.Context) {
+	h.sessionManager.credentialsMu.Lock()
+	defer h.sessionManager.credentialsMu.Unlock()
 	if err := h.mcpManager.Revoke(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to revoke MCP access"})
 		return
@@ -416,6 +418,8 @@ func (h *Handler) ResetDatabase(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	h.sessionManager.RevokeAll()
+	c.SetCookie("local_finance_session", "", -1, "/", "", false, true)
 	c.JSON(http.StatusOK, gin.H{
 		"message": "database reset successfully: cleared transactions, accounts, and imports",
 	})
@@ -444,7 +448,17 @@ func (h *Handler) GetDatabaseInfo(c *gin.Context) {
 }
 
 func (h *Handler) BackupDatabase(c *gin.Context) {
-	tempFile := filepath.Join(os.TempDir(), fmt.Sprintf("local_finance_backup_%s.db", time.Now().Format("20060102_150405")))
+	file, err := os.CreateTemp("", "local_finance_backup_*.db")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to create private backup"})
+		return
+	}
+	tempFile := file.Name()
+	if err := file.Close(); err != nil {
+		os.Remove(tempFile)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to create private backup"})
+		return
+	}
 	defer os.Remove(tempFile)
 
 	if err := h.db.BackupTo(tempFile); err != nil {
@@ -460,6 +474,8 @@ func (h *Handler) BackupDatabase(c *gin.Context) {
 }
 
 func (h *Handler) RestoreDatabase(c *gin.Context) {
+	h.sessionManager.credentialsMu.Lock()
+	defer h.sessionManager.credentialsMu.Unlock()
 	file, _, err := c.Request.FormFile("file")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "missing database backup file in upload"})
@@ -475,6 +491,8 @@ func (h *Handler) RestoreDatabase(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	h.sessionManager.RevokeAll()
+	c.SetCookie("local_finance_session", "", -1, "/", "", false, true)
 
 	_ = h.mcpManager.Start() // Reload restored preferences; restored MCP access is always disabled.
 	info, _ := h.db.GetDatabaseInfo()

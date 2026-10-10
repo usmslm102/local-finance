@@ -313,7 +313,7 @@ Future Roadmap Priorities
 
 | Layer | Component | Choice |
 | :--- | :--- | :--- |
-| **Backend Core** | Language | **Go (Golang 1.22+ / 1.26 toolchain)** |
+| **Backend Core** | Language | **Go (Golang 1.27.2+)** |
 | **HTTP Framework** | Engine | **Gin (`github.com/gin-gonic/gin`)** |
 | **Database Engine** | Storage | **Pure Go SQLite (`modernc.org/sqlite`, 0 CGO)** |
 | **Database Migrations**| Engine | **Embedded Goose v3 (`github.com/pressly/goose/v3`)** |

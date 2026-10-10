@@ -141,7 +141,7 @@ graph TD
 
 | Layer | Component | Description |
 | :--- | :--- | :--- |
-| **Backend Core** | **Go 1.22+** (Go 1.26 toolchain) | High-performance, low-memory footprint, single-binary compilation with `CGO_ENABLED=0`. |
+| **Backend Core** | **Go 1.27.2+** | High-performance, low-memory footprint, single-binary compilation with `CGO_ENABLED=0`. |
 | **API Framework** | **Gin (`gin-gonic/gin`)** | High-speed HTTP router, multipart file upload handling, CORS, and embedded static asset serving. |
 | **Database Engine** | **SQLite (`modernc.org/sqlite`)** | Pure Go SQLite engine (zero CGO required), WAL mode enabled with busy timeout pragmas. |
 | **Schema Migrations** | **Goose (`pressly/goose/v3`)** | Embedded SQL migrations executed automatically on startup via `embed.FS`. |
@@ -187,7 +187,7 @@ You don't need Go or Node.js installed to use LocalFinance. Download the pre-com
 ---
 
 ### Prerequisites (For Building from Source)
-- **Go 1.22+** (configured with Go 1.26 toolchain)
+- **Go 1.27.2+**
 - **Node.js 20+**
 - **pnpm** (install via `npm install -g pnpm` or `brew install pnpm`)
 
@@ -490,6 +490,8 @@ Historical months compare full calendar months. The current month compares elaps
 The review is read-only, runs offline, and uses the app's existing authentication and discreet mode.
 
 ## 🔌 REST API Reference
+
+The server listens on `127.0.0.1` and accepts trusted local browser origins. Local scripts that call the API without browser origin headers must include `X-LocalFinance-Request: 1`, including for reads, for example `curl -H 'X-LocalFinance-Request: 1' http://127.0.0.1:8080/api/health`. This header prevents cross-site browser requests; it does not replace the session token required when app lock is enabled. The frontend sends the header automatically. External links may open the app's pages, but cross-site requests to API endpoints are rejected.
 
 | Endpoint | Method | Description |
 | :--- | :--- | :--- |

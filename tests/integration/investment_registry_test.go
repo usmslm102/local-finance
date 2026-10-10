@@ -45,7 +45,7 @@ func TestInvestmentAPIUsesRegisteredProvider(t *testing.T) {
 	database := testDatabase(t)
 	router := api.SetupRouter(database, service.NewTransactionService(database), nil)
 	formats := httptest.NewRecorder()
-	router.ServeHTTP(formats, httptest.NewRequest(http.MethodGet, "/api/investments/formats", nil))
+	router.ServeHTTP(formats, localTestRequest(http.MethodGet, "/api/investments/formats", nil))
 	var capabilities struct {
 		Parsers []investment.ParserInfo `json:"parsers"`
 	}
@@ -69,7 +69,7 @@ func TestInvestmentAPIUsesRegisteredProvider(t *testing.T) {
 		if err := writer.Close(); err != nil {
 			t.Fatal(err)
 		}
-		request := httptest.NewRequest(http.MethodPost, endpoint, &body)
+		request := localTestRequest(http.MethodPost, endpoint, &body)
 		request.Header.Set("Content-Type", writer.FormDataContentType())
 		response := httptest.NewRecorder()
 		router.ServeHTTP(response, request)
@@ -110,7 +110,7 @@ func TestInvestmentAPIUsesRegisteredProvider(t *testing.T) {
 		t.Fatalf("registered provider bypassed deduplication: %+v", imported)
 	}
 	listed := httptest.NewRecorder()
-	router.ServeHTTP(listed, httptest.NewRequest(http.MethodGet, "/api/investments", nil))
+	router.ServeHTTP(listed, localTestRequest(http.MethodGet, "/api/investments", nil))
 	var saved []models.InvestmentSnapshot
 	if err := json.Unmarshal(listed.Body.Bytes(), &saved); err != nil {
 		t.Fatal(err)

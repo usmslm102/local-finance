@@ -64,7 +64,7 @@ export const LockScreen: React.FC = () => {
               LocalFinance is Locked
             </h2>
             <p className="text-xs text-muted-foreground max-w-xs mx-auto">
-              Enter your master password or PIN to decrypt and access your local financial ledger
+              Enter your master password or PIN to access your local financial ledger
             </p>
           </div>
 

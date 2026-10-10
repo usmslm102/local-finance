@@ -50,12 +50,7 @@ func ExtractExcel(r io.Reader, password string) ([][]string, error) {
 }
 
 func extractXLSX(data []byte, password string) ([][]string, error) {
-	var opts []excelize.Options
-	if password != "" {
-		opts = append(opts, excelize.Options{Password: password})
-	}
-
-	f, err := excelize.OpenReader(bytes.NewReader(data), opts...)
+	f, err := excelize.OpenReader(bytes.NewReader(data), excelize.Options{Password: password, UnzipSizeLimit: 64 << 20, UnzipXMLSizeLimit: 16 << 20})
 	if err != nil {
 		return nil, fmt.Errorf("failed to open .xlsx file: %w", err)
 	}

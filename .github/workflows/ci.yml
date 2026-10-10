@@ -10,6 +10,9 @@ jobs:
   backend-test:
     name: Backend Tests
     runs-on: ubuntu-latest
+    # CGO-free builds are part of the portable application contract.
+    env:
+      CGO_ENABLED: "0"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -25,6 +28,12 @@ jobs:
 
       - name: Run Go Tests
         run: go test -v ./...
+
+      - name: Vet Go code
+        run: go vet ./...
+
+      - name: Check reachable Go vulnerabilities
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
 
   frontend-build:
     name: Frontend Build & Typecheck
@@ -52,3 +61,11 @@ jobs:
       - name: Typecheck and build frontend
         working-directory: frontend
         run: pnpm run build
+
+      - name: Lint and test frontend
+        working-directory: frontend
+        run: pnpm lint && pnpm test
+
+      - name: Check frontend dependencies
+        working-directory: frontend
+        run: pnpm audit --audit-level=high

@@ -49,7 +49,7 @@ func TestAuthWorkflow(t *testing.T) {
 	server, _ := setupTestRouter(t)
 
 	// 1. Initial status check: auth should be disabled by default
-	req := httptest.NewRequest("GET", "/api/auth/status", nil)
+	req := localTestRequest("GET", "/api/auth/status", nil)
 	w := httptest.NewRecorder()
 	server.ServeHTTP(w, req)
 
@@ -66,7 +66,7 @@ func TestAuthWorkflow(t *testing.T) {
 	}
 
 	// 2. Access protected endpoint before setup: should succeed because auth is disabled
-	req = httptest.NewRequest("GET", "/api/accounts", nil)
+	req = localTestRequest("GET", "/api/accounts", nil)
 	w = httptest.NewRecorder()
 	server.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
@@ -78,7 +78,7 @@ func TestAuthWorkflow(t *testing.T) {
 		Password:        "supersecret123",
 		AutoLockMinutes: 30,
 	})
-	req = httptest.NewRequest("POST", "/api/auth/setup", bytes.NewReader(setupPayload))
+	req = localTestRequest("POST", "/api/auth/setup", bytes.NewReader(setupPayload))
 	req.Header.Set("Content-Type", "application/json")
 	w = httptest.NewRecorder()
 	server.ServeHTTP(w, req)
@@ -96,7 +96,7 @@ func TestAuthWorkflow(t *testing.T) {
 	}
 
 	// 4. Now protected endpoint without token should be 401 Unauthorized
-	req = httptest.NewRequest("GET", "/api/accounts", nil)
+	req = localTestRequest("GET", "/api/accounts", nil)
 	w = httptest.NewRecorder()
 	server.ServeHTTP(w, req)
 	if w.Code != http.StatusUnauthorized {
@@ -104,7 +104,7 @@ func TestAuthWorkflow(t *testing.T) {
 	}
 
 	// 5. With Bearer token should be 200 OK
-	req = httptest.NewRequest("GET", "/api/accounts", nil)
+	req = localTestRequest("GET", "/api/accounts", nil)
 	req.Header.Set("Authorization", "Bearer "+setupResp.Token)
 	w = httptest.NewRecorder()
 	server.ServeHTTP(w, req)
@@ -116,7 +116,7 @@ func TestAuthWorkflow(t *testing.T) {
 	badLogin, _ := json.Marshal(models.AuthLoginRequest{
 		Password: "wrongpassword",
 	})
-	req = httptest.NewRequest("POST", "/api/auth/login", bytes.NewReader(badLogin))
+	req = localTestRequest("POST", "/api/auth/login", bytes.NewReader(badLogin))
 	req.Header.Set("Content-Type", "application/json")
 	w = httptest.NewRecorder()
 	server.ServeHTTP(w, req)
@@ -128,7 +128,7 @@ func TestAuthWorkflow(t *testing.T) {
 	goodLogin, _ := json.Marshal(models.AuthLoginRequest{
 		Password: "supersecret123",
 	})
-	req = httptest.NewRequest("POST", "/api/auth/login", bytes.NewReader(goodLogin))
+	req = localTestRequest("POST", "/api/auth/login", bytes.NewReader(goodLogin))
 	req.Header.Set("Content-Type", "application/json")
 	w = httptest.NewRecorder()
 	server.ServeHTTP(w, req)
@@ -140,7 +140,7 @@ func TestAuthWorkflow(t *testing.T) {
 	disableReq, _ := json.Marshal(models.AuthDisableRequest{
 		Password: "supersecret123",
 	})
-	req = httptest.NewRequest("POST", "/api/auth/disable", bytes.NewReader(disableReq))
+	req = localTestRequest("POST", "/api/auth/disable", bytes.NewReader(disableReq))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+setupResp.Token)
 	w = httptest.NewRecorder()
@@ -150,7 +150,7 @@ func TestAuthWorkflow(t *testing.T) {
 	}
 
 	// 9. Protected endpoint should now succeed without token
-	req = httptest.NewRequest("GET", "/api/accounts", nil)
+	req = localTestRequest("GET", "/api/accounts", nil)
 	w = httptest.NewRecorder()
 	server.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {

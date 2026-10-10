@@ -177,14 +177,14 @@ func TestInvestmentAPI(t *testing.T) {
 			t.Fatal(err)
 		}
 		writer.Close()
-		req := httptest.NewRequest(http.MethodPost, path, &body)
+		req := localTestRequest(http.MethodPost, path, &body)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 		return w
 	}
 	w := httptest.NewRecorder()
-	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/investments/formats", nil))
+	router.ServeHTTP(w, localTestRequest(http.MethodGet, "/api/investments/formats", nil))
 	var formats struct {
 		Parsers []investment.ParserInfo `json:"parsers"`
 		MaxSize int                     `json:"max_file_size"`
@@ -260,7 +260,7 @@ func TestInvestmentAPI(t *testing.T) {
 		t.Fatal("bad upload should return 400")
 	}
 	w = httptest.NewRecorder()
-	router.ServeHTTP(w, httptest.NewRequest(http.MethodDelete, "/api/investments/"+result.Snapshot.ID, nil))
+	router.ServeHTTP(w, localTestRequest(http.MethodDelete, "/api/investments/"+result.Snapshot.ID, nil))
 	if w.Code != 204 {
 		t.Fatal(w.Code)
 	}
@@ -269,12 +269,12 @@ func TestInvestmentAPI(t *testing.T) {
 		t.Fatal("deletion changed another provider snapshot", err)
 	}
 	w = httptest.NewRecorder()
-	router.ServeHTTP(w, httptest.NewRequest(http.MethodDelete, "/api/investments/"+usResult.Snapshot.ID, nil))
+	router.ServeHTTP(w, localTestRequest(http.MethodDelete, "/api/investments/"+usResult.Snapshot.ID, nil))
 	if w.Code != 204 {
 		t.Fatal("US deletion failed", w.Code)
 	}
 	w = httptest.NewRecorder()
-	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/investments", nil))
+	router.ServeHTTP(w, localTestRequest(http.MethodGet, "/api/investments", nil))
 	if w.Code != 200 || w.Body.String() != "[]" {
 		t.Fatal("deleted portfolio still listed", w.Body.String())
 	}

@@ -82,6 +82,7 @@ export function clearAuthToken() {
 async function fetchWithAuth(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const token = getAuthToken()
   const headers = new Headers(init?.headers)
+  headers.set('X-LocalFinance-Request', '1')
   if (token && !headers.has('Authorization')) {
     headers.set('Authorization', `Bearer ${token}`)
   }
@@ -838,7 +839,9 @@ export async function changeAuthPassword(
     const errorData = await res.json().catch(() => ({ error: 'Password change failed' }))
     throw new Error(errorData.error || 'Failed to change password')
   }
-  return res.json()
+  const data = await res.json()
+  if (data.token) setAuthToken(data.token)
+  return data
 }
 
 export async function disableAuth(password: string): Promise<{ message: string }> {
