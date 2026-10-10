@@ -970,9 +970,13 @@ func (d *DB) InsertRule(r *models.CategorizationRule) error {
 	if err == nil && count == 0 {
 		return sql.ErrNoRows
 	}
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	saved, err := d.getRule(r.ID)
-	if err == nil { *r = *saved }
+	if err == nil {
+		*r = *saved
+	}
 	return err
 }
 
