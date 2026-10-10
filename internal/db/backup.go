@@ -181,6 +181,12 @@ func (d *DB) RestoreFrom(r io.Reader) error {
 // Schema metadata alone cannot detect invalid stored values or broken triggers.
 // Probe writes are always rolled back and never enter the restored ledger.
 func (d *DB) validateRestoreQueries() error {
+	if _, err := d.ListSplitwise(); err != nil {
+		return fmt.Errorf("Splitwise ledger: %w", err)
+	}
+	if _, err := d.GetAnalyticsOverview(); err != nil {
+		return fmt.Errorf("personal spending projection: %w", err)
+	}
 	if _, _, err := d.GetSecuritySettings(); err != nil {
 		return fmt.Errorf("security settings: %w", err)
 	}

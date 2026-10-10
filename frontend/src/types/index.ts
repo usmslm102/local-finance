@@ -91,6 +91,11 @@ export interface CategorizationRule {
 }
 
 export interface Transaction {
+
+  is_split?: boolean
+  splitwise_entry_id?: string
+  splitwise_kind?: 'EXPENSE' | 'PAYMENT'
+  personal_expense_amount?: number
   id: string
   account_id: string
   account_name?: string

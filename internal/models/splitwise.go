@@ -24,3 +24,8 @@ type SplitwiseConfirmation struct {
 	Ignore        bool   `json:"ignore"`
 	CategoryID    string `json:"category_id"`
 }
+
+type SplitwiseMatchOptions struct {
+	Share  int64
+	Search string
+}

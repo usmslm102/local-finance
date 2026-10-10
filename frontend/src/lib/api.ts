@@ -23,6 +23,12 @@ export async function splitwiseRequest<T = void>(path: string, body?: unknown): 
   return res.status === 204 ? undefined as T : res.json()
 }
 
+export async function fetchTransaction(id: string): Promise<Transaction> {
+  const res = await fetchWithAuth(`${BASE_URL}/transactions/${encodeURIComponent(id)}`)
+  if (!res.ok) throw new Error('Unable to load the linked statement transaction')
+  return res.json()
+}
+
 export async function splitwiseUpload<T>(action: 'preview' | 'import', file: File, group: string, person: string): Promise<T> {
   const body = new FormData()
   body.append('file', file); body.append('group', group); body.append('person', person)

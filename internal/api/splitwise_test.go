@@ -48,7 +48,7 @@ func TestSplitwiseUploadPreviewConfirmAndProtection(t *testing.T) {
 	if w := upload("/api/splitwise/import", data); w.Code != 200 {
 		t.Fatalf("import: %d %s", w.Code, w.Body)
 	}
-	if w := upload("/api/splitwise/import", data); w.Code != 200 || !bytes.Contains(w.Body.Bytes(), []byte(`"duplicates":5`)) {
+	if w := upload("/api/splitwise/import", data); w.Code != 200 || !bytes.Contains(w.Body.Bytes(), []byte(`"duplicates":7`)) {
 		t.Fatalf("duplicate: %d %s", w.Code, w.Body)
 	}
 	entries, _ = d.ListSplitwise()
@@ -72,7 +72,7 @@ func TestSplitwiseUploadPreviewConfirmAndProtection(t *testing.T) {
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, localTestRequest("GET", "/api/splitwise", nil))
 	var list []models.SplitwiseEntry
-	if err := json.Unmarshal(w.Body.Bytes(), &list); w.Code != 200 || err != nil || len(list) != 5 {
+	if err := json.Unmarshal(w.Body.Bytes(), &list); w.Code != 200 || err != nil || len(list) != 7 {
 		t.Fatalf("list: %d %v", w.Code, err)
 	}
 	if w := upload("/api/splitwise/import", []byte("broken")); w.Code != 400 {

@@ -22,8 +22,12 @@ CREATE VIEW personal_transactions AS
 SELECT t.id,t.account_id,t.statement_import_id,t.tx_hash,t.tx_date,t.value_date,
        t.raw_narration,t.cleaned_payee,t.payment_mode,t.reference_number,t.tx_type,
        CASE WHEN s.kind='EXPENSE' THEN s.share_cents / 100.0 ELSE t.amount END AS amount,
-       t.running_balance,t.category_id,t.is_recurring,t.notes,t.tags,t.created_at,
-       t.upi_vpa,t.card_last4,t.is_transfer,
+       t.running_balance,
+       CASE WHEN s.kind='EXPENSE' AND COALESCE(t.category_id,'')='cat_transfers'
+            THEN COALESCE(s.category_id,(SELECT id FROM categories WHERE lower(name)=lower(s.category)),'cat_others') ELSE t.category_id END AS category_id,
+       t.is_recurring,t.notes,t.tags,t.created_at,
+       t.upi_vpa,t.card_last4,
+       CASE WHEN s.kind='EXPENSE' THEN 0 ELSE t.is_transfer END AS is_transfer,
        CASE WHEN s.kind='PAYMENT' THEN 1 ELSE t.is_excluded END AS is_excluded,
        t.original_currency,t.original_amount,t.merchant_category,t.cashback_amount,
        t.reward_points_earned,t.transfer_peer_id,t.transfer_match_reason,t.net_amount,t.is_manual_category

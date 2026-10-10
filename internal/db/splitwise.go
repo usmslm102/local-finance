@@ -5,11 +5,35 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 
 	"local-finance/internal/models"
 )
 
 var ErrSplitwiseNotFound = errors.New("Splitwise entry not found")
+
+const splitwiseAmountTolerance int64 = 500 // Paise: the user permits discrepancies up to INR 5.
+
+func splitwiseMovement(cost, net, share int64, kind string) (int64, string, error) {
+	if share < 0 || share > cost {
+		return 0, "", fmt.Errorf("share must be between zero and total cost")
+	}
+	paid, direction := net+share, "DEBIT"
+	if kind == "PAYMENT" {
+		if share != 0 {
+			return 0, "", fmt.Errorf("settlements have no expense share")
+		}
+		paid = net
+		if paid < 0 {
+			paid = -paid
+			direction = "CREDIT"
+		}
+	}
+	if paid < 0 || paid > cost {
+		return 0, "", fmt.Errorf("paid amount must be between zero and total cost")
+	}
+	return paid, direction, nil
+}
 
 func (d *DB) ImportSplitwise(entries []models.SplitwiseEntry) (int, error) {
 	d.mu.Lock()
@@ -81,20 +105,9 @@ func (d *DB) ConfirmSplitwise(id string, req models.SplitwiseConfirmation) error
 	if req.Ignore {
 		status = "IGNORED"
 	} else {
-		paid := net + req.Share
-		direction := "DEBIT"
-		if kind == "PAYMENT" {
-			if req.Share != 0 {
-				return fmt.Errorf("settlements have no expense share")
-			}
-			paid = net
-			if paid < 0 {
-				paid = -paid
-				direction = "CREDIT"
-			}
-		}
-		if req.Share < 0 || req.Share > cost || paid < 0 || paid > cost {
-			return fmt.Errorf("share and paid amount must be between zero and total cost")
+		paid, direction, err := splitwiseMovement(cost, net, req.Share, kind)
+		if err != nil {
+			return err
 		}
 		if paid > 0 && req.TransactionID == "" {
 			return fmt.Errorf("select the matching statement transaction for the amount you paid or received")
@@ -106,15 +119,15 @@ func (d *DB) ConfirmSplitwise(id string, req models.SplitwiseConfirmation) error
 			var amount float64
 			var txType string
 			var eligible bool
-			err = tx.QueryRow(`SELECT t.amount,t.tx_type,(t.is_transfer=0 AND t.is_excluded=0 AND a.currency='INR' AND ABS(julianday(t.tx_date)-julianday(?))<=3 AND ( ?='PAYMENT' OR COALESCE(t.category_id,'') != ?)) FROM transactions t JOIN accounts a ON a.id=t.account_id WHERE t.id=?`, date, kind, models.CategoryTransfersID, req.TransactionID).Scan(&amount, &txType, &eligible)
+			err = tx.QueryRow(`SELECT t.amount,t.tx_type,(COALESCE(t.transfer_peer_id,'')='' AND t.is_excluded=0 AND a.currency='INR' AND t.tx_date BETWEEN date(?,'-15 days') AND ?) FROM transactions t JOIN accounts a ON a.id=t.account_id WHERE t.id=?`, date, date, req.TransactionID).Scan(&amount, &txType, &eligible)
 			if err == sql.ErrNoRows {
 				return fmt.Errorf("statement transaction not found")
 			}
 			if err != nil {
 				return err
 			}
-			if !eligible || txType != direction || int64(math.Round(amount*100)) != paid {
-				return fmt.Errorf("statement must match INR amount, direction and date within three days, and cannot already be excluded or a transfer")
+			if !eligible || txType != direction || amount <= 0 || math.Abs(math.Round(amount*100)-float64(paid)) > float64(splitwiseAmountTolerance) {
+				return fmt.Errorf("statement must match INR direction and amount within ₹5, date from 15 days before through the entry date, and cannot already be excluded or paired as an internal transfer")
 			}
 			var count int
 			if err := tx.QueryRow(`SELECT COUNT(*) FROM splitwise_entries WHERE transaction_id=? AND id!=?`, req.TransactionID, id).Scan(&count); err != nil {
@@ -161,7 +174,7 @@ func (d *DB) ResetSplitwise(id string) error {
 
 // Candidate IDs are suggestions only: equal amounts and nearby dates never
 // authorize an automatic link. Confirmation rechecks all constraints atomically.
-func (d *DB) SplitwiseCandidates(id string, share int64) ([]models.Transaction, error) {
+func (d *DB) SplitwiseCandidates(id string, options models.SplitwiseMatchOptions) ([]models.Transaction, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	var cost, net int64
@@ -173,30 +186,23 @@ func (d *DB) SplitwiseCandidates(id string, share int64) ([]models.Transaction, 
 	if err != nil {
 		return nil, err
 	}
-	paid := net + share
-	direction := "DEBIT"
-	if kind == "PAYMENT" {
-		paid = net
-		if paid < 0 {
-			paid = -paid
-			direction = "CREDIT"
-		}
-	}
-	if share < 0 || share > cost || paid < 0 || paid > cost {
-		return nil, fmt.Errorf("invalid share")
+	paid, direction, err := splitwiseMovement(cost, net, options.Share, kind)
+	if err != nil {
+		return nil, err
 	}
 	items := []models.Transaction{}
 	if paid == 0 {
 		return items, nil
 	}
-	rows, err := d.conn.Query(`SELECT t.id,t.tx_date,t.raw_narration,t.amount,t.tx_type FROM transactions t JOIN accounts a ON a.id=t.account_id WHERE a.currency='INR' AND t.tx_type=? AND ROUND(t.amount*100)=? AND ABS(julianday(t.tx_date)-julianday(?))<=3 AND t.is_transfer=0 AND t.is_excluded=0 AND (?='PAYMENT' OR COALESCE(t.category_id,'')!=?) AND NOT EXISTS(SELECT 1 FROM splitwise_entries s WHERE s.transaction_id=t.id AND s.id!=?) ORDER BY ABS(julianday(t.tx_date)-julianday(?)),t.id LIMIT 50`, direction, paid, date, kind, models.CategoryTransfersID, id, date)
+	search := "%" + strings.TrimSpace(options.Search) + "%"
+	rows, err := d.conn.Query(`SELECT t.id,t.tx_date,t.raw_narration,t.amount,t.tx_type,COALESCE(NULLIF(a.nickname,''),a.bank_name),t.is_transfer FROM transactions t JOIN accounts a ON a.id=t.account_id WHERE a.currency='INR' AND t.tx_type=? AND t.amount>0 AND ABS(ROUND(t.amount*100)-?)<=? AND t.tx_date BETWEEN date(?,'-15 days') AND ? AND COALESCE(t.transfer_peer_id,'')='' AND t.is_excluded=0 AND (t.raw_narration LIKE ? OR t.cleaned_payee LIKE ?) AND NOT EXISTS(SELECT 1 FROM splitwise_entries s WHERE s.transaction_id=t.id AND s.id!=?) ORDER BY CASE WHEN ROUND(t.amount*100)=? THEN 0 ELSE 1 END,ABS(julianday(t.tx_date)-julianday(?)),ABS(ROUND(t.amount*100)-?),t.id LIMIT 50`, direction, paid, splitwiseAmountTolerance, date, date, search, search, id, paid, date, paid)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var t models.Transaction
-		if err := rows.Scan(&t.ID, &t.TxDate, &t.RawNarration, &t.Amount, &t.TxType); err != nil {
+		if err := rows.Scan(&t.ID, &t.TxDate, &t.RawNarration, &t.Amount, &t.TxType, &t.AccountName, &t.IsTransfer); err != nil {
 			return nil, err
 		}
 		items = append(items, t)

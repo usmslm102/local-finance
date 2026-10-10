@@ -407,7 +407,7 @@ const calendarRoute = createRoute({
 const importRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/import',
-  validateSearch: (search: Record<string, unknown>): { tab?: 'investments' } => ({ tab: search.tab === 'investments' ? 'investments' : undefined }),
+  validateSearch: (search: Record<string, unknown>): { tab?: 'investments' | 'splitwise' } => ({ tab: search.tab === 'investments' || search.tab === 'splitwise' ? search.tab : undefined }),
   component: () => <StatementImportView initialTab={importRoute.useSearch().tab ?? 'bank'} />,
 })
 

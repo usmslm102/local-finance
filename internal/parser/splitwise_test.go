@@ -15,7 +15,7 @@ func TestSplitwiseExport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(entries) != 5 || entries[0].Person != "Sanjay Example" || entries[0].Share != 10000 || entries[1].Share != 5000 || entries[2].Kind != "PAYMENT" || entries[3].Net != -8000 || entries[4].Share != 0 {
+	if len(entries) != 7 || entries[0].Person != "Sanjay Example" || entries[0].Share != 10000 || entries[1].Share != 5000 || entries[2].Kind != "PAYMENT" || entries[3].Net != -8000 || entries[4].Share != 0 {
 		t.Fatalf("incorrect export interpretation: %+v", entries)
 	}
 	for _, e := range entries {

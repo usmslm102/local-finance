@@ -401,10 +401,12 @@ func (d *DB) ListTransactions(f TransactionFilter) ([]models.Transaction, int, e
 			t.upi_vpa, t.card_last4, t.merchant_category, t.cashback_amount, t.reward_points_earned,
 			t.is_transfer, t.is_excluded, t.transfer_peer_id, t.transfer_match_reason, t.net_amount,
 			t.original_currency, t.original_amount,
-			t.is_recurring, COALESCE(t.is_manual_category, 0), COALESCE(t.notes, ''), COALESCE(t.tags, ''), t.created_at
+			t.is_recurring, COALESCE(t.is_manual_category, 0), COALESCE(t.notes, ''), COALESCE(t.tags, ''), t.created_at,
+			s.id,s.kind,CASE WHEN s.kind='PAYMENT' THEN 0 ELSE s.share_cents / 100.0 END
 		FROM transactions t
 		LEFT JOIN accounts a ON t.account_id = a.id
 		LEFT JOIN categories c ON t.category_id = c.id
+		LEFT JOIN splitwise_entries s ON s.transaction_id=t.id AND s.status='CONFIRMED'
 		WHERE %s
 		ORDER BY t.tx_date DESC, t.created_at DESC
 		LIMIT ? OFFSET ?
@@ -423,6 +425,8 @@ func (d *DB) ListTransactions(f TransactionFilter) ([]models.Transaction, int, e
 		var stmtID, valDate, catID, catName, catColor, catIcon, upiVpa, cardLast4, merchCat, peerID, matchReason, origCurr sql.NullString
 		var runBal, netAmt, origAmt sql.NullFloat64
 		var isManualCat sql.NullBool
+		var splitID, splitKind sql.NullString
+		var personalExpense sql.NullFloat64
 
 		if err := rows.Scan(
 			&t.ID, &t.AccountID, &t.AccountName,
@@ -434,12 +438,21 @@ func (d *DB) ListTransactions(f TransactionFilter) ([]models.Transaction, int, e
 			&t.IsTransfer, &t.IsExcluded, &peerID, &matchReason, &netAmt,
 			&origCurr, &origAmt,
 			&t.IsRecurring, &isManualCat, &t.Notes, &t.Tags, &t.CreatedAt,
+			&splitID, &splitKind, &personalExpense,
 		); err != nil {
 			return nil, 0, err
 		}
 
 		if stmtID.Valid {
 			t.StatementImportID = &stmtID.String
+		}
+		if splitID.Valid {
+			t.SplitwiseEntryID = &splitID.String
+			t.SplitwiseKind = &splitKind.String
+			t.IsSplit = splitKind.String == "EXPENSE"
+		}
+		if personalExpense.Valid {
+			t.PersonalExpenseAmount = &personalExpense.Float64
 		}
 		if valDate.Valid {
 			t.ValueDate = &valDate.String
