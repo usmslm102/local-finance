@@ -330,6 +330,6 @@ Future Roadmap Priorities
 - [x] Shared read-only bearer token, independent of the UI lock, with rotation and disable controls.
 - [x] Optional MCP tools to create/update custom categories and categorization rules; default-off write permission, with ledger re-application remaining in the app.
 - [x] Finance tools across all existing views, using the existing database/service calculations.
-- [x] Settings setup instructions for Codex, Claude Code, and generic HTTP MCP clients.
+- [x] Provider tabs and copy-and-run Shell/PowerShell setup for Codex, Claude Code, and Ollama through OpenCode, plus manual configuration for other HTTP MCP clients.
 - [x] Account metadata masking, bounded collection responses, and restore/reset revocation.
 - [ ] Future: separately authorized write/import tools and finer-grained client permissions.

@@ -530,40 +530,51 @@ may send returned transactions, notes, payees, balances, and reports to its mode
 provider. Review that tool's data policy before connecting. Access is **read-only
 by default**, with an optional permission for custom category and rule writes.
 
-1. Open **Settings → AI / MCP** and click **Create access token**.
-2. Save the token; LocalFinance shows it once and stores only its SHA-256 hash.
-3. Enable MCP. The default endpoint is `http://127.0.0.1:8081/mcp`.
-4. Copy the configuration for your client from Settings. One shared token works
-   across all your clients. Keep it in private user configuration, never in a repo.
+1. Open **Settings → AI / MCP** and click **Create token & enable MCP**.
+   New tokens are filled into setup commands automatically. LocalFinance stores
+   only the token's SHA-256 hash; the settings screen keeps the token in memory
+   until you leave the tab. Save it privately if you want to connect more clients later.
+2. Choose the **Codex**, **Claude Code**, or **Ollama** tab. For Ollama,
+   install OpenCode and use a local model that supports tool calls.
+3. Select **Shell · macOS / Linux** or **PowerShell · Windows**, click
+   **Copy command**, and run it on the computer running LocalFinance.
+   Node.js 18+ and your chosen AI client must already be installed.
+4. Restart your AI client and check its MCP tools. For Ollama, run
+   `ollama launch opencode` after setup and choose your local model. Ask your client:
+   “Use LocalFinance to summarize my spending last month.”
 
-For Codex, add this to your private `config.toml`:
+The command includes your token, saves the connection in private user configuration,
+backs up existing settings, and preserves other MCP connections. It can be run again
+when you change the port or rotate the token. Codex uses `CODEX_HOME/config.toml`
+(or `~/.codex/config.toml`); Claude Code uses `CLAUDE_CONFIG_DIR/.claude.json`
+(or `~/.claude.json`); OpenCode uses `XDG_CONFIG_HOME/opencode/opencode.json`
+(or `~/.config/opencode/opencode.json`). Backups are saved beside the configuration
+with a `.localfinance-<timestamp>.bak` suffix. Both configuration and backups contain
+credentials: keep them private and out of repositories and shared terminal logs.
+The installer runs locally and does not download scripts or install dependencies.
+Ollama/OpenCode may download a model or client dependencies when first launched.
 
-```toml
-[mcp_servers.localfinance]
-url = "http://127.0.0.1:8081/mcp"
-bearer_token_env_var = "LOCALFINANCE_MCP_TOKEN"
-```
+If you already have a token, paste it into **Access token**. You can copy and run
+setup while MCP is disabled; enable MCP when you are ready to connect.
+The installer rejects Node.js versions older than 18 before changing files and
+warns when a client is missing from PATH. Codex desktop users do not need its CLI.
+If you lost it, rotate the token and reconnect every client. **Advanced settings**
+contains the local port (default `8081`) and listener retry controls.
 
-Set `LOCALFINANCE_MCP_TOKEN` in the environment that launches Codex. Alternatively,
-replace `bearer_token_env_var` with a private static header:
+Each provider tab also offers **Manual configuration**. Setup stops without changing
+settings for invalid JSON, advanced multiline/inline Codex TOML, or custom OpenCode
+configuration (including JSONC); use the manual configuration to merge the connection
+in those cases. Project settings may override user settings in your AI client.
 
-```toml
-http_headers = { Authorization = "Bearer YOUR_TOKEN" }
-```
-
-For Claude Code, add a private, user-scoped connection:
-
-```bash
-claude mcp add --transport http --scope user localfinance \
-  http://127.0.0.1:8081/mcp --header "Authorization: Bearer YOUR_TOKEN"
-```
-
-For another MCP client, select **Streamable HTTP**, use the endpoint above, and
-set the header `Authorization: Bearer YOUR_TOKEN`. Clients running only in the
-cloud cannot reach this computer's loopback address. There is no stdio transport,
-remote hosting, or automatic app startup. Client configuration references:
-[Codex MCP](https://learn.chatgpt.com/docs/extend/mcp?surface=cli) and
-[Claude Code MCP](https://code.claude.com/docs/en/mcp).
+For another MCP client, choose **Other clients**, select **Streamable HTTP**, use
+`http://127.0.0.1:8081/mcp` (or your configured port), and set the header
+`Authorization: Bearer YOUR_TOKEN`. Clients running only in the cloud cannot reach
+this computer's loopback address. There is no stdio transport, remote hosting,
+or automatic LocalFinance startup. Client configuration references:
+[Codex MCP](https://learn.chatgpt.com/docs/extend/mcp?surface=cli),
+[Claude Code MCP](https://code.claude.com/docs/en/mcp),
+[OpenCode MCP](https://opencode.ai/docs/mcp-servers/), and
+[Ollama with OpenCode](https://docs.ollama.com/integrations/opencode).
 
 ### Access and revocation
 
