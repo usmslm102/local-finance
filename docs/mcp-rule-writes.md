@@ -25,8 +25,9 @@ management tool is added.
 - `save_category` accepts required `name`, optional `id` (create if absent),
   `color_hex` (#RRGGBB), and `icon`. Reuse DB.CreateCategory and add DB.UpdateCategory.
   Creation defaults to #64748B and tag; updates preserve omitted fields, identity,
-  parent, and references from rules and transactions. Write only supplied columns
-  under the database writer lock, preserving concurrent disjoint patches. System categories are
+  parent, and references from rules and transactions. A typed CategoryPatch encodes
+  supplied fields; the database loads, merges, validates and saves under its writer
+  lock, preserving concurrent disjoint patches. System categories are
   protected, consistent with the existing custom-category management UI. Category
   hierarchy editing and deletion remain outside this feature's scope.
 - The tool interface accepts optional `id` (absent creates, present updates),
@@ -39,8 +40,11 @@ management tool is added.
   nonempty patterns and identifiers, regex syntax, category existence, and update
   target existence. Share rule insertion with DB.CreateRule via DB.InsertRule,
   preserving explicit zero priority while keeping the app's historical defaults.
-  DB.PatchRule atomically writes only supplied fields, validates the merged current
-  matcher/pattern invariant, and checks target existence.
+  DB.PatchRule accepts a typed CategorizationRulePatch with optional fields, loads
+  and merges the current saved rule under its writer lock, validates the resulting
+  matcher/pattern invariant, and checks target existence. MCP callers need no
+  saved snapshot or string field mask. Types and merge behavior live in models;
+  persistence and concurrency stay in db; MCP owns the wire schema and responses.
   Add DB.GetRule to load a rule by id regardless of active state. Errors contain
   no SQL or credentials.
 - Return the saved rule in the existing data envelope with a text fallback.
@@ -53,6 +57,9 @@ management tool is added.
 Use disposable databases and fictional fixtures. Exercise real SDK discovery and
 calls for permission enforcement, validation, create/update/disabled-rule parity,
 ledger immutability, persistence, token rotation, and reset/restore revocation.
+Pause a real SDK write before persistence, verify revocation drains it before
+returning, then restore a pre-write backup and confirm no pending write can reach
+the restored database. Tests synchronize on lifecycle events rather than sleeps.
 Cover backward-compatible settings updates and migration from the prior schema.
 Run CGO-disabled Go tests and portable builds, plus pnpm frontend checks/build.
 Review the committed diff against main with independent Standards and Spec agents,

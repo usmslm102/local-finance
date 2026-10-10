@@ -2,8 +2,6 @@ package db
 
 import (
 	"database/sql"
-	"fmt"
-	"strings"
 
 	"local-finance/internal/models"
 )
@@ -28,53 +26,25 @@ func (d *DB) getRule(id string) (*models.CategorizationRule, error) {
 	return &r, err
 }
 
-// PatchRule writes only supplied fields, so concurrent disjoint patches preserve
-// each other. Rule/category existence and the returned value share the writer lock.
-func (d *DB) PatchRule(r *models.CategorizationRule, fields []string) (*models.CategorizationRule, error) {
+// PatchRule merges supplied fields into the current rule under the writer lock.
+// Validation, rule/category existence and the result share the same lock.
+func (d *DB) PatchRule(id string, patch models.CategorizationRulePatch) (*models.CategorizationRule, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	current, err := d.getRule(r.ID)
+	current, err := d.getRule(id)
 	if err != nil {
 		return nil, err
 	}
-	values := map[string]any{
-		"priority": r.Priority, "match_field": r.MatchField, "match_type": r.MatchType,
-		"match_pattern": r.MatchPattern, "exclude_pattern": r.ExcludePattern, "tx_type": r.TxType,
-		"target_category_id": r.TargetCategoryID, "assign_tags": r.AssignTags, "is_active": r.IsActive,
-	}
-	var sets []string
-	var args []any
-	for _, field := range fields {
-		if field == "id" {
-			continue
-		}
-		value, ok := values[field]
-		if !ok {
-			return nil, fmt.Errorf("unsupported rule field")
-		}
-		// These fields form the matching invariant; merge them with the current
-		// saved rule before validation, rather than validating a stale snapshot.
-		switch field {
-		case "match_type":
-			current.MatchType = r.MatchType
-		case "match_pattern":
-			current.MatchPattern = r.MatchPattern
-		case "exclude_pattern":
-			current.ExcludePattern = r.ExcludePattern
-		case "target_category_id":
-			current.TargetCategoryID = r.TargetCategoryID
-		}
-		sets = append(sets, field+" = ?")
-		args = append(args, value)
-	}
-	if len(sets) == 0 {
-		return nil, fmt.Errorf("no rule fields supplied")
-	}
+	patch.ApplyTo(current)
 	if err := current.ValidatePatterns(); err != nil {
 		return nil, err
 	}
-	args = append(args, r.ID, current.TargetCategoryID)
-	result, err := d.conn.Exec("UPDATE categorization_rules SET "+strings.Join(sets, ", ")+" WHERE id = ? AND EXISTS (SELECT 1 FROM categories WHERE id = ?)", args...)
+	result, err := d.conn.Exec(`
+		UPDATE categorization_rules SET priority = ?, match_field = ?, match_type = ?,
+		match_pattern = ?, exclude_pattern = ?, tx_type = ?, target_category_id = ?, assign_tags = ?, is_active = ?
+		WHERE id = ? AND EXISTS (SELECT 1 FROM categories WHERE id = ?)
+	`, current.Priority, current.MatchField, current.MatchType, current.MatchPattern,
+		current.ExcludePattern, current.TxType, current.TargetCategoryID, current.AssignTags, current.IsActive, id, current.TargetCategoryID)
 	if err != nil {
 		return nil, err
 	}
@@ -85,5 +55,5 @@ func (d *DB) PatchRule(r *models.CategorizationRule, fields []string) (*models.C
 	if count == 0 {
 		return nil, sql.ErrNoRows
 	}
-	return d.getRule(r.ID)
+	return d.getRule(id)
 }

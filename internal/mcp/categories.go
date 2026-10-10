@@ -19,56 +19,28 @@ func registerCategoryWriteTool(server *sdk.Server, database *db.DB) {
 	}
 	registerWriteTool(server, "save_category", "Create a custom category (omit id) or update a custom category (provide id from list_categories). Name is required; omitted color_hex and icon preserve values on updates, or default to #64748B and tag on creation. System categories cannot be edited. Category identity and parent are preserved. No transactions are recategorized. Creation retries can create duplicates; use the returned id to update.", properties, []string{"name"}, func(raw json.RawMessage) (any, error) {
 		var input struct {
-			ID string `json:"id"`
+			ID *string `json:"id"`
+			models.CategoryPatch
 		}
-		_ = json.Unmarshal(raw, &input)
-		var values map[string]json.RawMessage
-		_ = json.Unmarshal(raw, &values)
-		category := models.Category{ColorHex: "#64748B", Icon: "tag"}
-		if _, updating := values["id"]; updating {
-			if strings.TrimSpace(input.ID) == "" {
-				return nil, errors.New("id cannot be empty")
-			}
-			categories, err := database.ListCategories()
-			if err != nil {
-				return nil, errors.New("unable to load categories")
-			}
-			found := false
-			for _, existing := range categories {
-				if existing.ID == input.ID {
-					if existing.IsSystem {
-						return nil, errors.New("system categories cannot be edited")
-					}
-					category, found = existing, true
-					break
-				}
-			}
-			if !found {
-				return nil, errors.New("unable to load category; check id")
-			}
-		}
-		if err := json.Unmarshal(raw, &category); err != nil {
+		if err := json.Unmarshal(raw, &input); err != nil {
 			return nil, errors.New("invalid category arguments")
 		}
-		category.Name = strings.TrimSpace(category.Name)
-		if category.Name == "" || strings.TrimSpace(category.Icon) == "" {
-			return nil, errors.New("name and icon cannot be empty")
-		}
-		var err error
-		if category.ID == "" {
-			err = database.CreateCategory(&category)
-		} else {
-			var fields []string
-			for field := range values {
-				fields = append(fields, field)
+		if input.ID != nil {
+			if strings.TrimSpace(*input.ID) == "" {
+				return nil, errors.New("id cannot be empty")
 			}
-			var saved *models.Category
-			saved, err = database.UpdateCategory(&category, fields)
-			if err == nil {
-				category = *saved
+			saved, err := database.UpdateCategory(*input.ID, input.CategoryPatch)
+			if err != nil {
+				return nil, errors.New("unable to update custom category; check id and fields")
 			}
+			return saved, nil
 		}
-		if err != nil {
+		category := models.Category{ColorHex: "#64748B", Icon: "tag"}
+		input.CategoryPatch.ApplyTo(&category)
+		if err := category.ValidateDefinition(); err != nil {
+			return nil, err
+		}
+		if err := database.CreateCategory(&category); err != nil {
 			return nil, errors.New("unable to save category")
 		}
 		return category, nil

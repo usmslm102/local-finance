@@ -18,25 +18,32 @@ func TestConcurrentCategorizationPatchesPreserveOmittedFields(t *testing.T) {
 	if err := database.CreateRule(&rule); err != nil {
 		t.Fatal(err)
 	}
-	// Both clients loaded the same rule before either submitted a disjoint patch.
-	disable, priority := rule, rule
-	disable.IsActive = false
-	priority.Priority = 0
+	disabled, priority := false, 0
 	category := models.Category{Name: "Fictional", ColorHex: "#123456", Icon: "tag"}
 	if err := database.CreateCategory(&category); err != nil {
 		t.Fatal(err)
 	}
-	color, icon := category, category
-	color.ColorHex = "#abcdef"
-	icon.Icon = "shopping-cart"
+	color, icon := "#abcdef", "shopping-cart"
 	start := make(chan struct{})
 	errors := make(chan error, 4)
 	var group sync.WaitGroup
 	for _, save := range []func() error{
-		func() error { _, err := database.PatchRule(&disable, []string{"is_active"}); return err },
-		func() error { _, err := database.PatchRule(&priority, []string{"priority"}); return err },
-		func() error { _, err := database.UpdateCategory(&color, []string{"color_hex"}); return err },
-		func() error { _, err := database.UpdateCategory(&icon, []string{"icon"}); return err },
+		func() error {
+			_, err := database.PatchRule(rule.ID, models.CategorizationRulePatch{IsActive: &disabled})
+			return err
+		},
+		func() error {
+			_, err := database.PatchRule(rule.ID, models.CategorizationRulePatch{Priority: &priority})
+			return err
+		},
+		func() error {
+			_, err := database.UpdateCategory(category.ID, models.CategoryPatch{ColorHex: &color})
+			return err
+		},
+		func() error {
+			_, err := database.UpdateCategory(category.ID, models.CategoryPatch{Icon: &icon})
+			return err
+		},
 	} {
 		group.Add(1)
 		go func() { defer group.Done(); <-start; errors <- save() }()
@@ -81,14 +88,12 @@ func TestRulePatchValidatesCurrentMatcher(t *testing.T) {
 	if err := database.CreateRule(&rule); err != nil {
 		t.Fatal(err)
 	}
-	stale := rule
-	stale.MatchPattern = "[" // Valid literal for the matcher this client loaded.
-	rule.MatchType = "REGEX"
-	rule.MatchPattern = "^Shop$"
-	if _, err := database.PatchRule(&rule, []string{"match_type", "match_pattern"}); err != nil {
+	literal := "[" // Valid literal for the matcher this client saw.
+	matcher, pattern := "REGEX", "^Shop$"
+	if _, err := database.PatchRule(rule.ID, models.CategorizationRulePatch{MatchType: &matcher, MatchPattern: &pattern}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := database.PatchRule(&stale, []string{"match_pattern"}); err == nil {
+	if _, err := database.PatchRule(rule.ID, models.CategorizationRulePatch{MatchPattern: &literal}); err == nil {
 		t.Fatal("stale client saved invalid regex")
 	}
 	saved, err := database.GetRule(rule.ID)
