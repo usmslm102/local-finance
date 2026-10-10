@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	"local-finance/internal/models"
+	"strings"
+	"unicode/utf8"
 )
 
 // ImportSplitwiseAutomatically performs matching and accounting in one commit.
@@ -69,7 +71,19 @@ func reconcileSplitwise(conn statementConnection) (models.SplitwiseImportResult,
 			category = *matched
 		}
 		if paid > 0 {
-			matches, err := splitwiseCandidates(conn, e.ID, models.SplitwiseMatchOptions{Share: e.Share, AllowMemberSettlement: e.Kind == "EXPENSE"})
+			options := models.SplitwiseMatchOptions{Share: e.Share}
+			if e.Kind == "PAYMENT" {
+				member, err := paymentMember(e, members)
+				if err != nil {
+					if _, err := conn.Exec(`DELETE FROM splitwise_entries WHERE id=? AND status='REVIEW'`, e.ID); err != nil {
+						return result, err
+					}
+					result.Skipped++
+					continue
+				}
+				options.PaymentMember = &member
+			}
+			matches, err := splitwiseCandidates(conn, e.ID, options)
 			if err != nil {
 				return result, err
 			}
@@ -81,52 +95,15 @@ func reconcileSplitwise(conn statementConnection) (models.SplitwiseImportResult,
 				continue
 			}
 			link = matches[0].ID
-			if e.Kind == "EXPENSE" {
-				// Explicit CSV evidence can replace a generic member classification
-				// created by an earlier bank import, while ignored mappings stay protected.
-				if _, err := conn.Exec(`DELETE FROM splitwise_entries WHERE id=? AND status='CONFIRMED' AND kind='PAYMENT'`, "sw-settlement-"+matches[0].ID); err != nil {
-					return result, err
-				}
-			}
 			result.Matched++
+			if e.Kind == "PAYMENT" {
+				result.Transfers++
+			}
 		} else if e.Kind == "EXPENSE" && e.Share > 0 {
 			result.PaidByOthers++
 		}
 		if _, err := conn.Exec(`UPDATE splitwise_entries SET status='CONFIRMED',transaction_id=?,category_id=? WHERE id=?`, link, category, e.ID); err != nil {
 			return result, fmt.Errorf("apply Splitwise entry: %w", err)
-		}
-	}
-	// Only outgoing member payments are automatically self transfers. Incoming
-	// payments require an explicit Payment export row, so salaries aren't hidden.
-	rows, err := conn.Query(`SELECT t.id,t.raw_narration,COALESCE(t.cleaned_payee,''),t.upi_vpa FROM transactions t JOIN accounts a ON a.id=t.account_id
- WHERE t.tx_type='DEBIT' AND t.amount>0 AND a.currency='INR' AND t.is_excluded=0 AND COALESCE(t.transfer_peer_id,'')=''
- AND NOT EXISTS(SELECT 1 FROM splitwise_entries s WHERE s.transaction_id=t.id OR (s.status='IGNORED' AND s.removed_transaction_id=t.id)) ORDER BY t.tx_date,t.id`)
-	if err != nil {
-		return result, err
-	}
-	payments := []models.Transaction{}
-	for rows.Next() {
-		var t models.Transaction
-		if err := rows.Scan(&t.ID, &t.RawNarration, &t.CleanedPayee, &t.UPIVPA); err != nil {
-			rows.Close()
-			return result, err
-		}
-		payments = append(payments, t)
-	}
-	err = rows.Err()
-	rows.Close()
-	if err != nil {
-		return result, err
-	}
-	for _, t := range payments {
-		for _, m := range members {
-			if matchesSplitwiseMember(t, m) {
-				if err := recordSplitwiseSettlement(conn, models.SplitwiseSettlementConfirmation{TransactionID: t.ID, Group: m.Group, Member: m.Name}, m); err != nil {
-					return result, err
-				}
-				result.Transfers++
-				break
-			}
 		}
 	}
 	return result, nil
@@ -170,4 +147,41 @@ func reapplySplitwiseRules(conn statementConnection, rules []models.Categorizati
 		count++
 	}
 	return count, nil
+}
+
+// CSV balances identify the other participant; older exports can be recovered
+// from an unambiguous complete member name in their Payment description.
+func paymentMember(e models.SplitwiseEntry, members []models.SplitwiseMember) (models.SplitwiseMember, error) {
+	if strings.HasPrefix(e.ID, "sw-settlement-") {
+		return models.SplitwiseMember{}, fmt.Errorf("legacy name-only settlement is not CSV payment evidence")
+	}
+	var found *models.SplitwiseMember
+	for _, m := range members {
+		if m.Group != e.Group || m.Person != e.Person {
+			continue
+		}
+		matches := m.Name == e.Counterparty
+		if e.Counterparty == "" {
+			matches = matchesSplitwiseMember(models.Transaction{RawNarration: e.Description}, models.SplitwiseMember{Name: m.Name})
+			// Older exports abbreviate participant names ("Ravi m." for
+			// "Ravi Makwana"). Require both the first name and last initial;
+			// the ambiguity check below still rejects multiple possible members.
+			parts := strings.Fields(settlementName(m.Name))
+			if !matches && len(parts) >= 2 {
+				initial, _ := utf8.DecodeRuneInString(parts[1])
+				matches = matchesSplitwiseMember(models.Transaction{RawNarration: e.Description}, models.SplitwiseMember{Name: parts[0] + " " + string(initial)})
+			}
+		}
+		if matches {
+			if found != nil {
+				return models.SplitwiseMember{}, fmt.Errorf("ambiguous payment member")
+			}
+			copy := m
+			found = &copy
+		}
+	}
+	if found == nil {
+		return models.SplitwiseMember{}, fmt.Errorf("payment member not found")
+	}
+	return *found, nil
 }

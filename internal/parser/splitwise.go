@@ -117,6 +117,15 @@ func ParseSplitwise(r io.Reader, group, person string) ([]models.SplitwiseEntry,
 		}
 		if strings.EqualFold(entry.Category, "Payment") {
 			entry.Kind = "PAYMENT"
+			for i := 5; i < len(record); i++ {
+				value, _ := splitwiseCents(record[i])
+				if net != 0 && i != member && value != 0 {
+					if entry.Counterparty != "" || value != -net {
+						return nil, fmt.Errorf("row %d: payment must identify two members", row)
+					}
+					entry.Counterparty = strings.TrimSpace(header[i])
+				}
+			}
 		} else if net < 0 {
 			entry.Share = -net
 		} else if net > 0 {

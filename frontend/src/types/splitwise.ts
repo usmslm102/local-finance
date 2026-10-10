@@ -21,4 +21,6 @@ export interface SplitwiseMember {
   person: string
   aliases: string[]
   pattern: string
+  suggested_pattern: string
+  matched_payments: number
 }

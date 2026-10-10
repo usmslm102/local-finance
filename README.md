@@ -1,6 +1,6 @@
 # 🇮🇳 LocalFinance
 
-Splitwise group CSVs can now be imported automatically from **Splitwise** in the sidebar. See expense-to-bank mappings, remove incorrect matches, and automate outgoing member transfers with regex patterns. Personal shares use normal category rules. See [Splitwise usage and accounting rules](docs/splitwise.md) and the [fictional sample export](samples/splitwise/fictional-group.csv).
+Splitwise group CSVs can now be imported automatically from **Splitwise** in the sidebar. See expense-to-bank mappings, remove incorrect matches, and add suggested member regex rules in one step. Transfers require a matching CSV Payment and bank movement. Personal shares use normal category rules. See [Splitwise usage and accounting rules](docs/splitwise.md) and the [fictional sample export](samples/splitwise/fictional-group.csv).
 
 [![CI](https://github.com/usmslm102/local-finance/actions/workflows/ci.yml/badge.svg)](https://github.com/usmslm102/local-finance/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)

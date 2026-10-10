@@ -67,7 +67,7 @@ func importSplitwise(tx statementConnection, entries []models.SplitwiseEntry) (i
 				return 0, err
 			}
 		}
-		result, err := tx.Exec(`INSERT INTO splitwise_entries(id,group_name,person,tx_date,description,category,cost_cents,net_cents,share_cents,kind,status,member_names) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET member_names=excluded.member_names WHERE splitwise_entries.member_names != excluded.member_names`, e.ID, e.Group, e.Person, e.Date, e.Description, e.Category, e.Cost, e.Net, e.Share, e.Kind, e.Status, string(members))
+		result, err := tx.Exec(`INSERT INTO splitwise_entries(id,group_name,person,tx_date,description,category,cost_cents,net_cents,share_cents,kind,status,member_names,counterparty) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET member_names=excluded.member_names,counterparty=excluded.counterparty`, e.ID, e.Group, e.Person, e.Date, e.Description, e.Category, e.Cost, e.Net, e.Share, e.Kind, e.Status, string(members), e.Counterparty)
 		if err != nil {
 			return 0, err
 		}
@@ -94,7 +94,7 @@ func (d *DB) listSplitwise() ([]models.SplitwiseEntry, error) {
 }
 
 func listSplitwise(conn statementConnection) ([]models.SplitwiseEntry, error) {
-	rows, err := conn.Query(`SELECT id,group_name,person,tx_date,description,category,cost_cents,net_cents,share_cents,kind,status,transaction_id,category_id,member_names,notes,tags,is_manual_category,removed_transaction_id FROM splitwise_entries ORDER BY tx_date DESC,id`)
+	rows, err := conn.Query(`SELECT id,group_name,person,tx_date,description,category,cost_cents,net_cents,share_cents,kind,status,transaction_id,category_id,member_names,notes,tags,is_manual_category,removed_transaction_id,counterparty FROM splitwise_entries ORDER BY tx_date DESC,id`)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +103,7 @@ func listSplitwise(conn statementConnection) ([]models.SplitwiseEntry, error) {
 	for rows.Next() {
 		var e models.SplitwiseEntry
 		var members string
-		if err := rows.Scan(&e.ID, &e.Group, &e.Person, &e.Date, &e.Description, &e.Category, &e.Cost, &e.Net, &e.Share, &e.Kind, &e.Status, &e.TransactionID, &e.CategoryID, &members, &e.Notes, &e.Tags, &e.IsManualCategory, &e.RemovedTransactionID); err != nil {
+		if err := rows.Scan(&e.ID, &e.Group, &e.Person, &e.Date, &e.Description, &e.Category, &e.Cost, &e.Net, &e.Share, &e.Kind, &e.Status, &e.TransactionID, &e.CategoryID, &members, &e.Notes, &e.Tags, &e.IsManualCategory, &e.RemovedTransactionID, &e.Counterparty); err != nil {
 			return nil, err
 		}
 		if err := json.Unmarshal([]byte(members), &e.Members); err != nil {
@@ -232,17 +232,32 @@ func splitwiseCandidates(conn statementConnection, id string, options models.Spl
 		return items, nil
 	}
 	search := "%" + strings.TrimSpace(options.Search) + "%"
-	rows, err := conn.Query(`SELECT t.id,t.tx_date,t.raw_narration,t.amount,t.tx_type,COALESCE(NULLIF(a.nickname,''),a.bank_name),t.is_transfer FROM transactions t JOIN accounts a ON a.id=t.account_id WHERE a.currency='INR' AND t.tx_type=? AND t.amount>0 AND ABS(ROUND(t.amount*100)-?)<=? AND t.tx_date BETWEEN date(?,'-15 days') AND ? AND COALESCE(t.transfer_peer_id,'')='' AND t.is_excluded=0 AND (t.raw_narration LIKE ? OR t.cleaned_payee LIKE ?) AND NOT EXISTS(SELECT 1 FROM splitwise_entries s WHERE (s.transaction_id=t.id AND s.id!=? AND NOT (? AND s.id='sw-settlement-' || t.id AND s.status='CONFIRMED' AND s.kind='PAYMENT')) OR (s.status='IGNORED' AND s.removed_transaction_id=t.id)) ORDER BY CASE WHEN ROUND(t.amount*100)=? THEN 0 ELSE 1 END,ABS(julianday(t.tx_date)-julianday(?)),ABS(ROUND(t.amount*100)-?),t.id LIMIT 50`, direction, paid, splitwiseAmountTolerance, date, date, search, search, id, options.AllowMemberSettlement, paid, date, paid)
+	rows, err := conn.Query(`SELECT t.id,t.tx_date,t.raw_narration,t.amount,t.tx_type,COALESCE(NULLIF(a.nickname,''),a.bank_name),t.is_transfer,COALESCE(t.cleaned_payee,''),t.upi_vpa FROM transactions t JOIN accounts a ON a.id=t.account_id WHERE a.currency='INR' AND t.tx_type=? AND t.amount>0 AND ABS(ROUND(t.amount*100)-?)<=? AND t.tx_date BETWEEN date(?,'-15 days') AND ? AND COALESCE(t.transfer_peer_id,'')='' AND t.is_excluded=0 AND (t.raw_narration LIKE ? OR t.cleaned_payee LIKE ?) AND NOT EXISTS(SELECT 1 FROM splitwise_entries s WHERE (s.transaction_id=t.id AND s.id!=?) OR (s.status='IGNORED' AND s.removed_transaction_id=t.id)) ORDER BY CASE WHEN ROUND(t.amount*100)=? THEN 0 ELSE 1 END,ABS(julianday(t.tx_date)-julianday(?)),ABS(ROUND(t.amount*100)-?),t.id`, direction, paid, splitwiseAmountTolerance, date, date, search, search, id, paid, date, paid)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
+	var soleCandidate models.Transaction
+	candidateCount := 0
 	for rows.Next() {
 		var t models.Transaction
-		if err := rows.Scan(&t.ID, &t.TxDate, &t.RawNarration, &t.Amount, &t.TxType, &t.AccountName, &t.IsTransfer); err != nil {
+		if err := rows.Scan(&t.ID, &t.TxDate, &t.RawNarration, &t.Amount, &t.TxType, &t.AccountName, &t.IsTransfer, &t.CleanedPayee, &t.UPIVPA); err != nil {
 			return nil, err
 		}
+		candidateCount++
+		soleCandidate = t
+		if options.PaymentMember != nil && !matchesSplitwiseMember(t, *options.PaymentMember) {
+			continue
+		}
 		items = append(items, t)
+		if len(items) == 50 {
+			break
+		}
+	}
+	// A single amount/date/direction candidate can establish the first link before
+	// the member's bank alias is known. Ambiguous payments require a name or regex.
+	if len(items) == 0 && candidateCount == 1 && options.PaymentMember != nil && options.PaymentMember.Pattern == "" && len(options.PaymentMember.Aliases) == 0 {
+		items = append(items, soleCandidate)
 	}
 	return items, rows.Err()
 }

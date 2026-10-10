@@ -44,7 +44,7 @@ func TestSplitwiseMemberSettlementDoesNotDoubleCountExpense(t *testing.T) {
 	add := func(hash, payee string, amount float64, kind models.TxType) string {
 		t.Helper()
 		category := "cat_food"
-		tx := &models.Transaction{AccountID: account.ID, TxHash: hash, TxDate: "2026-10-01", RawNarration: "UPI/" + payee + "/123", CleanedPayee: payee, Amount: amount, TxType: kind, CategoryID: &category, Notes: "keep", Tags: "keep", IsManualCategory: true}
+		tx := &models.Transaction{AccountID: account.ID, TxHash: hash, TxDate: "2026-09-03", RawNarration: "UPI/" + payee + "/123", CleanedPayee: payee, Amount: amount, TxType: kind, CategoryID: &category, Notes: "keep", Tags: "keep", IsManualCategory: true}
 		if _, err := d.UpsertTransaction(tx); err != nil {
 			t.Fatal(err)
 		}
@@ -65,6 +65,9 @@ func TestSplitwiseMemberSettlementDoesNotDoubleCountExpense(t *testing.T) {
 	totals, err := d.GetAnalyticsOverview()
 	if err != nil || totals.TotalExpense != 110 || totals.TotalIncome != 80 {
 		t.Fatalf("before confirmation: %+v %v", totals, err)
+	}
+	if _, err = d.ImportSplitwise(entries); err != nil {
+		t.Fatal(err)
 	}
 	suggestions, err := d.SplitwiseSettlementCandidates()
 	if err != nil || len(suggestions) != 2 {
@@ -97,7 +100,7 @@ func TestSplitwiseMemberSettlementDoesNotDoubleCountExpense(t *testing.T) {
 	if err = d.ConfirmSplitwiseSettlement(models.SplitwiseSettlementConfirmation{TransactionID: payment, Group: "Example", Member: "Asha Example"}); err == nil {
 		t.Fatal("double linked settlement")
 	}
-	if err = d.ResetSplitwise("sw-settlement-" + payment); err != nil {
+	if err = d.ResetSplitwise(entries[2].ID); err != nil {
 		t.Fatal(err)
 	}
 	totals, err = d.GetAnalyticsOverview()
@@ -111,7 +114,7 @@ func TestSplitwiseMemberSettlementDoesNotDoubleCountExpense(t *testing.T) {
 	for i := range entries {
 		entries[i].Members = append(entries[i].Members, "New Example")
 	}
-	if count, err := d.ImportSplitwise(entries); err != nil || count != 6 {
+	if count, err := d.ImportSplitwise(entries); err != nil || count != 0 {
 		t.Fatalf("membership refresh: %d %v", count, err)
 	}
 	exported, err := d.ExportAllDataJSON()

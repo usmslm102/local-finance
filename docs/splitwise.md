@@ -20,15 +20,19 @@ Your shares of expenses paid by someone else appear as accountless expense rows 
 
 CSV Payment rows are settlements, never additional personal expenses or income. A ₹50 taxi share paid by Asha counts as ₹50 spending. A later ₹50 repayment to Asha changes cash but adds no spending.
 
-## Automatic member transfers
+## Payment matching and suggested rules
 
-The CSV headers populate group members. Complete member names in bank payee, narration or UPI address identify outgoing payments as transfers. Add an optional per-member regex under **Automatic member transfers**, then select **Save & apply** to classify existing matching outgoing payments. The same matching runs automatically inside future bank statement imports. Use `(?i)` for case-insensitive matching, for example `(?i)asha@fictional` for a UPI address. Invalid regexes are rejected without replacing the saved rule.
+Transfers require a Payment entry in the Splitwise CSV involving you, together with an INR bank movement matching its amount, direction and preceding 15-day window. Member names or saved regexes identify the other participant in bank payee, narration or UPI fields. A name or regex match alone never creates a transfer. Incoming and outgoing CSV payments are both supported; bank-only payments remain unchanged.
 
-Only outgoing member payments are automatically self transfers. Incoming payments remain unchanged unless explicitly identified by a matching CSV Payment row. Repayments may happen long after the expense, so member transfer classification has no 15-day limit. Explicit Splitwise expense/payment matches take precedence over generic member patterns. A bank movement already linked to an expense or settlement is protected from additional classification. Name/regex matching reflects the user's instruction that otherwise-unlinked payments to group members are repayments; use specific patterns for the intended people.
+When the member's bank identity is unknown and no custom rule exists, a single eligible amount/date/direction candidate can establish the first mapping. Ambiguous candidates require member-name or regex evidence; unmatched Payment entries are skipped. Re-import after loading missing statements or saving a rule to retry skipped rows.
+
+The matched bank payment supplies a proposed literal regex, preferring its UPI address, then cleaned payee, then narration. Select **Add suggested rule** to save it in one step. Regex punctuation is escaped, and suggestions appear only for members with confirmed CSV Payment links. The UI displays each saved regex, unsaved edits and matched-payment count. Rules appear alongside category rules in **Settings → Categories & Rules**, where they can also be edited. Use `(?i)` for case-insensitive matching. Invalid patterns never replace a saved rule.
+
+Migration 19 restores the original bank treatment of older name-only generated settlements, since those lack CSV Payment evidence. Original bank cash amounts and metadata are preserved. Explicit CSV links and removal suppression remain intact.
 
 ## Mappings and removal
 
-The dedicated **Splitwise** page shows all applied expenses and settlements, each matched bank date, account, narration and original amount, and your personal expense amount. Entries paid by others explicitly say they have no bank movement. Search and pagination make older mappings accessible.
+The dedicated **Splitwise** page leads with your totals and all applied expenses and settlements, each matched bank date, account, narration and original amount, and your personal expense amount. Import and rule editing open on demand. Desktop uses a table; small screens use cards with complete bank details. Entries paid by others explicitly say they have no bank movement. Search, expense/payment filters and pagination make older mappings accessible. Import presents structured results and compact rule suggestions.
 
 Select **Remove** to discard an incorrect mapping or expense. Removing a bank match restores the original bank transaction's spending treatment. Removing an accountless expense removes that expense from totals. An ignored entry and its former bank ID remain as suppression metadata, so subsequent CSV imports, saved regexes and bank imports do not recreate the removed mapping automatically.
 
@@ -40,10 +44,10 @@ Splitwise is a separate ledger rather than a bank parser. Parsing validates the 
 
 `personal_transactions` projects confirmed personal spending for analytics, budgets, monthly evidence, merchants, cash-flow intelligence and Wrapped. `ledger_transactions` projects original bank cash amounts alongside accountless Splitwise expenses for the regular Transactions UI. Original bank hashes, amounts, balances, notes and tags remain in `transactions`. Bank CSV exports and bank records in JSON exports retain the original statement ledger. Card rewards and fee-waiver progress continue to use gross bank spending.
 
-JSON exports and SQLite backups include the Splitwise ledger and member settings. Reset clears both. Embedded migrations 17 and 18 are reversible. Downgrading 18 removes member configuration and the extended UI projection; downgrading 17 removes Splitwise accounting data without removing bank transactions.
+JSON exports and SQLite backups include the Splitwise ledger and member settings. Reset clears both. Embedded migrations 17–19 are reversible. Downgrading 18 removes member configuration and the extended UI projection; downgrading 17 removes Splitwise accounting data without removing bank transactions.
 
 CSV exports lack stable expense IDs. Edited rows, renamed groups/members, and subsets of identical repeated expenses cannot be correlated reliably across exports. Remove an older applied entry before importing a changed replacement. The automatic share interpretation cannot recover multiple payer amounts absent from the source.
 
 ## Verification
 
-Fictional fixtures and regression tests cover automatic paid-by-other expenses, exact/nearest matching, 15-day boundaries, ₹5 tolerance, zero personal spending, uninvolved rows, outgoing-only regex transfers, future bank imports, regular rules/manual editing, mapping visibility, persistent removal, bank preservation, reset and backup/restore. API tests cover protected upload/preview, automatic results, member settings, malformed regexes and local authentication. Frontend checks cover typechecking/build, lint and protected requests.
+Fictional fixtures and regression tests cover automatic paid-by-other expenses, exact/nearest matching, 15-day boundaries, ₹5 tolerance, zero personal spending, uninvolved rows, CSV-backed incoming/outgoing settlements, one-step rule suggestions, bank-only payment protection, future bank imports, regular rules/manual editing, mapping visibility, persistent removal, bank preservation, reset and backup/restore. API tests cover protected upload/preview, automatic results, member settings, malformed regexes and local authentication. Frontend checks cover typechecking/build, lint and protected requests.

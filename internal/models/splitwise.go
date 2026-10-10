@@ -17,6 +17,7 @@ type SplitwiseEntry struct {
 	TransactionID        *string  `json:"transaction_id,omitempty"`
 	CategoryID           *string  `json:"category_id,omitempty"`
 	Members              []string `json:"members"`
+	Counterparty         string   `json:"counterparty,omitempty"`
 	Notes                string   `json:"notes"`
 	Tags                 string   `json:"tags"`
 	IsManualCategory     bool     `json:"is_manual_category"`
@@ -25,11 +26,13 @@ type SplitwiseEntry struct {
 
 // Member aliases are explicit bank payee names or UPI addresses, never automatic rules.
 type SplitwiseMember struct {
-	Group   string   `json:"group"`
-	Name    string   `json:"name"`
-	Person  string   `json:"person"`
-	Aliases []string `json:"aliases"`
-	Pattern string   `json:"pattern"`
+	Group            string   `json:"group"`
+	Name             string   `json:"name"`
+	Person           string   `json:"person"`
+	Aliases          []string `json:"aliases"`
+	Pattern          string   `json:"pattern"`
+	SuggestedPattern string   `json:"suggested_pattern"`
+	MatchedPayments  int      `json:"matched_payments"`
 }
 
 type SplitwiseImportResult struct {
@@ -67,7 +70,7 @@ type SplitwiseConfirmation struct {
 }
 
 type SplitwiseMatchOptions struct {
-	Share                 int64
-	Search                string
-	AllowMemberSettlement bool
+	Share         int64
+	Search        string
+	PaymentMember *SplitwiseMember
 }
