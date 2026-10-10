@@ -538,33 +538,36 @@ by default**, with an optional permission for custom category and rule writes.
    install OpenCode and use a local model that supports tool calls.
 3. Select **Shell · macOS / Linux** or **PowerShell · Windows**, click
    **Copy command**, and run it on the computer running LocalFinance.
-   Node.js 18+ and your chosen AI client must already be installed.
+   Your chosen client CLI must already be installed and available on PATH.
+   Ollama setup requires both Ollama and a recent OpenCode CLI supporting
+   `mcp add --url` and `--header`. No additional Node.js installation is needed.
 4. Restart your AI client and check its MCP tools. For Ollama, run
    `ollama launch opencode` after setup and choose your local model. Ask your client:
    “Use LocalFinance to summarize my spending last month.”
 
-The command includes your token, saves the connection in private user configuration,
-backs up existing settings, and preserves other MCP connections. It can be run again
-when you change the port or rotate the token. Codex uses `CODEX_HOME/config.toml`
-(or `~/.codex/config.toml`); Claude Code uses `CLAUDE_CONFIG_DIR/.claude.json`
-(or `~/.claude.json`); OpenCode uses `XDG_CONFIG_HOME/opencode/opencode.json`
-(or `~/.config/opencode/opencode.json`). Backups are saved beside the configuration
-with a `.localfinance-<timestamp>.bak` suffix. Both configuration and backups contain
-credentials: keep them private and out of repositories and shared terminal logs.
-The installer runs locally and does not download scripts or install dependencies.
-Ollama/OpenCode may download a model or client dependencies when first launched.
+The commands include your token and use the installed client's MCP setup command
+instead of a separate configuration installer. Existing connections are preserved;
+only the LocalFinance entry is replaced when you rerun setup after a port change
+or token rotation. Claude Code uses user scope. Codex registers the URL through
+its CLI, then appends the authorization header to `CODEX_HOME/config.toml`
+(or `~/.codex/config.toml`), since its CLI does not have a static-header flag.
+OpenCode uses its CLI to save the connection in user configuration, including JSONC.
+Keep client configuration and copied commands private and out of repositories
+and shared terminal logs. Setup does not install clients or download scripts.
 
 If you already have a token, paste it into **Access token**. You can copy and run
 setup while MCP is disabled; enable MCP when you are ready to connect.
-The installer rejects Node.js versions older than 18 before changing files and
-warns when a client is missing from PATH. Codex desktop users do not need its CLI.
-If you lost it, rotate the token and reconnect every client. **Advanced settings**
+Commands stop with an error if a required client is missing from PATH. If the CLI
+rejects an option, update the client or use **Manual configuration**. Codex desktop
+users without the CLI can use manual configuration instead.
+If you lost the token, rotate it and reconnect every client. **Advanced settings**
 contains the local port (default `8081`) and listener retry controls.
 
-Each provider tab also offers **Manual configuration**. Setup stops without changing
-settings for invalid JSON, advanced multiline/inline Codex TOML, or custom OpenCode
-configuration (including JSONC); use the manual configuration to merge the connection
-in those cases. Project settings may override user settings in your AI client.
+Each provider tab also offers **Manual configuration**. Use it for clients without
+the supported CLI, or to merge the connection into a custom configuration.
+Project settings may override user settings in your AI client. After Ollama setup,
+`ollama launch opencode` lets you choose a local model; the first launch may
+need to download the model or client dependencies.
 
 For another MCP client, choose **Other clients**, select **Streamable HTTP**, use
 `http://127.0.0.1:8081/mcp` (or your configured port), and set the header
