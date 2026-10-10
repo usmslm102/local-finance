@@ -1,3 +1,5 @@
+import { cn } from '@/lib/utils'
+import { buttonVariants } from '@/components/ui/button'
 import React from 'react'
 import { Link } from '@tanstack/react-router'
 import {
@@ -10,7 +12,6 @@ import {
   ArrowRight,
   ShieldCheck,
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 
 interface ReleaseNote {
@@ -211,12 +212,12 @@ const releases: ReleaseNote[] = [
 
 export const WhatsNewView: React.FC = () => {
   return (
-    <div className="space-y-8 max-w-5xl mx-auto">
+    <div className="flex flex-col gap-8 max-w-5xl mx-auto">
       {/* Header */}
-      <div className="space-y-2">
+      <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Sparkles className="h-4 w-4" />
+          <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Sparkles className="size-4" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
             What's New in LocalFinance
@@ -225,84 +226,80 @@ export const WhatsNewView: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span>Release changelog and feature evolution</span>
           <span>•</span>
-          <Badge variant="outline" className="text-[10px] text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
-            <ShieldCheck className="h-3 w-3 mr-1" />
+          <Badge variant="outline" className="text-success">
+            <ShieldCheck className="size-3 mr-1" />
             100% Offline Single Binary
           </Badge>
-          <Badge variant="outline" className="text-[10px] text-primary border-primary/30">
-            v1.2 Active
-          </Badge>
+          <Badge variant="outline">v1.2 Active</Badge>
         </div>
       </div>
 
       {/* Release Timeline */}
-      <div className="space-y-6">
+      <div className="flex flex-col gap-6">
         {releases.map((rel) => {
           const Icon = rel.icon
 
           return (
             <div
               key={rel.version}
-              className={`relative rounded-xl border p-5 sm:p-6 shadow-xs transition-all ${
+              className={cn(
+                'relative rounded-xl border p-5 sm:p-6 shadow-xs transition-all',
                 rel.isLatest
                   ? 'bg-card/90 border-primary/40 ring-1 ring-primary/20 shadow-md'
                   : 'bg-card/60 backdrop-blur-xs border-border'
-              }`}
+              )}
             >
               {/* Version Header Ribbon */}
               <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/50 pb-4">
-                <div className="flex items-center gap-3">
+                <div className="flex min-w-0 items-start gap-3">
                   <div
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white shadow-xs"
+                    className="flex size-9 shrink-0 items-center justify-center rounded-xl text-white shadow-xs"
                     style={{ backgroundColor: rel.iconColor }}
                   >
-                    <Icon className="h-5 w-5" />
+                    <Icon className="size-5" />
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="font-mono text-sm font-bold text-foreground">
                         {rel.version}
                       </span>
-                      <span className="text-sm font-bold text-foreground truncate">
+                      <span className="text-sm font-bold text-foreground break-words">
                         — {rel.title}
                       </span>
                     </div>
-                    <span className="text-[11px] text-muted-foreground">
-                      {rel.date}
-                    </span>
+                    <span className="text-[11px] text-muted-foreground">{rel.date}</span>
                   </div>
                 </div>
 
                 <Badge
                   variant={rel.isLatest ? 'default' : 'outline'}
-                  className={`text-[10px] font-bold px-2 py-0.5 ${
+                  className={cn(
+                    'text-[10px] font-bold px-2 py-0.5',
                     rel.isLatest
                       ? 'bg-primary text-primary-foreground'
                       : 'bg-muted/60 text-muted-foreground'
-                  }`}
+                  )}
                 >
                   {rel.badge}
                 </Badge>
               </div>
 
               {/* Release Summary */}
-              <p className="text-xs text-muted-foreground leading-relaxed my-4">
-                {rel.summary}
-              </p>
+              <p className="text-xs text-muted-foreground leading-relaxed my-4">{rel.summary}</p>
 
               {/* Itemized Feature Cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
                 {rel.features.map((feat, fIdx) => (
                   <div
                     key={fIdx}
-                    className="rounded-lg border bg-background/50 p-3.5 space-y-1.5"
+                    className="rounded-lg border bg-background/50 p-3.5 flex flex-col gap-1.5"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <h4 className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                        <CheckCircle2 className="size-3.5 text-success shrink-0" />
                         <span>{feat.title}</span>
                       </h4>
-                      <Badge variant="secondary" className="text-[9px] px-1.5 py-0 font-normal">
+                      <Badge variant="secondary" className="px-1.5 py-0">
                         {feat.tag}
                       </Badge>
                     </div>
@@ -316,19 +313,28 @@ export const WhatsNewView: React.FC = () => {
               {/* Action Buttons */}
               <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-border/50">
                 {rel.primaryCta && (
-                  <Link to={rel.primaryCta.url}>
-                    <Button size="sm" className="gap-1.5 text-xs font-semibold shadow-xs">
-                      <span>{rel.primaryCta.text}</span>
-                      <ArrowRight className="h-3.5 w-3.5" />
-                    </Button>
+                  <Link
+                    to={rel.primaryCta.url}
+                    className={buttonVariants({
+                      size: 'sm',
+                      className: 'gap-1.5 text-xs font-semibold shadow-xs',
+                    })}
+                  >
+                    <span>{rel.primaryCta.text}</span>
+                    <ArrowRight className="size-3.5" />
                   </Link>
                 )}
 
                 {rel.secondaryCta && (
-                  <Link to={rel.secondaryCta.url}>
-                    <Button size="sm" variant="outline" className="gap-1.5 text-xs font-medium">
-                      <span>{rel.secondaryCta.text}</span>
-                    </Button>
+                  <Link
+                    to={rel.secondaryCta.url}
+                    className={buttonVariants({
+                      variant: 'outline',
+                      size: 'sm',
+                      className: 'gap-1.5 text-xs font-medium',
+                    })}
+                  >
+                    <span>{rel.secondaryCta.text}</span>
                   </Link>
                 )}
               </div>

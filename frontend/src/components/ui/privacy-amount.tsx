@@ -12,6 +12,7 @@ export const PrivacyAmount: React.FC<PrivacyAmountProps> = ({
   amount,
   prefix,
   className = '',
+  showBlurOnHover: _showBlurOnHover,
   ...props
 }) => {
   const { isPrivacyMode } = usePrivacy()
@@ -20,18 +21,16 @@ export const PrivacyAmount: React.FC<PrivacyAmountProps> = ({
   if (!isPrivacyMode) {
     return (
       <span className={className} {...props}>
-        {prefix}{formatted}
+        {prefix}
+        {formatted}
       </span>
     )
   }
 
   return (
-    <span
-      className={`privacy-blur inline-block transition-all ${className}`}
-      title="Discreet Mode active (Hover to peek)"
-      {...props}
-    >
-      {prefix}{formatted}
+    <span className={className} title="Discreet Mode active" {...props}>
+      {prefix}
+      {formatINR(amount, true)}
     </span>
   )
 }

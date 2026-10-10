@@ -1,4 +1,7 @@
-import React, { useState, useRef, useCallback } from 'react'
+import { cn } from '@/lib/utils'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { Field, FieldLabel, FieldGroup } from '@/components/ui/field'
+import React, { useState, useRef, useCallback, useId } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearch, useNavigate, useRouterState } from '@tanstack/react-router'
 import {
@@ -79,6 +82,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectGroup,
 } from '@/components/ui/select'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { UpdateDialog } from '@/components/updates/UpdateDialog'
@@ -115,12 +119,22 @@ function formatBytes(bytes: number): string {
 }
 
 const PRESET_COLORS = [
-  '#10B981', '#3B82F6', '#8B5CF6', '#EC4899',
-  '#F59E0B', '#EF4444', '#06B6D4', '#6366F1',
-  '#14B8A6', '#84CC16', '#64748B', '#D97706',
+  '#10B981',
+  '#3B82F6',
+  '#8B5CF6',
+  '#EC4899',
+  '#F59E0B',
+  '#EF4444',
+  '#06B6D4',
+  '#6366F1',
+  '#14B8A6',
+  '#84CC16',
+  '#64748B',
+  '#D97706',
 ]
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'general' }) => {
+  const fieldId = useId()
   const queryClient = useQueryClient()
   const { authStatus, refetchAuth, lockApp } = useAuth()
   const searchParams = (useSearch({ strict: false }) as SettingsSearchParams) || {}
@@ -146,7 +160,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
   const [selectedRestoreFile, setSelectedRestoreFile] = useState<File | null>(null)
   const [showConfirmRestore, setShowConfirmRestore] = useState(false)
   const [copiedPath, setCopiedPath] = useState(false)
-  const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; title: string; text: string } | null>(null)
+  const [statusMessage, setStatusMessage] = useState<{
+    type: 'success' | 'error'
+    title: string
+    text: string
+  } | null>(null)
 
   // Software Update States via shared hook
   const {
@@ -434,7 +452,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
       setStatusMessage({
         type: 'success',
         title: 'Database Reset',
-        text: data.message || 'Database reset successfully! All categories and custom rules have been preserved.',
+        text:
+          data.message ||
+          'Database reset successfully! All categories and custom rules have been preserved.',
       })
       setShowConfirmReset(false)
       queryClient.invalidateQueries()
@@ -572,7 +592,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
     }
   }
 
-  const navTabs: { id: SettingsTab; label: string; icon: React.FC<{ className?: string }>; desc: string }[] = [
+  const navTabs: {
+    id: SettingsTab
+    label: string
+    icon: React.FC<{ className?: string }>
+    desc: string
+  }[] = [
     {
       id: 'general',
       label: 'General & Preferences',
@@ -607,14 +632,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
   ]
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
           Settings & Configuration
         </h1>
         <p className="text-xs text-muted-foreground mt-1">
-          Manage local database storage, backups, classification rules, parser modules, and interface preferences.
+          Manage local database storage, backups, classification rules, parser modules, and
+          interface preferences.
         </p>
       </div>
 
@@ -622,15 +648,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
         <Alert
           variant={statusMessage.type === 'error' ? 'destructive' : 'default'}
           className={
-            statusMessage.type === 'success'
-              ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
-              : ''
+            statusMessage.type === 'success' ? 'border-success/30 bg-success/10 text-success' : ''
           }
         >
           {statusMessage.type === 'success' ? (
-            <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+            <CheckCircle2 className="size-4 text-success" />
           ) : (
-            <AlertCircle className="h-4 w-4" />
+            <AlertCircle className="size-4" />
           )}
           <AlertTitle>{statusMessage.title}</AlertTitle>
           <AlertDescription className="text-xs">{statusMessage.text}</AlertDescription>
@@ -641,45 +665,65 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Left Side Tab Navigation */}
         <aside className="lg:col-span-3">
-          <nav className="flex lg:flex-col gap-1.5 overflow-x-auto pb-2 lg:pb-0">
+          <Select
+            value={activeTab}
+            onValueChange={(value) => {
+              if (value) handleTabChange(value)
+            }}
+          >
+            <SelectTrigger className="lg:hidden" aria-label="Settings section">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                {navTabs.map((tab) => (
+                  <SelectItem key={tab.id} value={tab.id}>
+                    {tab.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          <nav className="hidden lg:flex flex-col gap-1.5" aria-label="Settings sections">
             {navTabs.map((tab) => {
               const Icon = tab.icon
               const isActive = activeTab === tab.id
               return (
-                <button
+                <Button
+                  variant={isActive ? 'secondary' : 'ghost'}
+                  aria-current={isActive ? 'page' : undefined}
                   key={tab.id}
                   onClick={() => handleTabChange(tab.id)}
-                  className={`flex items-center gap-3 rounded-lg px-3.5 py-2.5 text-left text-xs transition-colors shrink-0 ${
-                    isActive
-                      ? 'bg-secondary text-secondary-foreground font-semibold shadow-xs'
-                      : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
-                  }`}
+                  className="h-auto justify-start gap-3 px-3.5 py-2.5 text-left"
                 >
-                  <Icon className={`h-4 w-4 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
+                  <Icon
+                    data-icon="inline-start"
+                    className={cn('size-4', isActive ? 'text-primary' : 'text-muted-foreground')}
+                  />
                   <div className="hidden sm:block truncate">
                     <div className="font-medium text-xs text-foreground">{tab.label}</div>
                     <div className="text-[10px] text-muted-foreground truncate">{tab.desc}</div>
                   </div>
                   <span className="sm:hidden font-medium">{tab.label}</span>
-                </button>
+                </Button>
               )
             })}
           </nav>
         </aside>
 
         {/* Right Tab Content */}
-        <main className="lg:col-span-9 space-y-6">
+        <main className="lg:col-span-9 flex flex-col gap-6">
           {activeTab === 'mcp' && <MCPSettingsPanel />}
           {/* TAB 1: GENERAL & PREFERENCES */}
           {activeTab === 'general' && (
-            <div className="space-y-6">
+            <div className="flex flex-col gap-6">
               {/* Software Version & Updates Card */}
-              <Card className="border-border/80 bg-card shadow-xs">
+              <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <div>
                       <CardTitle className="text-base font-semibold flex items-center gap-2">
-                        <Sparkles className="h-4 w-4 text-primary" /> Software Version &amp; Updates
+                        <Sparkles className="size-4 text-primary" /> Software Version &amp; Updates
                       </CardTitle>
                       <CardDescription className="text-xs">
                         Check for new releases published on GitHub and update in place with 1-click
@@ -691,9 +735,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                         variant="outline"
                         onClick={handleManualCheckUpdate}
                         disabled={isCheckingUpdate}
-                        className="h-8 text-xs font-semibold gap-1.5"
+                        className="h-8 gap-1.5"
                       >
-                        <RefreshCw className={`h-3.5 w-3.5 ${isCheckingUpdate ? 'animate-spin' : ''}`} />
+                        <RefreshCw
+                          data-icon="inline-start"
+                          className={cn('size-3.5', isCheckingUpdate ? 'animate-spin' : '')}
+                        />
                         <span>{isCheckingUpdate ? 'Checking GitHub...' : 'Check for Updates'}</span>
                       </Button>
                       {versionInfo?.update_available && (
@@ -701,22 +748,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                           size="sm"
                           variant="default"
                           onClick={() => setShowUpdateModal(true)}
-                          className="h-8 text-xs font-semibold gap-1.5 bg-primary shadow-xs"
+                          className="h-8 gap-1.5"
                         >
-                          <ArrowUpCircle className="h-3.5 w-3.5" />
+                          <ArrowUpCircle data-icon="inline-start" />
                           <span>Update Now</span>
                         </Button>
                       )}
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-3 text-xs">
+                <CardContent className="flex flex-col gap-3 text-xs">
                   <div className="flex items-center justify-between border-b pb-3">
                     <div>
                       <p className="font-semibold text-foreground">Installed Version</p>
                       <p className="text-muted-foreground text-[11px]">Locally running binary</p>
                     </div>
-                    <Badge variant="outline" className="font-mono text-xs px-2 py-0.5">
+                    <Badge variant="outline" className="px-2 py-0.5">
                       {versionInfo?.current_version || 'v1.2.0'}
                     </Badge>
                   </div>
@@ -724,10 +771,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                     <div>
                       <p className="font-semibold text-foreground">Automatic Update Checks</p>
                       <p className="text-muted-foreground text-[11px]">
-                        Check GitHub Releases in the background on launch (cached for 4 hours). Disable to keep LocalFinance completely offline.
+                        Check GitHub Releases in the background on launch (cached for 4 hours).
+                        Disable to keep LocalFinance completely offline.
                       </p>
                     </div>
                     <Switch
+                      aria-label="Automatic update checks"
                       checked={autoCheckEnabled}
                       onCheckedChange={setAutoCheckEnabled}
                     />
@@ -739,123 +788,108 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                         {versionInfo?.update_available
                           ? `New version ${versionInfo.latest_version} is available!`
                           : updateCheckError || versionInfo?.auto_update_error
-                          ? `Check failed: ${updateCheckError || versionInfo?.auto_update_error}`
-                          : !autoCheckEnabled && !versionInfo?.checked_at
-                          ? 'Automatic checks disabled (offline mode). You can still check manually at any time.'
-                          : versionInfo?.checked_at
-                          ? `Up to date (checked at ${new Date(versionInfo.checked_at).toLocaleTimeString()})`
-                          : 'Checking GitHub Releases in background...'}
+                            ? `Check failed: ${updateCheckError || versionInfo?.auto_update_error}`
+                            : !autoCheckEnabled && !versionInfo?.checked_at
+                              ? 'Automatic checks disabled (offline mode). You can still check manually at any time.'
+                              : versionInfo?.checked_at
+                                ? `Up to date (checked at ${new Date(versionInfo.checked_at).toLocaleTimeString()})`
+                                : 'Checking GitHub Releases in background...'}
                       </p>
                     </div>
                     {versionInfo?.update_available ? (
-                      <Badge variant="default" className="bg-primary text-primary-foreground font-semibold text-[11px]">
-                        {versionInfo.latest_version} Available
-                      </Badge>
+                      <Badge variant="default">{versionInfo.latest_version} Available</Badge>
                     ) : updateCheckError || versionInfo?.auto_update_error ? (
-                      <Badge variant="destructive" className="text-[11px]">
-                        Check Failed
-                      </Badge>
+                      <Badge variant="destructive">Check Failed</Badge>
                     ) : !autoCheckEnabled && !versionInfo?.checked_at ? (
-                      <Badge variant="secondary" className="text-[11px]">
-                        Offline Only
-                      </Badge>
+                      <Badge variant="secondary">Offline Only</Badge>
                     ) : versionInfo?.checked_at ? (
-                      <Badge variant="outline" className="border-emerald-500/30 text-emerald-600 dark:text-emerald-400 flex items-center gap-1 text-[11px]">
-                        <CheckCircle2 className="h-3 w-3" /> Up to Date
+                      <Badge variant="outline" className="text-success flex items-center gap-1">
+                        <CheckCircle2 className="size-3" /> Up to Date
                       </Badge>
                     ) : (
-                      <Badge variant="secondary" className="text-[11px]">
-                        Checking...
-                      </Badge>
+                      <Badge variant="secondary">Checking...</Badge>
                     )}
                   </div>
                   <div className="flex items-center justify-between pt-1">
                     <div>
                       <p className="font-semibold text-foreground">GitHub Repository</p>
-                      <p className="text-muted-foreground text-[11px]">Official releases and open-source changelog</p>
+                      <p className="text-muted-foreground text-[11px]">
+                        Official releases and open-source changelog
+                      </p>
                     </div>
                     <a
-                      href={versionInfo?.release_url || 'https://github.com/usmslm102/local-finance/releases'}
+                      href={
+                        versionInfo?.release_url ||
+                        'https://github.com/usmslm102/local-finance/releases'
+                      }
                       target="_blank"
                       rel="noreferrer"
                       className="inline-flex items-center gap-1 text-primary hover:underline font-medium text-xs"
                     >
-                      View on GitHub <ExternalLink className="h-3 w-3" />
+                      View on GitHub <ExternalLink className="size-3" />
                     </a>
                   </div>
                 </CardContent>
               </Card>
 
               {/* Appearance / Theme Card */}
-              <Card className="border-border/80 bg-card shadow-xs">
+              <Card>
                 <CardHeader>
                   <CardTitle className="text-base font-semibold">Appearance & Theme</CardTitle>
                   <CardDescription className="text-xs">
                     Choose your preferred interface theme
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-3 gap-3">
-                    <button
-                      onClick={() => setTheme('light')}
-                      className={`flex flex-col items-center justify-center gap-2 rounded-xl border p-4 text-center transition-all ${
-                        theme === 'light'
-                          ? 'border-primary bg-primary/5 text-primary ring-1 ring-primary'
-                          : 'border-border/70 bg-muted/20 text-muted-foreground hover:border-border hover:bg-muted/40'
-                      }`}
-                    >
-                      <Sun className="h-5 w-5" />
-                      <span className="text-xs font-semibold">Light</span>
-                    </button>
-                    <button
-                      onClick={() => setTheme('dark')}
-                      className={`flex flex-col items-center justify-center gap-2 rounded-xl border p-4 text-center transition-all ${
-                        theme === 'dark'
-                          ? 'border-primary bg-primary/5 text-primary ring-1 ring-primary'
-                          : 'border-border/70 bg-muted/20 text-muted-foreground hover:border-border hover:bg-muted/40'
-                      }`}
-                    >
-                      <Moon className="h-5 w-5" />
-                      <span className="text-xs font-semibold">Dark</span>
-                    </button>
-                    <button
-                      onClick={() => setTheme('system')}
-                      className={`flex flex-col items-center justify-center gap-2 rounded-xl border p-4 text-center transition-all ${
-                        theme === 'system'
-                          ? 'border-primary bg-primary/5 text-primary ring-1 ring-primary'
-                          : 'border-border/70 bg-muted/20 text-muted-foreground hover:border-border hover:bg-muted/40'
-                      }`}
-                    >
-                      <Laptop className="h-5 w-5" />
-                      <span className="text-xs font-semibold">System</span>
-                    </button>
-                  </div>
+                <CardContent className="flex flex-col gap-4">
+                  <ToggleGroup
+                    value={[theme]}
+                    onValueChange={(values) => {
+                      const value = values[0]
+                      if (value === 'light' || value === 'dark' || value === 'system')
+                        setTheme(value)
+                    }}
+                    aria-label="Appearance"
+                    variant="outline"
+                    className="w-full"
+                  >
+                    <ToggleGroupItem value="light" className="flex-1">
+                      <Sun data-icon="inline-start" />
+                      Light
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="dark" className="flex-1">
+                      <Moon data-icon="inline-start" />
+                      Dark
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="system" className="flex-1">
+                      <Laptop data-icon="inline-start" />
+                      System
+                    </ToggleGroupItem>
+                  </ToggleGroup>
                 </CardContent>
               </Card>
 
               {/* Audio & Tactile Sound Effects Card */}
-              <Card className="border-border/80 bg-card shadow-xs">
+              <Card>
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <div>
                       <CardTitle className="text-base font-semibold flex items-center gap-2">
                         {soundEnabled ? (
-                          <Volume2 className="h-4 w-4 text-primary" />
+                          <Volume2 className="size-4 text-primary" />
                         ) : (
-                          <VolumeX className="h-4 w-4 text-muted-foreground" />
+                          <VolumeX className="size-4 text-muted-foreground" />
                         )}
                         Audio &amp; Tactile Sound Effects
                       </CardTitle>
                       <CardDescription className="text-xs">
-                        Pure offline browser synthesizer cues for milestone interactions, copy actions, and discreet mode toggles
+                        Pure offline browser synthesizer cues for milestone interactions, copy
+                        actions, and discreet mode toggles
                       </CardDescription>
                     </div>
-                    <Badge variant="outline" className="text-[10px] font-mono border-primary/30 text-primary">
-                      100% Local Synthesizer
-                    </Badge>
+                    <Badge variant="outline">100% Local Synthesizer</Badge>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="flex flex-col gap-4">
                   {/* Enable / Disable Toggle Row */}
                   <div className="flex items-center justify-between border-b pb-3 text-xs">
                     <div>
@@ -873,16 +907,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                         setSoundEnabledState(next)
                         if (next) playSuccessChime()
                       }}
-                      className="h-7 text-xs font-semibold px-3 gap-1.5"
+                      className="h-7 px-3 gap-1.5"
                     >
                       {soundEnabled ? (
                         <>
-                          <Volume2 className="h-3.5 w-3.5" />
+                          <Volume2 className="size-3.5" />
                           <span>Enabled</span>
                         </>
                       ) : (
                         <>
-                          <VolumeX className="h-3.5 w-3.5" />
+                          <VolumeX className="size-3.5" />
                           <span>Muted</span>
                         </>
                       )}
@@ -890,10 +924,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                   </div>
 
                   {/* Volume Slider Row */}
-                  <div className="space-y-1.5 border-b pb-3 text-xs">
+                  <div className="flex flex-col gap-1.5 border-b pb-3 text-xs">
                     <div className="flex items-center justify-between">
                       <span className="font-semibold text-foreground">Output Volume</span>
-                      <span className="font-mono text-muted-foreground font-semibold">{soundVol}%</span>
+                      <span className="font-mono text-muted-foreground font-semibold">
+                        {soundVol}%
+                      </span>
                     </div>
                     <input
                       type="range"
@@ -913,7 +949,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                   </div>
 
                   {/* Interactive Test Panel */}
-                  <div className="space-y-2 pt-1">
+                  <div className="flex flex-col gap-2 pt-1">
                     <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                       Audition Sound Cues (Click to Test)
                     </p>
@@ -923,7 +959,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                         variant="secondary"
                         onClick={() => playSuccessChime()}
                         disabled={!soundEnabled}
-                        className="h-8 text-xs font-semibold gap-1.5"
+                        className="h-8 gap-1.5"
                       >
                         <span>🔔 Success Chime</span>
                       </Button>
@@ -932,7 +968,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                         variant="secondary"
                         onClick={() => playPrivacyToggleSound(true)}
                         disabled={!soundEnabled}
-                        className="h-8 text-xs font-semibold gap-1.5"
+                        className="h-8 gap-1.5"
                       >
                         <span>🛡️ Discreet Mask</span>
                       </Button>
@@ -941,7 +977,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                         variant="secondary"
                         onClick={() => playPrivacyToggleSound(false)}
                         disabled={!soundEnabled}
-                        className="h-8 text-xs font-semibold gap-1.5"
+                        className="h-8 gap-1.5"
                       >
                         <span>👁️ Public Reveal</span>
                       </Button>
@@ -950,70 +986,78 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                         variant="secondary"
                         onClick={() => playSoftClick(650)}
                         disabled={!soundEnabled}
-                        className="h-8 text-xs font-semibold gap-1.5"
+                        className="h-8 gap-1.5"
                       >
                         <span>🔘 Interface Tap</span>
                       </Button>
                     </div>
                     <p className="text-[10px] text-muted-foreground pt-1">
-                      💡 <strong>Note:</strong> Browsers (Chrome/Safari) require at least one user click on the webpage before audio output is permitted by their autoplay security policies.
+                      💡 <strong>Note:</strong> Browsers (Chrome/Safari) require at least one user
+                      click on the webpage before audio output is permitted by their autoplay
+                      security policies.
                     </p>
                   </div>
                 </CardContent>
               </Card>
 
               {/* Regional & Financial Formatting */}
-              <Card className="border-border/80 bg-card shadow-xs">
+              <Card>
                 <CardHeader>
-                  <CardTitle className="text-base font-semibold">Regional & Indian Ecosystem</CardTitle>
+                  <CardTitle className="text-base font-semibold">
+                    Regional & Indian Ecosystem
+                  </CardTitle>
                   <CardDescription className="text-xs">
                     Formatting configurations tailored for Indian Banking & Cards
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-3 text-xs">
+                <CardContent className="flex flex-col gap-3 text-xs">
                   <div className="flex items-center justify-between border-b pb-3">
                     <div>
                       <p className="font-semibold text-foreground">Currency Representation</p>
-                      <p className="text-muted-foreground text-[11px]">Indian Rupee (INR / ₹) with Lakhs & Crores grouping</p>
+                      <p className="text-muted-foreground text-[11px]">
+                        Indian Rupee (INR / ₹) with Lakhs & Crores grouping
+                      </p>
                     </div>
-                    <Badge variant="outline" className="font-mono">
-                      ₹ Indian Rupee
-                    </Badge>
+                    <Badge variant="outline">₹ Indian Rupee</Badge>
                   </div>
                   <div className="flex items-center justify-between border-b pb-3">
                     <div>
                       <p className="font-semibold text-foreground">Payment Modes</p>
-                      <p className="text-muted-foreground text-[11px]">Native sniffing for UPI VPAs, IMPS, NEFT, RTGS & POS terminals</p>
+                      <p className="text-muted-foreground text-[11px]">
+                        Native sniffing for UPI VPAs, IMPS, NEFT, RTGS & POS terminals
+                      </p>
                     </div>
-                    <Badge variant="secondary" className="font-mono text-[10px]">
-                      Enabled (12 Modes)
-                    </Badge>
+                    <Badge variant="secondary">Enabled (12 Modes)</Badge>
                   </div>
                   <div className="flex items-center justify-between pt-1">
                     <div>
                       <p className="font-semibold text-foreground">Date Normalization</p>
-                      <p className="text-muted-foreground text-[11px]">Formats parsed from DD/MM/YYYY, DD-MMM-YYYY, and Month DD, YYYY</p>
+                      <p className="text-muted-foreground text-[11px]">
+                        Formats parsed from DD/MM/YYYY, DD-MMM-YYYY, and Month DD, YYYY
+                      </p>
                     </div>
-                    <Badge variant="outline" className="font-mono text-[10px]">
-                      ISO 8601 Internal
-                    </Badge>
+                    <Badge variant="outline">ISO 8601 Internal</Badge>
                   </div>
                 </CardContent>
               </Card>
 
               {/* Privacy Guarantee */}
-              <Card className="border-border/80 bg-card shadow-xs">
+              <Card>
                 <CardHeader>
                   <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <ShieldCheck className="h-4 w-4 text-emerald-400" /> Privacy & Local-Only Guarantee
+                    <ShieldCheck className="size-4 text-success" /> Privacy & Local-Only Guarantee
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="text-xs text-muted-foreground space-y-2">
+                <CardContent className="text-xs text-muted-foreground flex flex-col gap-2">
                   <p>
-                    <strong className="text-foreground">Zero Cloud Telemetry:</strong> All statement processing, parsing, OCR decryption, and categorization execute 100% locally on your device.
+                    <strong className="text-foreground">Zero Cloud Telemetry:</strong> All statement
+                    processing, parsing, OCR decryption, and categorization execute 100% locally on
+                    your device.
                   </p>
                   <p>
-                    <strong className="text-foreground">Offline SQLite:</strong> Your financial data resides in a local SQLite file with no third-party account aggregators or SMS scrapers.
+                    <strong className="text-foreground">Offline SQLite:</strong> Your financial data
+                    resides in a local SQLite file with no third-party account aggregators or SMS
+                    scrapers.
                   </p>
                 </CardContent>
               </Card>
@@ -1022,45 +1066,48 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
 
           {/* TAB: SECURITY & APP LOCK */}
           {activeTab === 'security' && (
-            <div className="space-y-6">
+            <div className="flex flex-col gap-6">
               {/* App Lock & Password Protection Card */}
-              <Card className="border-border/80 bg-card shadow-xs">
+              <Card>
                 <CardHeader className="pb-3">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <CardTitle className="text-base font-semibold flex items-center gap-2">
-                        <Lock className="h-4 w-4 text-primary" /> Local Authentication &amp; Master Lock
+                        <Lock className="size-4 text-primary" /> Local Authentication &amp; Master
+                        Lock
                       </CardTitle>
                       <CardDescription className="text-xs">
-                        Require a master password or PIN to unlock the application and view your offline financial ledger
+                        Require a master password or PIN to unlock the application and view your
+                        offline financial ledger
                       </CardDescription>
                     </div>
                     <div>
                       {authStatus?.auth_enabled ? (
-                        <Badge variant="outline" className="text-xs font-mono border-emerald-500/30 bg-emerald-500/10 text-emerald-400 gap-1.5 py-1 px-2.5">
-                          <CheckCircle2 className="h-3.5 w-3.5" /> App Lock Active
+                        <Badge variant="outline" className="text-success gap-1.5 py-1 px-2.5">
+                          <CheckCircle2 className="size-3.5" /> App Lock Active
                         </Badge>
                       ) : (
-                        <Badge variant="secondary" className="text-xs font-mono gap-1.5 py-1 px-2.5">
-                          <Unlock className="h-3.5 w-3.5 text-muted-foreground" /> Lock Disabled
+                        <Badge variant="secondary" className="gap-1.5 py-1 px-2.5">
+                          <Unlock className="size-3.5 text-muted-foreground" /> Lock Disabled
                         </Badge>
                       )}
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-4 text-xs">
+                <CardContent className="flex flex-col gap-4 text-xs">
                   {!authStatus?.auth_enabled ? (
                     <div className="rounded-lg border border-dashed border-border/80 bg-muted/20 p-5 text-center flex flex-col items-center justify-center gap-3">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary border border-primary/20">
-                        <Lock className="h-6 w-6" />
+                      <div className="flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary border border-primary/20">
+                        <Lock className="size-6" />
                       </div>
-                      <div className="max-w-md space-y-1">
+                      <div className="max-w-md flex flex-col gap-1">
                         <p className="text-sm font-semibold text-foreground">
                           Protect Your Financial Privacy
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          Anyone with access to this browser or port 8080 on this computer can currently view your bank accounts, transactions, and balances.
-                          Enable a master PIN or password to lock down access.
+                          Anyone with access to this browser or port 8080 on this computer can
+                          currently view your bank accounts, transactions, and balances. Enable a
+                          master PIN or password to lock down access.
                         </p>
                       </div>
                       <Button
@@ -1071,21 +1118,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                           setSetupConfirmPassword('')
                           setShowSetupAuthModal(true)
                         }}
-                        className="font-semibold gap-1.5 h-8.5 mt-1"
+                        className="gap-1.5 h-8.5 mt-1"
                       >
-                        <KeyRound className="h-3.5 w-3.5" /> Set Master Password / PIN
+                        <KeyRound data-icon="inline-start" /> Set Master Password / PIN
                       </Button>
                     </div>
                   ) : (
-                    <div className="space-y-4">
+                    <div className="flex flex-col gap-4">
                       {/* Active Status Row */}
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
                         <div>
                           <p className="font-semibold text-foreground flex items-center gap-1.5">
-                            <ShieldCheck className="h-4 w-4 text-emerald-400" /> Master Password Protection
+                            <ShieldCheck className="size-4 text-success" /> Master Password
+                            Protection
                           </p>
                           <p className="text-[11px] text-muted-foreground mt-0.5">
-                            Ledger queries and sensitive financial APIs require an active authenticated session.
+                            Ledger queries and sensitive financial APIs require an active
+                            authenticated session.
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
@@ -1093,9 +1142,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                             size="sm"
                             variant="secondary"
                             onClick={() => lockApp()}
-                            className="h-8 text-xs font-semibold gap-1.5"
+                            className="h-8 gap-1.5"
                           >
-                            <Lock className="h-3.5 w-3.5" /> Lock App Now
+                            <Lock data-icon="inline-start" /> Lock App Now
                           </Button>
                           <Button
                             size="sm"
@@ -1107,9 +1156,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                               setChangeConfirmPassword('')
                               setShowChangePasswordModal(true)
                             }}
-                            className="h-8 text-xs font-semibold gap-1.5"
+                            className="h-8 gap-1.5"
                           >
-                            <Edit2 className="h-3.5 w-3.5" /> Change Password
+                            <Edit2 data-icon="inline-start" /> Change Password
                           </Button>
                         </div>
                       </div>
@@ -1117,25 +1166,32 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                       {/* Auto-Lock Inactivity Timeout */}
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
                         <div>
-                          <p className="font-semibold text-foreground">Inactivity Auto-Lock Timeout</p>
+                          <p className="font-semibold text-foreground">
+                            Inactivity Auto-Lock Timeout
+                          </p>
                           <p className="text-[11px] text-muted-foreground mt-0.5">
-                            Automatically locks the application after period of inactivity in the browser
+                            Automatically locks the application after period of inactivity in the
+                            browser
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
                           <Select
                             value={String(authStatus?.auto_lock_minutes || 60)}
-                            onValueChange={(val) => val && updateTimeoutMutation.mutate(parseInt(val, 10))}
+                            onValueChange={(val) =>
+                              val && updateTimeoutMutation.mutate(parseInt(val, 10))
+                            }
                             disabled={updateTimeoutMutation.isPending}
                           >
-                            <SelectTrigger className="text-xs h-8 w-[160px]">
+                            <SelectTrigger aria-label="Auto lock timeout" className="h-8 w-[160px]">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="15">15 Minutes</SelectItem>
-                              <SelectItem value="30">30 Minutes</SelectItem>
-                              <SelectItem value="60">1 Hour</SelectItem>
-                              <SelectItem value="240">4 Hours</SelectItem>
+                              <SelectGroup>
+                                <SelectItem value="15">15 Minutes</SelectItem>
+                                <SelectItem value="30">30 Minutes</SelectItem>
+                                <SelectItem value="60">1 Hour</SelectItem>
+                                <SelectItem value="240">4 Hours</SelectItem>
+                              </SelectGroup>
                             </SelectContent>
                           </Select>
                         </div>
@@ -1146,7 +1202,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                         <div>
                           <p className="font-semibold text-destructive">Disable Master Password</p>
                           <p className="text-[11px] text-muted-foreground mt-0.5">
-                            Turn off authentication. The application will be unlocked for anyone on this device.
+                            Turn off authentication. The application will be unlocked for anyone on
+                            this device.
                           </p>
                         </div>
                         <Button
@@ -1157,9 +1214,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                             setDisablePassword('')
                             setShowDisableAuthModal(true)
                           }}
-                          className="h-8 text-xs font-semibold text-destructive hover:text-destructive border-destructive/30 hover:bg-destructive/10"
+                          className="h-8 text-destructive hover:text-destructive"
                         >
-                          <Unlock className="h-3.5 w-3.5 mr-1.5" /> Disable App Lock
+                          <Unlock data-icon="inline-start" className="mr-1.5" /> Disable App Lock
                         </Button>
                       </div>
                     </div>
@@ -1168,58 +1225,71 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
               </Card>
 
               {/* SQLite Database Security & File Permissions Card */}
-              <Card className="border-border/80 bg-card shadow-xs">
+              <Card>
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <div>
                       <CardTitle className="text-base font-semibold flex items-center gap-2">
-                        <Database className="h-4 w-4 text-primary" /> SQLite Database Disk Protection
+                        <Database className="size-4 text-primary" /> SQLite Database Disk Protection
                       </CardTitle>
                       <CardDescription className="text-xs">
                         How your local SQLite database file is safeguarded on disk
                       </CardDescription>
                     </div>
-                    <Badge variant="outline" className="font-mono text-xs border-emerald-500/30 text-emerald-400">
+                    <Badge variant="outline" className="text-success">
                       0600 File Mode
                     </Badge>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-4 text-xs">
+                <CardContent className="flex flex-col gap-4 text-xs">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="rounded-lg border bg-muted/20 p-3 space-y-1">
-                      <span className="text-muted-foreground text-[11px] font-semibold">Unix File Mode Permission</span>
+                    <div className="rounded-lg border bg-muted/20 p-3 flex flex-col gap-1">
+                      <span className="text-muted-foreground text-[11px] font-semibold">
+                        Unix File Mode Permission
+                      </span>
                       <p className="font-mono font-bold text-foreground text-sm">
                         {authStatus?.file_permissions || '-rw------- (0600)'}
                       </p>
                       <p className="text-[11px] text-muted-foreground">
-                        Restricted to owner only. Other local OS user accounts on this machine cannot read or copy this database file.
+                        Restricted to owner only. Other local OS user accounts on this machine
+                        cannot read or copy this database file.
                       </p>
                     </div>
 
-                    <div className="rounded-lg border bg-muted/20 p-3 space-y-1">
-                      <span className="text-muted-foreground text-[11px] font-semibold">Password Storage Security</span>
+                    <div className="rounded-lg border bg-muted/20 p-3 flex flex-col gap-1">
+                      <span className="text-muted-foreground text-[11px] font-semibold">
+                        Password Storage Security
+                      </span>
                       <p className="font-mono font-bold text-foreground text-sm">
                         bcrypt Multi-Round Salted Hash
                       </p>
                       <p className="text-[11px] text-muted-foreground">
-                        Passwords are never stored in plaintext. Hashed with adaptive multi-round bcrypt salt and verified locally.
+                        Passwords are never stored in plaintext. Hashed with adaptive multi-round
+                        bcrypt salt and verified locally.
                       </p>
                     </div>
                   </div>
 
-                  <div className="rounded-lg border border-border/70 bg-muted/30 p-3.5 space-y-2 text-muted-foreground text-[11px] leading-relaxed">
+                  <div className="rounded-lg border border-border/70 bg-muted/30 p-3.5 flex flex-col gap-2 text-muted-foreground text-[11px] leading-relaxed">
                     <p className="font-semibold text-foreground text-xs flex items-center gap-1.5">
-                      <ShieldCheck className="h-4 w-4 text-primary" /> Multi-Layer Offline Defense:
+                      <ShieldCheck className="size-4 text-primary" /> Multi-Layer Offline Defense:
                     </p>
-                    <ul className="list-disc list-inside space-y-1 pl-1">
+                    <ul className="list-disc list-inside flex flex-col gap-1 pl-1">
                       <li>
-                        <strong className="text-foreground">App Lock Layer:</strong> Prevents unauthorized viewing of dashboards, accounts, and transactions on your browser or local network.
+                        <strong className="text-foreground">App Lock Layer:</strong> Prevents
+                        unauthorized viewing of dashboards, accounts, and transactions on your
+                        browser or local network.
                       </li>
                       <li>
-                        <strong className="text-foreground">Filesystem Permissions (0600):</strong> Enforced at database initialization so standard system users without root cannot read the file.
+                        <strong className="text-foreground">Filesystem Permissions (0600):</strong>{' '}
+                        Enforced at database initialization so standard system users without root
+                        cannot read the file.
                       </li>
                       <li>
-                        <strong className="text-foreground">Hardware At-Rest Encryption:</strong> Because SQLite lives entirely on your disk, combining LocalFinance with macOS FileVault, Windows BitLocker, or Linux LUKS provides complete encryption at rest even if the physical drive is extracted.
+                        <strong className="text-foreground">Hardware At-Rest Encryption:</strong>{' '}
+                        Because SQLite lives entirely on your disk, combining LocalFinance with
+                        macOS FileVault, Windows BitLocker, or Linux LUKS provides complete
+                        encryption at rest even if the physical drive is extracted.
                       </li>
                     </ul>
                   </div>
@@ -1230,30 +1300,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
 
           {/* TAB 2: CATEGORIES & AUTO-TAGGING RULES */}
           {activeTab === 'rules' && (
-            <div className="space-y-6">
+            <div className="flex flex-col gap-6">
               {/* Categories */}
-              <Card className="border-border/80 bg-card shadow-xs">
+              <Card>
                 <CardHeader className="pb-3">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <CardTitle className="text-base font-semibold flex items-center gap-2">
-                        <Tags className="h-4 w-4 text-primary" /> Spending Taxonomy & Categories
+                        <Tags className="size-4 text-primary" /> Spending Taxonomy & Categories
                       </CardTitle>
                       <CardDescription className="text-xs">
-                        System and custom categories for budgeting, ledger analytics, and spending breakdown
+                        System and custom categories for budgeting, ledger analytics, and spending
+                        breakdown
                       </CardDescription>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        onClick={handleOpenAddCategory}
-                        className="text-xs font-semibold gap-1.5 h-8"
-                      >
-                        <Plus className="h-3.5 w-3.5" /> Add Category
+                      <Button size="sm" onClick={handleOpenAddCategory} className="gap-1.5 h-8">
+                        <Plus data-icon="inline-start" /> Add Category
                       </Button>
-                      <Badge variant="secondary" className="text-xs font-mono">
-                        {categories?.length || 0} Categories
-                      </Badge>
+                      <Badge variant="secondary">{categories?.length || 0} Categories</Badge>
                     </div>
                   </div>
                 </CardHeader>
@@ -1266,11 +1331,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                       >
                         <div className="flex items-center gap-2.5 truncate min-w-0">
                           <div
-                            className="h-3 w-3 rounded-full flex-shrink-0"
+                            className="size-3 rounded-full flex-shrink-0"
                             style={{ backgroundColor: cat.color_hex }}
                           />
                           <div className="truncate min-w-0">
-                            <p className="text-xs font-semibold text-foreground truncate">{cat.name}</p>
+                            <p className="text-xs font-semibold text-foreground truncate">
+                              {cat.name}
+                            </p>
                             <p className="text-[10px] text-muted-foreground font-medium">
                               {cat.is_system ? 'System Default' : 'Custom Category'}
                             </p>
@@ -1278,13 +1345,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                         </div>
 
                         {!cat.is_system && (
-                          <button
+                          <Button
+                            aria-label="Delete category"
+                            variant="ghost"
                             onClick={() => setShowDeleteCategoryModal(cat)}
-                            className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-destructive transition-opacity"
+                            className="opacity-0 group-hover:opacity-100 p-1 hover:text-destructive transition-opacity"
                             title="Delete category"
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                            <Trash2 data-icon="inline-start" />
+                          </Button>
                         )}
                       </div>
                     ))}
@@ -1293,42 +1362,45 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
               </Card>
 
               {/* Rules Table */}
-              <Card className="border-border/80 bg-card shadow-xs">
+              <Card>
                 <CardHeader className="pb-3 border-b">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <CardTitle className="text-base font-semibold flex items-center gap-2">
-                        <Sliders className="h-4 w-4 text-primary" /> Auto-Categorization & Match Rules
+                        <Sliders className="size-4 text-primary" /> Auto-Categorization & Match
+                        Rules
                       </CardTitle>
                       <CardDescription className="text-xs">
-                        Prioritized rules that map UPI VPAs, POS merchant keywords, and narrations to categories
+                        Prioritized rules that map UPI VPAs, POS merchant keywords, and narrations
+                        to categories
                       </CardDescription>
                     </div>
 
                     <div className="flex items-center gap-2">
                       <Button
+                        aria-label="Re-run all rules against existing uncategorized ledger transactions"
                         variant="outline"
                         size="sm"
                         onClick={() => reapplyRulesMutation.mutate()}
                         disabled={reapplyRulesMutation.isPending}
-                        className="text-xs font-semibold gap-1.5 h-8"
+                        className="gap-1.5 h-8"
                         title="Re-run all rules against existing uncategorized ledger transactions"
                       >
-                        <RefreshCw className={`h-3.5 w-3.5 ${reapplyRulesMutation.isPending ? 'animate-spin' : ''}`} />
+                        <RefreshCw
+                          data-icon="inline-start"
+                          className={cn(
+                            'size-3.5',
+                            reapplyRulesMutation.isPending ? 'animate-spin' : ''
+                          )}
+                        />
                         {reapplyRulesMutation.isPending ? 'Applying...' : 'Re-Apply to Ledger'}
                       </Button>
 
-                      <Button
-                        size="sm"
-                        onClick={handleOpenAddRule}
-                        className="text-xs font-semibold gap-1.5 h-8"
-                      >
-                        <Plus className="h-3.5 w-3.5" /> Add Rule
+                      <Button size="sm" onClick={handleOpenAddRule} className="gap-1.5 h-8">
+                        <Plus data-icon="inline-start" /> Add Rule
                       </Button>
 
-                      <Badge variant="secondary" className="text-xs font-mono">
-                        {rules?.length || 0} Rules
-                      </Badge>
+                      <Badge variant="secondary">{rules?.length || 0} Rules</Badge>
                     </div>
                   </div>
                 </CardHeader>
@@ -1337,33 +1409,48 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                     <Table>
                       <TableHeader>
                         <TableRow className="hover:bg-transparent">
-                          <TableHead className="text-xs font-semibold uppercase">Priority</TableHead>
-                          <TableHead className="text-xs font-semibold uppercase">Match Field</TableHead>
+                          <TableHead className="text-xs font-semibold uppercase">
+                            Priority
+                          </TableHead>
+                          <TableHead className="text-xs font-semibold uppercase">
+                            Match Field
+                          </TableHead>
                           <TableHead className="text-xs font-semibold uppercase">Type</TableHead>
-                          <TableHead className="text-xs font-semibold uppercase">Pattern / Keyword</TableHead>
-                          <TableHead className="text-xs font-semibold uppercase">Assigned Category</TableHead>
+                          <TableHead className="text-xs font-semibold uppercase">
+                            Pattern / Keyword
+                          </TableHead>
+                          <TableHead className="text-xs font-semibold uppercase">
+                            Assigned Category
+                          </TableHead>
                           <TableHead className="text-xs font-semibold uppercase">Status</TableHead>
-                          <TableHead className="text-xs font-semibold uppercase text-right">Actions</TableHead>
+                          <TableHead className="text-xs font-semibold uppercase text-right">
+                            Actions
+                          </TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {rules?.map((r) => (
                           <TableRow key={r.id} className="hover:bg-muted/40 text-xs">
-                            <TableCell className="font-mono font-bold text-muted-foreground">{r.priority}</TableCell>
-                            <TableCell className="font-mono text-foreground">{r.match_field}</TableCell>
+                            <TableCell className="font-mono font-bold text-muted-foreground">
+                              {r.priority}
+                            </TableCell>
+                            <TableCell className="font-mono text-foreground">
+                              {r.match_field}
+                            </TableCell>
                             <TableCell>
                               <div className="flex flex-col gap-1 items-start">
-                                <Badge variant="outline" className="font-mono text-[10px] uppercase">
+                                <Badge variant="outline" className="uppercase">
                                   {r.match_type}
                                 </Badge>
                                 {r.tx_type && r.tx_type !== 'ALL' && (
                                   <Badge
                                     variant="secondary"
-                                    className={`text-[9px] font-semibold px-1.5 py-0 ${
+                                    className={cn(
+                                      'text-[9px] font-semibold px-1.5 py-0',
                                       r.tx_type === 'CREDIT'
-                                        ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
-                                        : 'text-rose-400 bg-rose-500/10 border-rose-500/20'
-                                    }`}
+                                        ? 'text-success bg-success/10 border-success/20'
+                                        : 'text-destructive bg-destructive/10 border-destructive/20'
+                                    )}
                                   >
                                     {r.tx_type === 'CREDIT' ? 'Credits Only' : 'Debits Only'}
                                   </Badge>
@@ -1372,15 +1459,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                             </TableCell>
                             <TableCell className="font-mono text-xs max-w-[240px]">
                               <div className="flex flex-col gap-0.5">
-                                <span className="font-medium text-emerald-400 truncate">
+                                <span className="font-medium text-success truncate">
                                   {r.match_pattern}
                                 </span>
                                 {r.exclude_pattern && (
                                   <span
-                                    className="text-[10px] text-amber-400/90 truncate flex items-center gap-1"
+                                    className="text-[10px] text-warning/90 truncate flex items-center gap-1"
                                     title={`Except: ${r.exclude_pattern}`}
                                   >
-                                    <span className="font-semibold text-[9px] uppercase px-1 py-0 rounded-xs bg-amber-500/15 border border-amber-500/20 text-amber-400">
+                                    <span className="font-semibold text-[9px] uppercase px-1 py-0 rounded-xs bg-warning/15 border border-warning/20 text-warning">
                                       Except
                                     </span>
                                     <span className="truncate">{r.exclude_pattern}</span>
@@ -1393,11 +1480,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                             </TableCell>
                             <TableCell>
                               <Badge
-                                className={`text-[10px] font-semibold ${
+                                className={cn(
+                                  'text-[10px] font-semibold',
                                   r.is_active
-                                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                    ? 'bg-success/10 text-success border-success/20'
                                     : 'bg-muted text-muted-foreground'
-                                }`}
+                                )}
                               >
                                 {r.is_active ? 'Active' : 'Disabled'}
                               </Badge>
@@ -1405,22 +1493,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                             <TableCell className="text-right">
                               <div className="flex items-center justify-end gap-1">
                                 <Button
+                                  aria-label="Edit Rule"
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleOpenEditRule(r)}
-                                  className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                                  className="size-7 p-0"
                                   title="Edit Rule"
                                 >
-                                  <Edit2 className="h-3.5 w-3.5" />
+                                  <Edit2 data-icon="inline-start" />
                                 </Button>
                                 <Button
+                                  aria-label="Delete Rule"
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => setShowDeleteRuleModal(r)}
-                                  className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                                  className="size-7 p-0 hover:text-destructive"
                                   title="Delete Rule"
                                 >
-                                  <Trash2 className="h-3.5 w-3.5" />
+                                  <Trash2 data-icon="inline-start" />
                                 </Button>
                               </div>
                             </TableCell>
@@ -1436,36 +1526,35 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
 
           {/* TAB 3: BANK PARSER PLUGINS */}
           {activeTab === 'parsers' && (
-            <div className="space-y-6">
-              <Card className="border-border/80 bg-card shadow-xs">
+            <div className="flex flex-col gap-6">
+              <Card>
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <div>
                       <CardTitle className="text-base font-semibold flex items-center gap-2">
-                        <Cpu className="h-4 w-4 text-primary" /> Registered Statement Parsers
+                        <Cpu className="size-4 text-primary" /> Registered Statement Parsers
                       </CardTitle>
                       <CardDescription className="text-xs">
-                        Modular format extractors equipped with automatic format sniffing and confidence scoring
+                        Modular format extractors equipped with automatic format sniffing and
+                        confidence scoring
                       </CardDescription>
                     </div>
-                    <Badge variant="secondary" className="text-xs font-mono">
-                      {parsers?.length || 0} Registered
-                    </Badge>
+                    <Badge variant="secondary">{parsers?.length || 0} Registered</Badge>
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <div className="space-y-3">
+                  <div className="flex flex-col gap-3">
                     {parsers?.map((p) => (
                       <div
                         key={p.id}
                         className="rounded-lg border border-border/70 bg-muted/30 p-4 transition-colors hover:border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                       >
                         <div className="flex items-start gap-3">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-background border text-primary">
+                          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-background border text-primary">
                             {p.supported_types.some((t) => t.includes('pdf')) ? (
-                              <FileCode2 className="h-4 w-4" />
+                              <FileCode2 className="size-4" />
                             ) : (
-                              <FileSpreadsheet className="h-4 w-4" />
+                              <FileSpreadsheet className="size-4" />
                             )}
                           </div>
                           <div>
@@ -1478,13 +1567,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
 
                         <div className="flex items-center gap-2 flex-wrap self-end sm:self-center">
                           {p.supported_types.map((type) => (
-                            <Badge key={type} variant="outline" className="text-[10px] font-mono uppercase">
+                            <Badge key={type} variant="outline" className="uppercase">
                               {type.replace('TYPE_', '')}
                             </Badge>
                           ))}
-                          <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[10px]">
-                            Ready
-                          </Badge>
+                          <Badge className="text-success">Ready</Badge>
                         </div>
                       </div>
                     ))}
@@ -1493,15 +1580,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
               </Card>
 
               {/* Password Decryption Guide */}
-              <Card className="border-border/80 bg-card shadow-xs">
+              <Card>
                 <CardHeader>
                   <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <Lock className="h-4 w-4 text-amber-400" /> Encrypted Statement Decryption
+                    <Lock className="size-4 text-warning" /> Encrypted Statement Decryption
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="text-xs text-muted-foreground space-y-2">
+                <CardContent className="text-xs text-muted-foreground flex flex-col gap-2">
                   <p>
-                    <strong className="text-foreground">Password decrypting:</strong> Handled entirely locally in memory using standard PDF AES-128/256 & RC4 algorithms. Statement passwords are never logged, cached, or written to disk.
+                    <strong className="text-foreground">Password decrypting:</strong> Handled
+                    entirely locally in memory using standard PDF AES-128/256 & RC4 algorithms.
+                    Statement passwords are never logged, cached, or written to disk.
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3 font-mono text-[11px]">
                     <div className="border rounded-md p-2.5 bg-muted/40">
@@ -1524,15 +1613,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
 
           {/* TAB 4: DATABASE & STORAGE MANAGEMENT */}
           {activeTab === 'database' && (
-            <div className="space-y-6">
+            <div className="flex flex-col gap-6">
               {/* Active Database Location Card */}
-              <Card className="border-border/80 bg-card shadow-xs">
+              <Card>
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base font-semibold flex items-center gap-2">
-                      <FolderOpen className="h-4 w-4 text-primary" /> Active Database Location
+                      <FolderOpen className="size-4 text-primary" /> Active Database Location
                     </CardTitle>
-                    <Badge variant="outline" className="font-mono text-xs text-emerald-400 border-emerald-500/20 bg-emerald-500/10">
+                    <Badge variant="outline" className="text-success">
                       WAL Mode Active
                     </Badge>
                   </div>
@@ -1540,11 +1629,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                     Absolute file system path where your encrypted local ledger lives
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-3">
+                <CardContent className="flex flex-col gap-3">
                   <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/40 p-3">
                     <div className="min-w-0 flex-1">
-                      <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">File Path</p>
-                      <p className="text-xs font-mono font-semibold text-foreground truncate mt-0.5" title={dbInfo?.path}>
+                      <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">
+                        File Path
+                      </p>
+                      <p
+                        className="text-xs font-mono font-semibold text-foreground truncate mt-0.5"
+                        title={dbInfo?.path}
+                      >
                         {dbInfo?.path || 'Loading path...'}
                       </p>
                     </div>
@@ -1553,16 +1647,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                         variant="outline"
                         size="sm"
                         onClick={() => handleCopyPath(dbInfo.path)}
-                        className="h-8 shrink-0 text-xs gap-1.5"
+                        className="h-8 shrink-0 gap-1.5"
                       >
                         {copiedPath ? (
                           <>
-                            <Check className="h-3.5 w-3.5 text-emerald-400" />
-                            <span className="text-emerald-400 font-semibold">Copied</span>
+                            <Check className="size-3.5 text-success" />
+                            <span className="text-success font-semibold">Copied</span>
                           </>
                         ) : (
                           <>
-                            <Copy className="h-3.5 w-3.5" />
+                            <Copy className="size-3.5" />
                             <span>Copy Path</span>
                           </>
                         )}
@@ -1585,39 +1679,37 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                     </div>
                     <div className="rounded-lg border bg-muted/20 p-2.5 col-span-2 sm:col-span-1">
                       <span className="text-muted-foreground text-[11px]">Driver Engine</span>
-                      <p className="font-mono font-bold text-foreground mt-0.5">
-                        Pure Go SQLite
-                      </p>
+                      <p className="font-mono font-bold text-foreground mt-0.5">Pure Go SQLite</p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
               {/* Database Backup & Export Center */}
-              <Card className="border-border/80 bg-card shadow-xs">
+              <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <HardDriveDownload className="h-4 w-4 text-primary" /> Backup & Data Export
+                    <HardDriveDownload className="size-4 text-primary" /> Backup & Data Export
                   </CardTitle>
                   <CardDescription className="text-xs">
                     Create standalone SQLite snapshots or export data as CSV/JSON
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="flex flex-col gap-4">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {/* Direct Download SQLite Database Backup */}
                     <a href="/api/database/backup" download className="block">
                       <div className="rounded-lg border border-border/80 bg-muted/30 p-4 transition-all hover:border-primary hover:bg-muted/50 h-full flex flex-col justify-between">
                         <div>
                           <div className="flex items-center gap-2 text-primary font-semibold text-xs">
-                            <Database className="h-4 w-4" /> SQLite Backup (.db)
+                            <Database className="size-4" /> SQLite Backup (.db)
                           </div>
                           <p className="text-[11px] text-muted-foreground mt-1">
                             Point-in-time standalone snapshot with WAL flush.
                           </p>
                         </div>
-                        <Button size="sm" variant="outline" className="w-full mt-3 text-xs gap-1.5 h-8">
-                          <Download className="h-3.5 w-3.5" /> Download .db
+                        <Button size="sm" variant="outline" className="w-full mt-3 gap-1.5 h-8">
+                          <Download data-icon="inline-start" /> Download .db
                         </Button>
                       </div>
                     </a>
@@ -1626,15 +1718,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                     <a href="/api/database/export/csv" download className="block">
                       <div className="rounded-lg border border-border/80 bg-muted/30 p-4 transition-all hover:border-primary hover:bg-muted/50 h-full flex flex-col justify-between">
                         <div>
-                          <div className="flex items-center gap-2 text-emerald-400 font-semibold text-xs">
-                            <FileSpreadsheet className="h-4 w-4" /> Export CSV Ledger
+                          <div className="flex items-center gap-2 text-success font-semibold text-xs">
+                            <FileSpreadsheet className="size-4" /> Export CSV Ledger
                           </div>
                           <p className="text-[11px] text-muted-foreground mt-1">
                             Clean tabular export of all transactions and accounts.
                           </p>
                         </div>
-                        <Button size="sm" variant="outline" className="w-full mt-3 text-xs gap-1.5 h-8">
-                          <Download className="h-3.5 w-3.5" /> Download .csv
+                        <Button size="sm" variant="outline" className="w-full mt-3 gap-1.5 h-8">
+                          <Download data-icon="inline-start" /> Download .csv
                         </Button>
                       </div>
                     </a>
@@ -1643,15 +1735,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                     <a href="/api/database/export/json" download className="block">
                       <div className="rounded-lg border border-border/80 bg-muted/30 p-4 transition-all hover:border-primary hover:bg-muted/50 h-full flex flex-col justify-between">
                         <div>
-                          <div className="flex items-center gap-2 text-sky-400 font-semibold text-xs">
-                            <FileCode2 className="h-4 w-4" /> Full JSON Dump
+                          <div className="flex items-center gap-2 text-info font-semibold text-xs">
+                            <FileCode2 className="size-4" /> Full JSON Dump
                           </div>
                           <p className="text-[11px] text-muted-foreground mt-1">
                             Complete dump of accounts, rules, bills & transactions.
                           </p>
                         </div>
-                        <Button size="sm" variant="outline" className="w-full mt-3 text-xs gap-1.5 h-8">
-                          <Download className="h-3.5 w-3.5" /> Download .json
+                        <Button size="sm" variant="outline" className="w-full mt-3 gap-1.5 h-8">
+                          <Download data-icon="inline-start" /> Download .json
                         </Button>
                       </div>
                     </a>
@@ -1660,26 +1752,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
               </Card>
 
               {/* Import / Restore Database Backup */}
-              <Card className="border-border/80 bg-card shadow-xs">
+              <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <UploadCloud className="h-4 w-4 text-primary" /> Import & Restore Database
+                    <UploadCloud className="size-4 text-primary" /> Import & Restore Database
                   </CardTitle>
                   <CardDescription className="text-xs">
-                    Restore your financial ledger from a previously saved <code className="font-mono text-foreground">.db</code> or <code className="font-mono text-foreground">.sqlite</code> backup file
+                    Restore your financial ledger from a previously saved{' '}
+                    <code className="font-mono text-foreground">.db</code> or{' '}
+                    <code className="font-mono text-foreground">.sqlite</code> backup file
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="flex flex-col gap-4">
                   <div className="rounded-lg border border-dashed border-border/80 bg-muted/20 p-5 text-center flex flex-col items-center justify-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
-                      <Database className="h-5 w-5" />
+                    <div className="flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                      <Database className="size-5" />
                     </div>
                     <div>
                       <p className="text-xs font-semibold text-foreground">
                         Select a SQLite Backup File (.db / .sqlite)
                       </p>
                       <p className="text-[11px] text-muted-foreground mt-0.5">
-                        Restoring replaces the current database. An automated backup (<code className="font-mono">.bak</code>) of the existing file will be saved.
+                        Restoring replaces the current database. An automated backup (
+                        <code className="font-mono">.bak</code>) of the existing file will be saved.
                       </p>
                     </div>
 
@@ -1694,29 +1789,27 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                     <Button
                       size="sm"
                       onClick={() => restoreFileInputRef.current?.click()}
-                      className="text-xs font-semibold gap-1.5 h-8"
+                      className="gap-1.5 h-8"
                     >
-                      <FolderOpen className="h-3.5 w-3.5" /> Browse Backup File
+                      <FolderOpen data-icon="inline-start" /> Browse Backup File
                     </Button>
                   </div>
                 </CardContent>
               </Card>
 
               {/* SQLite DB Statistics */}
-              <Card className="border-border/80 bg-card shadow-xs">
+              <Card>
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <div>
                       <CardTitle className="text-base font-semibold flex items-center gap-2">
-                        <Database className="h-4 w-4 text-primary" /> SQLite Database Statistics
+                        <Database className="size-4 text-primary" /> SQLite Database Statistics
                       </CardTitle>
                       <CardDescription className="text-xs">
                         Current storage footprint and records managed in local database
                       </CardDescription>
                     </div>
-                    <Badge variant="outline" className="font-mono text-xs">
-                      WAL Mode Active
-                    </Badge>
+                    <Badge variant="outline">WAL Mode Active</Badge>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -1750,32 +1843,33 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
               </Card>
 
               {/* Danger Zone: Reset Database */}
-              <Card className="border-destructive/40 bg-card shadow-xs">
+              <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base font-semibold text-destructive flex items-center gap-2">
-                    <Trash2 className="h-4 w-4" /> Danger Zone • Database Management
+                    <Trash2 className="size-4" /> Danger Zone • Database Management
                   </CardTitle>
                   <CardDescription className="text-xs">
                     Actions that modify or reset existing transaction ledger data
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="flex flex-col gap-4">
                   <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
                       <h5 className="text-xs font-semibold text-destructive">
                         Clear Transactions & Statement Logs
                       </h5>
                       <p className="text-[11px] text-muted-foreground mt-0.5">
-                        Clears all imported transactions, accounts, and statement logs to restart testing. Categories and custom rules will be preserved.
+                        Clears all imported transactions, accounts, and statement logs to restart
+                        testing. Categories and custom rules will be preserved.
                       </p>
                     </div>
                     <Button
                       variant="destructive"
                       size="sm"
                       onClick={() => setShowConfirmReset(true)}
-                      className="shrink-0 text-xs font-semibold h-8"
+                      className="shrink-0 h-8"
                     >
-                      <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Reset Database
+                      <Trash2 data-icon="inline-start" className="mr-1.5" /> Reset Database
                     </Button>
                   </div>
                 </CardContent>
@@ -1790,19 +1884,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-base font-semibold text-destructive flex items-center gap-2">
-              <Trash2 className="h-5 w-5" /> Reset Local Database
+              <Trash2 className="size-5" /> Reset Local Database
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Are you sure you want to clear all transactions, accounts, credit card bills, and statement logs?
-              Your custom rules and categories will be safely preserved.
+              Are you sure you want to clear all transactions, accounts, credit card bills, and
+              statement logs? Your custom rules and categories will be safely preserved.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 pt-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowConfirmReset(false)}
-            >
+            <Button variant="outline" size="sm" onClick={() => setShowConfirmReset(false)}>
               Cancel
             </Button>
             <Button
@@ -1823,12 +1913,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-base font-semibold text-primary flex items-center gap-2">
-              <UploadCloud className="h-5 w-5" /> Restore Database Backup
+              <UploadCloud className="size-5" /> Restore Database Backup
             </DialogTitle>
             <DialogDescription className="text-xs">
               Are you sure you want to restore the database from{' '}
-              <strong className="text-foreground">{selectedRestoreFile?.name}</strong>?
-              Your current database will be archived as <code className="font-mono">.bak</code> before replacement.
+              <strong className="text-foreground">{selectedRestoreFile?.name}</strong>? Your current
+              database will be archived as <code className="font-mono">.bak</code> before
+              replacement.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 pt-2">
@@ -1850,11 +1941,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                 }
               }}
               disabled={restoreMutation.isPending}
-              className="gap-1.5 font-semibold"
+              className="gap-1.5"
             >
               {restoreMutation.isPending ? (
                 <>
-                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                  <RefreshCw className="size-3.5 animate-spin" />
                   Restoring...
                 </>
               ) : (
@@ -1878,7 +1969,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-base font-semibold flex items-center gap-2">
-              {editingRule ? <Edit2 className="h-4 w-4 text-primary" /> : <Plus className="h-4 w-4 text-primary" />}
+              {editingRule ? (
+                <Edit2 className="size-4 text-primary" />
+              ) : (
+                <Plus className="size-4 text-primary" />
+              )}
               {editingRule ? 'Edit Auto-Categorization Rule' : 'Add Auto-Categorization Rule'}
             </DialogTitle>
             <DialogDescription className="text-xs">
@@ -1886,139 +1981,181 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 py-2 text-xs">
+          <FieldGroup className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 py-2 text-xs">
             {/* Match Field */}
-            <div className="space-y-1">
-              <label className="font-semibold text-foreground">Target Field *</label>
+            <Field className="flex flex-col gap-1">
+              <FieldLabel htmlFor={`${fieldId}-1897`} className="font-semibold text-foreground">
+                Target Field *
+              </FieldLabel>
               <Select
                 value={ruleFormData.match_field}
-                onValueChange={(val) => setRuleFormData({ ...ruleFormData, match_field: val || 'cleaned_payee' })}
+                onValueChange={(val) =>
+                  setRuleFormData({ ...ruleFormData, match_field: val || 'cleaned_payee' })
+                }
               >
-                <SelectTrigger className="text-xs h-8.5">
+                <SelectTrigger id={`${fieldId}-1897`} className="h-8.5">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="cleaned_payee">Cleaned Payee Name</SelectItem>
-                  <SelectItem value="raw_narration">Raw Statement Narration</SelectItem>
-                  <SelectItem value="upi_vpa">UPI VPA Handle</SelectItem>
-                  <SelectItem value="reference_number">Reference / UTR Number</SelectItem>
+                  <SelectGroup>
+                    <SelectItem value="cleaned_payee">Cleaned Payee Name</SelectItem>
+                    <SelectItem value="raw_narration">Raw Statement Narration</SelectItem>
+                    <SelectItem value="upi_vpa">UPI VPA Handle</SelectItem>
+                    <SelectItem value="reference_number">Reference / UTR Number</SelectItem>
+                  </SelectGroup>
                 </SelectContent>
               </Select>
-            </div>
+            </Field>
 
             {/* Match Type */}
-            <div className="space-y-1">
-              <label className="font-semibold text-foreground">Match Type *</label>
+            <Field className="flex flex-col gap-1">
+              <FieldLabel htmlFor={`${fieldId}-1916`} className="font-semibold text-foreground">
+                Match Type *
+              </FieldLabel>
               <Select
                 value={ruleFormData.match_type}
-                onValueChange={(val) => setRuleFormData({ ...ruleFormData, match_type: val || 'CONTAINS' })}
+                onValueChange={(val) =>
+                  setRuleFormData({ ...ruleFormData, match_type: val || 'CONTAINS' })
+                }
               >
-                <SelectTrigger className="text-xs h-8.5">
+                <SelectTrigger id={`${fieldId}-1916`} className="h-8.5">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="CONTAINS">Contains Keyword</SelectItem>
-                  <SelectItem value="EXACT">Exact Match</SelectItem>
-                  <SelectItem value="STARTS_WITH">Starts With</SelectItem>
-                  <SelectItem value="REGEX">Regular Expression (Regex)</SelectItem>
+                  <SelectGroup>
+                    <SelectItem value="CONTAINS">Contains Keyword</SelectItem>
+                    <SelectItem value="EXACT">Exact Match</SelectItem>
+                    <SelectItem value="STARTS_WITH">Starts With</SelectItem>
+                    <SelectItem value="REGEX">Regular Expression (Regex)</SelectItem>
+                  </SelectGroup>
                 </SelectContent>
               </Select>
-            </div>
+            </Field>
 
             {/* Pattern / Keyword */}
-            <div className="sm:col-span-2 space-y-1">
-              <label className="font-semibold text-foreground">Pattern / Match Keyword *</label>
+            <Field className="sm:col-span-2 flex flex-col gap-1">
+              <FieldLabel htmlFor={`${fieldId}-1931`} className="font-semibold text-foreground">
+                Pattern / Match Keyword *
+              </FieldLabel>
               <Input
+                id={`${fieldId}-1931`}
                 placeholder="e.g. SWIGGY, ZOMATO, (?i)amazon|flipkart, @okhdfcbank"
                 value={ruleFormData.match_pattern}
-                onChange={(e) => setRuleFormData({ ...ruleFormData, match_pattern: e.target.value })}
-                className="text-xs font-mono h-8.5"
+                onChange={(e) =>
+                  setRuleFormData({ ...ruleFormData, match_pattern: e.target.value })
+                }
+                className="h-8.5"
               />
               <p className="text-[10px] text-muted-foreground">
                 Matches are case-insensitive by default.
               </p>
-            </div>
+            </Field>
 
             {/* Exception / Exclude Keywords */}
-            <div className="sm:col-span-2 space-y-1">
-              <label className="font-semibold text-foreground">
+            <Field className="sm:col-span-2 flex flex-col gap-1">
+              <FieldLabel htmlFor={`${fieldId}-1947`} className="font-semibold text-foreground">
                 Exception / Exclude Keywords (Optional)
-              </label>
+              </FieldLabel>
               <Input
+                id={`${fieldId}-1947`}
                 placeholder="e.g. maid, driver, cook, advance, helper, staff, aws"
                 value={ruleFormData.exclude_pattern}
-                onChange={(e) => setRuleFormData({ ...ruleFormData, exclude_pattern: e.target.value })}
-                className="text-xs font-mono h-8.5"
+                onChange={(e) =>
+                  setRuleFormData({ ...ruleFormData, exclude_pattern: e.target.value })
+                }
+                className="h-8.5"
               />
               <p className="text-[10px] text-muted-foreground">
-                Skip this rule if narration or payee contains any of these comma-separated keywords (or regex).
+                Skip this rule if narration or payee contains any of these comma-separated keywords
+                (or regex).
               </p>
-            </div>
+            </Field>
 
             {/* Target Category */}
-            <div className="space-y-1">
-              <label className="font-semibold text-foreground">Assign Category *</label>
+            <Field className="flex flex-col gap-1">
+              <FieldLabel htmlFor={`${fieldId}-1965`} className="font-semibold text-foreground">
+                Assign Category *
+              </FieldLabel>
               <Select
                 value={ruleFormData.target_category_id}
-                onValueChange={(val) => setRuleFormData({ ...ruleFormData, target_category_id: val || '' })}
+                onValueChange={(val) =>
+                  setRuleFormData({ ...ruleFormData, target_category_id: val || '' })
+                }
               >
-                <SelectTrigger className="text-xs h-8.5">
+                <SelectTrigger id={`${fieldId}-1965`} className="h-8.5">
                   <SelectValue placeholder="Select Category" />
                 </SelectTrigger>
                 <SelectContent>
-                  {categories?.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
+                  <SelectGroup>
+                    {categories?.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
-            </div>
+            </Field>
 
             {/* Transaction Direction */}
-            <div className="space-y-1">
-              <label className="font-semibold text-foreground">Transaction Direction</label>
+            <Field className="flex flex-col gap-1">
+              <FieldLabel htmlFor={`${fieldId}-1987`} className="font-semibold text-foreground">
+                Transaction Direction
+              </FieldLabel>
               <Select
                 value={ruleFormData.tx_type}
                 onValueChange={(val) =>
-                  setRuleFormData({ ...ruleFormData, tx_type: (val as 'ALL' | 'DEBIT' | 'CREDIT') || 'ALL' })
+                  setRuleFormData({
+                    ...ruleFormData,
+                    tx_type: (val as 'ALL' | 'DEBIT' | 'CREDIT') || 'ALL',
+                  })
                 }
               >
-                <SelectTrigger className="text-xs h-8.5">
+                <SelectTrigger id={`${fieldId}-1987`} className="h-8.5">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL">All (Debits & Credits)</SelectItem>
-                  <SelectItem value="CREDIT">Credits Only (Income / Deposits)</SelectItem>
-                  <SelectItem value="DEBIT">Debits Only (Expenses / Payments)</SelectItem>
+                  <SelectGroup>
+                    <SelectItem value="ALL">All (Debits & Credits)</SelectItem>
+                    <SelectItem value="CREDIT">Credits Only (Income / Deposits)</SelectItem>
+                    <SelectItem value="DEBIT">Debits Only (Expenses / Payments)</SelectItem>
+                  </SelectGroup>
                 </SelectContent>
               </Select>
-            </div>
+            </Field>
 
             {/* Priority */}
-            <div className="space-y-1">
-              <label className="font-semibold text-foreground">Priority (Higher runs first)</label>
+            <Field className="flex flex-col gap-1">
+              <FieldLabel htmlFor={`${fieldId}-2001`} className="font-semibold text-foreground">
+                Priority (Higher runs first)
+              </FieldLabel>
               <Input
+                id={`${fieldId}-2001`}
                 type="number"
                 min="1"
                 max="1000"
                 value={ruleFormData.priority || ''}
-                onChange={(e) => setRuleFormData({ ...ruleFormData, priority: parseInt(e.target.value) || 50 })}
-                className="text-xs font-mono h-8.5"
+                onChange={(e) =>
+                  setRuleFormData({ ...ruleFormData, priority: parseInt(e.target.value) || 50 })
+                }
+                className="h-8.5"
               />
-            </div>
+            </Field>
 
             {/* Assign Tags */}
-            <div className="space-y-1">
-              <label className="font-semibold text-foreground">Auto-Assign Tags (Optional)</label>
+            <Field className="flex flex-col gap-1">
+              <FieldLabel htmlFor={`${fieldId}-2014`} className="font-semibold text-foreground">
+                Auto-Assign Tags (Optional)
+              </FieldLabel>
               <Input
+                id={`${fieldId}-2014`}
                 placeholder="e.g. food, delivery, online"
                 value={ruleFormData.assign_tags}
                 onChange={(e) => setRuleFormData({ ...ruleFormData, assign_tags: e.target.value })}
-                className="text-xs h-8.5"
+                className="h-8.5"
               />
-            </div>
-          </div>
+            </Field>
+          </FieldGroup>
 
           <DialogFooter className="gap-2 pt-2">
             <Button
@@ -2046,7 +2183,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                 !ruleFormData.match_pattern ||
                 !ruleFormData.target_category_id
               }
-              className="font-semibold"
             >
               {editingRule ? 'Save Changes' : 'Create Rule'}
             </Button>
@@ -2055,16 +2191,21 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
       </Dialog>
 
       {/* Delete Rule Confirmation Dialog */}
-      <Dialog open={!!showDeleteRuleModal} onOpenChange={(open) => !open && setShowDeleteRuleModal(null)}>
+      <Dialog
+        open={!!showDeleteRuleModal}
+        onOpenChange={(open) => !open && setShowDeleteRuleModal(null)}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-base font-semibold text-destructive flex items-center gap-2">
-              <Trash2 className="h-5 w-5" /> Delete Categorization Rule
+              <Trash2 className="size-5" /> Delete Categorization Rule
             </DialogTitle>
             <DialogDescription className="text-xs">
               Are you sure you want to delete the rule matching{' '}
-              <code className="font-mono text-foreground font-semibold">"{showDeleteRuleModal?.match_pattern}"</code>?
-              Existing categorized transactions will not be modified.
+              <code className="font-mono text-foreground font-semibold">
+                "{showDeleteRuleModal?.match_pattern}"
+              </code>
+              ? Existing categorized transactions will not be modified.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 pt-2">
@@ -2092,36 +2233,44 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-base font-semibold flex items-center gap-2">
-              <Plus className="h-4 w-4 text-primary" /> Add Custom Spending Category
+              <Plus className="size-4 text-primary" /> Add Custom Spending Category
             </DialogTitle>
             <DialogDescription className="text-xs">
               Create a custom category for specialized expense tracking and budgeting
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3.5 py-2 text-xs">
-            <div className="space-y-1">
-              <label className="font-semibold text-foreground">Category Name *</label>
+          <FieldGroup className="flex flex-col gap-3.5 py-2 text-xs">
+            <Field className="flex flex-col gap-1">
+              <FieldLabel htmlFor={`${fieldId}-2105`} className="font-semibold text-foreground">
+                Category Name *
+              </FieldLabel>
               <Input
+                id={`${fieldId}-2105`}
                 placeholder="e.g. Gaming & In-App, Pet Care, Crypto..."
                 value={categoryFormData.name}
                 onChange={(e) => setCategoryFormData({ ...categoryFormData, name: e.target.value })}
-                className="text-xs h-8.5"
+                className="h-8.5"
               />
-            </div>
+            </Field>
 
-            <div className="space-y-1.5">
-              <label className="font-semibold text-foreground">Category Color Accent</label>
+            <Field className="flex flex-col gap-1.5">
+              <FieldLabel htmlFor={`${fieldId}-2120`} className="font-semibold text-foreground">
+                Category Color Accent
+              </FieldLabel>
               <div className="flex items-center gap-2">
                 <div
-                  className="h-7 w-7 rounded-lg border flex-shrink-0"
+                  className="size-7 rounded-lg border flex-shrink-0"
                   style={{ backgroundColor: categoryFormData.color_hex }}
                 />
                 <Input
+                  id={`${fieldId}-2120`}
                   type="text"
                   value={categoryFormData.color_hex}
-                  onChange={(e) => setCategoryFormData({ ...categoryFormData, color_hex: e.target.value })}
-                  className="text-xs font-mono h-8.5 max-w-[120px]"
+                  onChange={(e) =>
+                    setCategoryFormData({ ...categoryFormData, color_hex: e.target.value })
+                  }
+                  className="h-8.5 max-w-[120px]"
                 />
               </div>
 
@@ -2132,15 +2281,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                     key={color}
                     type="button"
                     onClick={() => setCategoryFormData({ ...categoryFormData, color_hex: color })}
-                    className={`h-5 w-5 rounded-full border transition-transform ${
-                      categoryFormData.color_hex === color ? 'scale-125 ring-2 ring-primary ring-offset-1' : 'hover:scale-110'
-                    }`}
+                    className={cn(
+                      'size-5 rounded-full border transition-transform',
+                      categoryFormData.color_hex === color
+                        ? 'scale-125 ring-2 ring-primary ring-offset-1'
+                        : 'hover:scale-110'
+                    )}
                     style={{ backgroundColor: color }}
                   />
                 ))}
               </div>
-            </div>
-          </div>
+            </Field>
+          </FieldGroup>
 
           <DialogFooter className="gap-2 pt-2">
             <Button variant="outline" size="sm" onClick={() => setShowAddCategoryModal(false)}>
@@ -2150,7 +2302,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
               size="sm"
               onClick={() => createCategoryMutation.mutate(categoryFormData)}
               disabled={createCategoryMutation.isPending || !categoryFormData.name.trim()}
-              className="font-semibold"
             >
               {createCategoryMutation.isPending ? 'Creating...' : 'Create Category'}
             </Button>
@@ -2159,15 +2310,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
       </Dialog>
 
       {/* Delete Category Confirmation Dialog */}
-      <Dialog open={!!showDeleteCategoryModal} onOpenChange={(open) => !open && setShowDeleteCategoryModal(null)}>
+      <Dialog
+        open={!!showDeleteCategoryModal}
+        onOpenChange={(open) => !open && setShowDeleteCategoryModal(null)}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-base font-semibold text-destructive flex items-center gap-2">
-              <Trash2 className="h-5 w-5" /> Delete Category
+              <Trash2 className="size-5" /> Delete Category
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Are you sure you want to delete <strong className="text-foreground">{showDeleteCategoryModal?.name}</strong>?
-              Any transactions or rules currently mapped to this category will be unassigned.
+              Are you sure you want to delete{' '}
+              <strong className="text-foreground">{showDeleteCategoryModal?.name}</strong>? Any
+              transactions or rules currently mapped to this category will be unassigned.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 pt-2">
@@ -2202,10 +2357,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-base font-semibold flex items-center gap-2">
-              <KeyRound className="h-5 w-5 text-primary" /> Setup Master Password / PIN
+              <KeyRound className="size-5 text-primary" /> Setup Master Password / PIN
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Configure a password or PIN to encrypt and restrict access to your local finance ledger
+              Configure a password or PIN to encrypt and restrict access to your local finance
+              ledger
             </DialogDescription>
           </DialogHeader>
 
@@ -2223,11 +2379,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
               }
               setupAuthMutation.mutate()
             }}
-            className="space-y-3.5 py-2 text-xs"
+            className="flex flex-col gap-3.5 py-2 text-xs"
           >
-            <div className="space-y-1">
-              <label className="font-semibold text-foreground">Master Password or PIN *</label>
+            <Field className="flex flex-col gap-1">
+              <FieldLabel htmlFor={`${fieldId}-2230`} className="font-semibold text-foreground">
+                Master Password or PIN *
+              </FieldLabel>
               <Input
+                id={`${fieldId}-2230`}
                 type="password"
                 placeholder="Enter master password or PIN (min 4 chars)"
                 value={setupPassword}
@@ -2235,14 +2394,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                   setSetupPassword(e.target.value)
                   if (securityActionError) setSecurityActionError(null)
                 }}
-                className="text-xs font-mono h-8.5"
+                className="h-8.5"
                 autoFocus
               />
-            </div>
+            </Field>
 
-            <div className="space-y-1">
-              <label className="font-semibold text-foreground">Confirm Password or PIN *</label>
+            <Field className="flex flex-col gap-1">
+              <FieldLabel htmlFor={`${fieldId}-2245`} className="font-semibold text-foreground">
+                Confirm Password or PIN *
+              </FieldLabel>
               <Input
+                id={`${fieldId}-2245`}
                 type="password"
                 placeholder="Re-enter password or PIN"
                 value={setupConfirmPassword}
@@ -2250,31 +2412,35 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                   setSetupConfirmPassword(e.target.value)
                   if (securityActionError) setSecurityActionError(null)
                 }}
-                className="text-xs font-mono h-8.5"
+                className="h-8.5"
               />
-            </div>
+            </Field>
 
-            <div className="space-y-1">
-              <label className="font-semibold text-foreground">Auto-Lock Inactivity Duration</label>
+            <Field className="flex flex-col gap-1">
+              <FieldLabel htmlFor={`${fieldId}-2263`} className="font-semibold text-foreground">
+                Auto-Lock Inactivity Duration
+              </FieldLabel>
               <Select
                 value={String(setupAutoLock)}
                 onValueChange={(val) => val && setSetupAutoLock(parseInt(val, 10))}
               >
-                <SelectTrigger className="text-xs h-8.5">
+                <SelectTrigger id={`${fieldId}-2263`} className="h-8.5">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="15">15 Minutes</SelectItem>
-                  <SelectItem value="30">30 Minutes</SelectItem>
-                  <SelectItem value="60">1 Hour (Recommended)</SelectItem>
-                  <SelectItem value="240">4 Hours</SelectItem>
+                  <SelectGroup>
+                    <SelectItem value="15">15 Minutes</SelectItem>
+                    <SelectItem value="30">30 Minutes</SelectItem>
+                    <SelectItem value="60">1 Hour (Recommended)</SelectItem>
+                    <SelectItem value="240">4 Hours</SelectItem>
+                  </SelectGroup>
                 </SelectContent>
               </Select>
-            </div>
+            </Field>
 
             {securityActionError && (
               <div className="flex items-center gap-1.5 text-xs text-destructive font-medium pt-1">
-                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                <AlertCircle className="size-3.5 shrink-0" />
                 <span>{securityActionError}</span>
               </div>
             )}
@@ -2292,7 +2458,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                 type="submit"
                 size="sm"
                 disabled={setupAuthMutation.isPending || !setupPassword || !setupConfirmPassword}
-                className="font-semibold"
               >
                 {setupAuthMutation.isPending ? 'Enabling...' : 'Enable App Lock'}
               </Button>
@@ -2306,7 +2471,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-base font-semibold flex items-center gap-2">
-              <Edit2 className="h-5 w-5 text-primary" /> Change Master Password
+              <Edit2 className="size-5 text-primary" /> Change Master Password
             </DialogTitle>
             <DialogDescription className="text-xs">
               Verify your current master password to set a new password or PIN
@@ -2327,11 +2492,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
               }
               changePasswordMutation.mutate()
             }}
-            className="space-y-3.5 py-2 text-xs"
+            className="flex flex-col gap-3.5 py-2 text-xs"
           >
-            <div className="space-y-1">
-              <label className="font-semibold text-foreground">Current Password *</label>
+            <Field className="flex flex-col gap-1">
+              <FieldLabel htmlFor={`${fieldId}-2334`} className="font-semibold text-foreground">
+                Current Password *
+              </FieldLabel>
               <Input
+                id={`${fieldId}-2334`}
                 type="password"
                 placeholder="Enter current password"
                 value={changeCurrentPassword}
@@ -2339,14 +2507,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                   setChangeCurrentPassword(e.target.value)
                   if (securityActionError) setSecurityActionError(null)
                 }}
-                className="text-xs font-mono h-8.5"
+                className="h-8.5"
                 autoFocus
               />
-            </div>
+            </Field>
 
-            <div className="space-y-1">
-              <label className="font-semibold text-foreground">New Password *</label>
+            <Field className="flex flex-col gap-1">
+              <FieldLabel htmlFor={`${fieldId}-2349`} className="font-semibold text-foreground">
+                New Password *
+              </FieldLabel>
               <Input
+                id={`${fieldId}-2349`}
                 type="password"
                 placeholder="Enter new password (min 4 chars)"
                 value={changeNewPassword}
@@ -2354,13 +2525,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                   setChangeNewPassword(e.target.value)
                   if (securityActionError) setSecurityActionError(null)
                 }}
-                className="text-xs font-mono h-8.5"
+                className="h-8.5"
               />
-            </div>
+            </Field>
 
-            <div className="space-y-1">
-              <label className="font-semibold text-foreground">Confirm New Password *</label>
+            <Field className="flex flex-col gap-1">
+              <FieldLabel htmlFor={`${fieldId}-2363`} className="font-semibold text-foreground">
+                Confirm New Password *
+              </FieldLabel>
               <Input
+                id={`${fieldId}-2363`}
                 type="password"
                 placeholder="Re-enter new password"
                 value={changeConfirmPassword}
@@ -2368,13 +2542,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                   setChangeConfirmPassword(e.target.value)
                   if (securityActionError) setSecurityActionError(null)
                 }}
-                className="text-xs font-mono h-8.5"
+                className="h-8.5"
               />
-            </div>
+            </Field>
 
             {securityActionError && (
               <div className="flex items-center gap-1.5 text-xs text-destructive font-medium pt-1">
-                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                <AlertCircle className="size-3.5 shrink-0" />
                 <span>{securityActionError}</span>
               </div>
             )}
@@ -2391,8 +2565,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
               <Button
                 type="submit"
                 size="sm"
-                disabled={changePasswordMutation.isPending || !changeCurrentPassword || !changeNewPassword || !changeConfirmPassword}
-                className="font-semibold"
+                disabled={
+                  changePasswordMutation.isPending ||
+                  !changeCurrentPassword ||
+                  !changeNewPassword ||
+                  !changeConfirmPassword
+                }
               >
                 {changePasswordMutation.isPending ? 'Updating...' : 'Update Password'}
               </Button>
@@ -2406,10 +2584,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-base font-semibold text-destructive flex items-center gap-2">
-              <ShieldAlert className="h-5 w-5" /> Disable App Lock &amp; Password
+              <ShieldAlert className="size-5" /> Disable App Lock &amp; Password
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Disabling app lock removes password protection. Any local user on this computer will be able to view your financial accounts and transactions.
+              Disabling app lock removes password protection. Any local user on this computer will
+              be able to view your financial accounts and transactions.
             </DialogDescription>
           </DialogHeader>
 
@@ -2419,11 +2598,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
               if (!disablePassword) return
               disableAuthMutation.mutate()
             }}
-            className="space-y-3.5 py-2 text-xs"
+            className="flex flex-col gap-3.5 py-2 text-xs"
           >
-            <div className="space-y-1">
-              <label className="font-semibold text-foreground">Confirm Current Master Password *</label>
+            <Field className="flex flex-col gap-1">
+              <FieldLabel htmlFor={`${fieldId}-2426`} className="font-semibold text-foreground">
+                Confirm Current Master Password *
+              </FieldLabel>
               <Input
+                id={`${fieldId}-2426`}
                 type="password"
                 placeholder="Enter current password to confirm"
                 value={disablePassword}
@@ -2431,14 +2613,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                   setDisablePassword(e.target.value)
                   if (securityActionError) setSecurityActionError(null)
                 }}
-                className="text-xs font-mono h-8.5"
+                className="h-8.5"
                 autoFocus
               />
-            </div>
+            </Field>
 
             {securityActionError && (
               <div className="flex items-center gap-1.5 text-xs text-destructive font-medium pt-1">
-                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                <AlertCircle className="size-3.5 shrink-0" />
                 <span>{securityActionError}</span>
               </div>
             )}
@@ -2457,7 +2639,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                 variant="destructive"
                 size="sm"
                 disabled={disableAuthMutation.isPending || !disablePassword}
-                className="font-semibold"
               >
                 {disableAuthMutation.isPending ? 'Disabling...' : 'Confirm & Disable'}
               </Button>

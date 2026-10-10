@@ -1,3 +1,4 @@
+import { PageLoading, QueryError } from '@/components/ui/query-state'
 import React from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fetchCategories, fetchRules } from '@/lib/api'
@@ -14,33 +15,50 @@ import {
 } from '@/components/ui/table'
 
 export const RulesManager: React.FC = () => {
-  const { data: categories } = useQuery({
+  const {
+    data: categories,
+    isLoading: categoriesLoading,
+    isError: categoriesError,
+    refetch: refetchCategories,
+  } = useQuery({
     queryKey: ['categories'],
     queryFn: fetchCategories,
   })
 
-  const { data: rules } = useQuery({
+  const {
+    data: rules,
+    isLoading: rulesLoading,
+    isError: rulesError,
+    refetch: refetchRules,
+  } = useQuery({
     queryKey: ['rules'],
     queryFn: fetchRules,
   })
 
+  if (categoriesLoading || rulesLoading) return <PageLoading label="Loading categories and rules" />
+  if (categoriesError || rulesError)
+    return (
+      <QueryError
+        message="Unable to load categories and rules"
+        onRetry={() => Promise.all([refetchCategories(), refetchRules()])}
+      />
+    )
+
   return (
-    <div className="space-y-8">
+    <div className="flex flex-col gap-8">
       {/* Categories Grid */}
-      <Card className="border-border/80 bg-card shadow-xs">
+      <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <Tags className="h-4 w-4 text-primary" /> Spending Categories
+                <Tags className="size-4 text-primary" /> Spending Categories
               </CardTitle>
               <CardDescription className="text-xs">
                 Classification system tailored for Indian personal and household finances
               </CardDescription>
             </div>
-            <Badge variant="secondary" className="text-xs font-mono">
-              {categories?.length || 0} Categories
-            </Badge>
+            <Badge variant="secondary">{categories?.length || 0} Categories</Badge>
           </div>
         </CardHeader>
         <CardContent>
@@ -51,7 +69,7 @@ export const RulesManager: React.FC = () => {
                 className="flex items-center gap-3 rounded-lg border border-border/70 bg-muted/30 p-3 transition-colors hover:border-border"
               >
                 <div
-                  className="h-3 w-3 rounded-full flex-shrink-0"
+                  className="size-3 rounded-full flex-shrink-0"
                   style={{ backgroundColor: cat.color_hex }}
                 />
                 <div className="truncate">
@@ -67,20 +85,19 @@ export const RulesManager: React.FC = () => {
       </Card>
 
       {/* Auto-Categorization Rules Table */}
-      <Card className="border-border/80 bg-card shadow-xs">
+      <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <Sliders className="h-4 w-4 text-primary" /> Auto-Categorization Rules
+                <Sliders className="size-4 text-primary" /> Auto-Categorization Rules
               </CardTitle>
               <CardDescription className="text-xs">
-                Keyword and regex pattern matchers that classify incoming UPI VPAs, POS merchant names, and narrations
+                Keyword and regex pattern matchers that classify incoming UPI VPAs, POS merchant
+                names, and narrations
               </CardDescription>
             </div>
-            <Badge variant="secondary" className="text-xs font-mono">
-              {rules?.length || 0} Rules
-            </Badge>
+            <Badge variant="secondary">{rules?.length || 0} Rules</Badge>
           </div>
         </CardHeader>
         <CardContent className="pt-0">
@@ -91,9 +108,15 @@ export const RulesManager: React.FC = () => {
                   <TableHead className="text-xs font-semibold uppercase">Priority</TableHead>
                   <TableHead className="text-xs font-semibold uppercase">Match Field</TableHead>
                   <TableHead className="text-xs font-semibold uppercase">Type</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase">Pattern / Keyword</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase">Assigned Category</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase text-right">Status</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase">
+                    Pattern / Keyword
+                  </TableHead>
+                  <TableHead className="text-xs font-semibold uppercase">
+                    Assigned Category
+                  </TableHead>
+                  <TableHead className="text-xs font-semibold uppercase text-right">
+                    Status
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -102,17 +125,19 @@ export const RulesManager: React.FC = () => {
                     <TableCell className="font-mono text-muted-foreground">{r.priority}</TableCell>
                     <TableCell className="font-mono text-foreground">{r.match_field}</TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="font-mono text-[10px] uppercase">
+                      <Badge variant="outline" className="uppercase">
                         {r.match_type}
                       </Badge>
                     </TableCell>
-                    <TableCell className="font-mono font-medium text-emerald-400">{r.match_pattern}</TableCell>
+                    <TableCell className="font-mono font-medium text-success">
+                      {r.match_pattern}
+                    </TableCell>
                     <TableCell className="font-semibold text-foreground">
                       {r.target_category || r.target_category_id}
                     </TableCell>
                     <TableCell className="text-right">
-                      <span className="inline-flex items-center text-[11px] font-medium text-emerald-400">
-                        <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Active
+                      <span className="inline-flex items-center text-[11px] font-medium text-success">
+                        <CheckCircle2 className="mr-1 size-3.5" /> Active
                       </span>
                     </TableCell>
                   </TableRow>

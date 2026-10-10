@@ -1,13 +1,17 @@
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { usePrivacy } from '@/components/privacy-provider'
+import {
+  Table,
+  TableHeader,
+  TableRow,
+  TableHead,
+  TableBody,
+  TableCell,
+} from '@/components/ui/table'
 import React, { useState } from 'react'
 import { CategoryComparisonItem } from '@/types'
 import { formatINR } from '@/lib/utils'
-import {
-  ArrowUpRight,
-  ArrowDownRight,
-  ArrowRight,
-  Search,
-  SlidersHorizontal,
-} from 'lucide-react'
+import { ArrowUpRight, ArrowDownRight, ArrowRight, Search, SlidersHorizontal } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 
@@ -26,13 +30,17 @@ export const CategoryComparisonTable: React.FC<CategoryComparisonTableProps> = (
   totalOutflow,
   onCategoryClick,
 }) => {
+  const { isPrivacyMode } = usePrivacy()
+  const money = (amount: number) => (isPrivacyMode ? '₹••••••' : formatINR(amount, isPrivacyMode))
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState<'spend' | 'delta_asc' | 'delta_desc' | 'pct'>('spend')
 
   const filteredItems = items
-    .filter((it) =>
-      it.category_name.toLowerCase().includes(search.toLowerCase()) ||
-      (it.top_payees && it.top_payees.some((p) => p.payee.toLowerCase().includes(search.toLowerCase())))
+    .filter(
+      (it) =>
+        it.category_name.toLowerCase().includes(search.toLowerCase()) ||
+        (it.top_payees &&
+          it.top_payees.some((p) => p.payee.toLowerCase().includes(search.toLowerCase())))
     )
     .sort((a, b) => {
       if (sortBy === 'spend') return b.current_spend - a.current_spend
@@ -54,11 +62,13 @@ export const CategoryComparisonTable: React.FC<CategoryComparisonTableProps> = (
     const minVal = Math.min(...history.map((h) => h.amount), 0)
     const range = maxVal - minVal || 1
 
-    const points = history.map((h, i) => {
-      const x = (i / (history.length - 1)) * (width - 4) + 2
-      const y = height - 2 - ((h.amount - minVal) / range) * (height - 6)
-      return `${x.toFixed(1)},${y.toFixed(1)}`
-    }).join(' ')
+    const points = history
+      .map((h, i) => {
+        const x = (i / (history.length - 1)) * (width - 4) + 2
+        const y = height - 2 - ((h.amount - minVal) / range) * (height - 6)
+        return `${x.toFixed(1)},${y.toFixed(1)}`
+      })
+      .join(' ')
 
     return (
       <svg width={width} height={height} className="overflow-visible">
@@ -88,11 +98,11 @@ export const CategoryComparisonTable: React.FC<CategoryComparisonTableProps> = (
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-            <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
+            <SlidersHorizontal className="size-3.5 text-primary" />
             Category Shifts &amp; 6-Month Trajectory
           </h3>
           <p className="text-[11px] text-muted-foreground mt-0.5">
@@ -100,147 +110,142 @@ export const CategoryComparisonTable: React.FC<CategoryComparisonTableProps> = (
           </p>
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <div className="relative flex-1 sm:w-56">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+        <div className="flex flex-col lg:flex-row items-stretch gap-2 w-full lg:w-auto">
+          <div className="relative flex-1 lg:w-56">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
             <Input
+              aria-label="Search category / payee"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search category / payee..."
-              className="h-8 pl-8 text-xs"
+              className="h-8 pl-8"
             />
           </div>
 
-          <div className="flex items-center gap-1 text-xs">
-            <button
-              onClick={() => setSortBy('spend')}
-              className={`px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${
-                sortBy === 'spend'
-                  ? 'bg-primary/10 text-primary font-semibold'
-                  : 'text-muted-foreground hover:bg-muted'
-              }`}
-            >
-              Highest Spend
-            </button>
-            <button
-              onClick={() => setSortBy('delta_desc')}
-              className={`px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${
-                sortBy === 'delta_desc'
-                  ? 'bg-primary/10 text-primary font-semibold'
-                  : 'text-muted-foreground hover:bg-muted'
-              }`}
-            >
-              Surges
-            </button>
-            <button
-              onClick={() => setSortBy('delta_asc')}
-              className={`px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${
-                sortBy === 'delta_asc'
-                  ? 'bg-primary/10 text-primary font-semibold'
-                  : 'text-muted-foreground hover:bg-muted'
-              }`}
-            >
-              Drops
-            </button>
-          </div>
+          <ToggleGroup
+            value={[sortBy]}
+            onValueChange={(values) => {
+              if (values[0]) setSortBy(values[0] as typeof sortBy)
+            }}
+            aria-label="Sort category changes"
+            size="sm"
+            variant="outline"
+          >
+            <ToggleGroupItem value="spend">Highest spend</ToggleGroupItem>
+            <ToggleGroupItem value="delta_desc">Surges</ToggleGroupItem>
+            <ToggleGroupItem value="delta_asc">Drops</ToggleGroupItem>
+          </ToggleGroup>
         </div>
       </div>
 
       <div className="rounded-xl border bg-card/60 backdrop-blur-xs overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-muted/50 border-b text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-              <tr>
-                <th className="py-3 px-4">Category</th>
-                <th className="py-3 px-4 text-right">Spend ({selectedMonth})</th>
-                <th className="py-3 px-4 text-right">Share</th>
-                <th className="py-3 px-4 text-right">MoM Shift</th>
-                <th className="py-3 px-4 text-right">3-Mo Avg</th>
-                <th className="py-3 px-4 text-center">6-Mo Trend</th>
-                <th className="py-3 px-4">Top Payees</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/60">
+          <Table className="w-full text-left text-xs">
+            <TableHeader className="bg-muted/50 border-b text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+              <TableRow>
+                <TableHead className="py-3 px-4">Category</TableHead>
+                <TableHead className="py-3 px-4 text-right">Spend ({selectedMonth})</TableHead>
+                <TableHead className="py-3 px-4 text-right">Share</TableHead>
+                <TableHead className="py-3 px-4 text-right">MoM Shift</TableHead>
+                <TableHead className="py-3 px-4 text-right">3-Mo Avg</TableHead>
+                <TableHead className="py-3 px-4 text-center">6-Mo Trend</TableHead>
+                <TableHead className="py-3 px-4">Top Payees</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody className="divide-y divide-border/60">
+              {filteredItems.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} className="py-8 text-center">
+                    No categories match your search.
+                  </TableCell>
+                </TableRow>
+              )}
               {filteredItems.map((item) => {
                 const sharePct = totalOutflow > 0 ? (item.current_spend / totalOutflow) * 100 : 0
 
                 return (
-                  <tr
+                  <TableRow
                     key={item.category_id}
-                    onClick={() => onCategoryClick && onCategoryClick(item.category_id)}
-                    className="hover:bg-muted/40 transition-colors cursor-pointer"
+                    onClick={() => onCategoryClick?.(item.category_id)}
+                    tabIndex={onCategoryClick ? 0 : undefined}
+                    onKeyDown={(event) => {
+                      if (
+                        event.target === event.currentTarget &&
+                        (event.key === 'Enter' || event.key === ' ')
+                      ) {
+                        event.preventDefault()
+                        onCategoryClick?.(item.category_id)
+                      }
+                    }}
+                    className="outline-none focus-visible:ring-2 focus-visible:ring-ring hover:bg-muted/40 transition-colors cursor-pointer"
                   >
                     {/* Category */}
-                    <td className="py-3 px-4 font-semibold text-foreground">
+                    <TableCell className="py-3 px-4 font-semibold text-foreground">
                       <div className="flex items-center gap-2.5">
                         <div
-                          className="h-2.5 w-2.5 rounded-full shrink-0"
+                          className="size-2.5 rounded-full shrink-0"
                           style={{ backgroundColor: item.category_color }}
                         />
                         <span className="truncate">{item.category_name}</span>
                       </div>
-                    </td>
+                    </TableCell>
 
                     {/* Spend */}
-                    <td className="py-3 px-4 text-right font-bold text-foreground">
-                      {formatINR(item.current_spend)}
-                    </td>
+                    <TableCell className="py-3 px-4 text-right font-bold text-foreground">
+                      {money(item.current_spend)}
+                    </TableCell>
 
                     {/* Share */}
-                    <td className="py-3 px-4 text-right text-muted-foreground">
+                    <TableCell className="py-3 px-4 text-right text-muted-foreground">
                       {sharePct.toFixed(1)}%
-                    </td>
+                    </TableCell>
 
                     {/* MoM Shift */}
-                    <td className="py-3 px-4 text-right">
+                    <TableCell className="py-3 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5 font-semibold">
                         {item.delta_amount > 0 ? (
-                          <span className="flex items-center gap-0.5 text-amber-600 dark:text-amber-400">
-                            <ArrowUpRight className="h-3.5 w-3.5 shrink-0" />
-                            +{formatINR(item.delta_amount)}
+                          <span className="flex items-center gap-0.5 text-warning">
+                            <ArrowUpRight className="size-3.5 shrink-0" />+
+                            {money(item.delta_amount)}
                             <span className="text-[10px] font-normal opacity-85">
                               (+{item.percentage_change.toFixed(0)}%)
                             </span>
                           </span>
                         ) : item.delta_amount < 0 ? (
-                          <span className="flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400">
-                            <ArrowDownRight className="h-3.5 w-3.5 shrink-0" />
-                            -{formatINR(Math.abs(item.delta_amount))}
+                          <span className="flex items-center gap-0.5 text-success">
+                            <ArrowDownRight className="size-3.5 shrink-0" />-
+                            {money(Math.abs(item.delta_amount))}
                             <span className="text-[10px] font-normal opacity-85">
                               ({item.percentage_change.toFixed(0)}%)
                             </span>
                           </span>
                         ) : (
                           <span className="flex items-center gap-0.5 text-muted-foreground">
-                            <ArrowRight className="h-3 w-3 shrink-0" />
+                            <ArrowRight className="size-3 shrink-0" />
                             ₹0 (0%)
                           </span>
                         )}
                       </div>
-                    </td>
+                    </TableCell>
 
                     {/* 3-Month Average */}
-                    <td className="py-3 px-4 text-right text-muted-foreground font-medium">
-                      {item.three_month_avg > 0 ? formatINR(item.three_month_avg) : '-'}
-                    </td>
+                    <TableCell className="py-3 px-4 text-right text-muted-foreground font-medium">
+                      {item.three_month_avg > 0 ? money(item.three_month_avg) : '-'}
+                    </TableCell>
 
                     {/* 6-Month Sparkline */}
-                    <td className="py-3 px-4 text-center">
+                    <TableCell className="py-3 px-4 text-center">
                       <div className="flex justify-center">
                         {renderSparkline(item.history, item.category_color)}
                       </div>
-                    </td>
+                    </TableCell>
 
                     {/* Top Payees */}
-                    <td className="py-3 px-4">
+                    <TableCell className="py-3 px-4">
                       {item.top_payees && item.top_payees.length > 0 ? (
                         <div className="flex flex-wrap gap-1">
                           {item.top_payees.map((p, idx) => (
-                            <Badge
-                              key={idx}
-                              variant="secondary"
-                              className="text-[10px] px-1.5 py-0 font-normal bg-muted text-muted-foreground"
-                            >
+                            <Badge key={idx} variant="secondary" className="px-1.5 py-0">
                               {p.payee}
                             </Badge>
                           ))}
@@ -248,12 +253,12 @@ export const CategoryComparisonTable: React.FC<CategoryComparisonTableProps> = (
                       ) : (
                         <span className="text-muted-foreground text-[11px]">-</span>
                       )}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 )
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       </div>
     </div>

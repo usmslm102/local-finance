@@ -1,6 +1,9 @@
-import React, { useState, useMemo } from 'react'
+import { cn } from '@/lib/utils'
+import { usePrivacy } from '@/components/privacy-provider'
+import { PageLoading, QueryError } from '@/components/ui/query-state'
+import React, { useState, useMemo, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { fetchAccounts, fetchAllTransactions } from '@/lib/api'
+import { fetchAccounts, fetchAllTransactions, fetchTransactions } from '@/lib/api'
 import { Transaction, Account } from '@/types'
 import { formatDate, formatINR } from '@/lib/utils'
 import {
@@ -75,18 +78,23 @@ function makeDateKey(year: number, monthIndex: number, day: number): string {
 
 function isTodayDate(year: number, monthIndex: number, day: number): boolean {
   const today = new Date()
-  return (
-    today.getFullYear() === year &&
-    today.getMonth() === monthIndex &&
-    today.getDate() === day
-  )
+  return today.getFullYear() === year && today.getMonth() === monthIndex && today.getDate() === day
 }
 
 export const CalendarView: React.FC = () => {
-  // Default to August 2026 (or current active dataset date)
-  const [currentDate, setCurrentDate] = useState(() => {
-    return new Date(2026, 7, 1) // August 2026
+  const { isPrivacyMode } = usePrivacy()
+  const [currentDate, setCurrentDate] = useState(
+    () => new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+  )
+  const [hasNavigated, setHasNavigated] = useState(false)
+  const latest = useQuery({
+    queryKey: ['transactions', 'calendar-latest'],
+    queryFn: () => fetchTransactions({ page_size: 1 }),
   })
+  const latestMonth = latest.data?.items[0]?.tx_date.slice(0, 7)
+  useEffect(() => {
+    if (!hasNavigated && latestMonth) setCurrentDate(new Date(`${latestMonth}-01T00:00:00`))
+  }, [latestMonth, hasNavigated])
   const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null)
   const [daySearch, setDaySearch] = useState('')
 
@@ -98,7 +106,12 @@ export const CalendarView: React.FC = () => {
   const lastDayOfMonth = new Date(year, month + 1, 0).getDate()
   const endOfMonthStr = makeDateKey(year, month, lastDayOfMonth)
 
-  const { data: rawTransactions } = useQuery({
+  const {
+    data: rawTransactions,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ['transactions', 'calendar', startOfMonthStr, endOfMonthStr],
     queryFn: () =>
       fetchAllTransactions({
@@ -143,7 +156,15 @@ export const CalendarView: React.FC = () => {
     // Source breakdown map: accountId -> { account, totalSpent, count }
     const sourceMap = new Map<
       string,
-      { accountId: string; bankName: string; accountType: string; mask: string; variant?: string; totalSpent: number; count: number }
+      {
+        accountId: string
+        bankName: string
+        accountType: string
+        mask: string
+        variant?: string
+        totalSpent: number
+        count: number
+      }
     >()
 
     transactions.forEach((tx) => {
@@ -193,9 +214,7 @@ export const CalendarView: React.FC = () => {
     const netCashFlow = totalInflow - totalOutflow
 
     // Sort sources by total spend descending
-    const sourcesList = Array.from(sourceMap.values()).sort(
-      (a, b) => b.totalSpent - a.totalSpent
-    )
+    const sourcesList = Array.from(sourceMap.values()).sort((a, b) => b.totalSpent - a.totalSpent)
 
     return {
       totalOutflow,
@@ -313,15 +332,18 @@ export const CalendarView: React.FC = () => {
 
   // Navigation handlers
   const handlePrevMonth = () => {
+    setHasNavigated(true)
     setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))
   }
 
   const handleNextMonth = () => {
+    setHasNavigated(true)
     setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))
   }
 
   const handleJumpToLatestData = () => {
-    setCurrentDate(new Date(2026, 7, 1)) // August 2026
+    setHasNavigated(true)
+    setCurrentDate(latestMonth ? new Date(`${latestMonth}-01T00:00:00`) : new Date())
   }
 
   // Selected Day Transactions & Calculations
@@ -371,13 +393,16 @@ export const CalendarView: React.FC = () => {
     }
   }, [selectedDayKey, selectedDayTransactions])
 
+  if (isLoading) return <PageLoading label="Loading calendar" />
+  if (isError) return <QueryError message="Unable to load calendar" onRetry={refetch} />
+
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       {/* Top Header & Month Navigation */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl flex items-center gap-2.5">
-            <CalendarIcon className="h-7 w-7 text-primary" /> Spending Calendar
+            <CalendarIcon className="size-7 text-primary" /> Spending Calendar
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
             Day-by-day cash flow & expense tracking across your bank accounts & credit cards
@@ -385,15 +410,16 @@ export const CalendarView: React.FC = () => {
         </div>
 
         {/* Month Selector Controls */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
+            aria-label="Previous Month"
             variant="outline"
             size="sm"
             onClick={handlePrevMonth}
-            className="h-8 w-8 p-0"
+            className="size-8 p-0"
             title="Previous Month"
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft data-icon="inline-start" />
           </Button>
 
           <div className="min-w-[160px] text-center font-bold text-sm tracking-tight text-foreground px-2">
@@ -401,41 +427,42 @@ export const CalendarView: React.FC = () => {
           </div>
 
           <Button
+            aria-label="Next Month"
             variant="outline"
             size="sm"
             onClick={handleNextMonth}
-            className="h-8 w-8 p-0"
+            className="size-8 p-0"
             title="Next Month"
           >
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight data-icon="inline-start" />
           </Button>
 
           <Button
             variant="secondary"
             size="sm"
             onClick={handleJumpToLatestData}
-            className="h-8 text-xs font-semibold ml-1"
+            className="h-8 ml-1"
           >
-            Active Data (Aug '26)
+            Latest activity
           </Button>
         </div>
       </div>
 
       {/* Month Key Financial Highlights Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-border/80 bg-card shadow-xs">
+        <Card>
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Month Outflow (Spend)
               </span>
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg border bg-rose-500/10 text-rose-400 border-rose-500/20">
-                <TrendingDown className="h-4 w-4" />
+              <div className="flex size-8 items-center justify-center rounded-lg border bg-destructive/10 text-destructive border-destructive/20">
+                <TrendingDown className="size-4" />
               </div>
             </div>
             <div className="mt-3">
               <div className="text-2xl font-bold font-mono tracking-tight text-foreground tabular-nums">
-                {formatINR(monthStats.totalOutflow)}
+                {formatINR(monthStats.totalOutflow, isPrivacyMode)}
               </div>
               <p className="mt-1 text-xs text-muted-foreground font-medium">
                 Total debit expenses this month
@@ -444,19 +471,19 @@ export const CalendarView: React.FC = () => {
           </CardContent>
         </Card>
 
-        <Card className="border-border/80 bg-card shadow-xs">
+        <Card>
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Month Inflow (Credits)
               </span>
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
-                <TrendingUp className="h-4 w-4" />
+              <div className="flex size-8 items-center justify-center rounded-lg border bg-success/10 text-success border-success/20">
+                <TrendingUp className="size-4" />
               </div>
             </div>
             <div className="mt-3">
-              <div className="text-2xl font-bold font-mono tracking-tight text-emerald-400 tabular-nums">
-                {formatINR(monthStats.totalInflow)}
+              <div className="text-2xl font-bold font-mono tracking-tight text-success tabular-nums">
+                {formatINR(monthStats.totalInflow, isPrivacyMode)}
               </div>
               <p className="mt-1 text-xs text-muted-foreground font-medium">
                 Salary, refunds & income
@@ -465,19 +492,19 @@ export const CalendarView: React.FC = () => {
           </CardContent>
         </Card>
 
-        <Card className="border-border/80 bg-card shadow-xs">
+        <Card>
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Daily Average Outflow
               </span>
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg border bg-primary/10 text-primary border-primary/20">
-                <Sparkles className="h-4 w-4" />
+              <div className="flex size-8 items-center justify-center rounded-lg border bg-primary/10 text-primary border-primary/20">
+                <Sparkles className="size-4" />
               </div>
             </div>
             <div className="mt-3">
               <div className="text-2xl font-bold font-mono tracking-tight text-foreground tabular-nums">
-                {formatINR(monthStats.dailyAverage)}
+                {formatINR(monthStats.dailyAverage, isPrivacyMode)}
               </div>
               <p className="mt-1 text-xs text-muted-foreground font-medium">
                 Average spend per day in {MONTH_NAMES[month].slice(0, 3)}
@@ -486,19 +513,21 @@ export const CalendarView: React.FC = () => {
           </CardContent>
         </Card>
 
-        <Card className="border-border/80 bg-card shadow-xs">
+        <Card>
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Peak Spending Day
               </span>
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg border bg-amber-500/10 text-amber-400 border-amber-500/20">
-                <ArrowUpRight className="h-4 w-4" />
+              <div className="flex size-8 items-center justify-center rounded-lg border bg-warning/10 text-warning border-warning/20">
+                <ArrowUpRight className="size-4" />
               </div>
             </div>
             <div className="mt-3">
               <div className="text-2xl font-bold font-mono tracking-tight text-foreground tabular-nums">
-                {monthStats.peakDayAmount > 0 ? formatINR(monthStats.peakDayAmount) : '₹0.00'}
+                {monthStats.peakDayAmount > 0
+                  ? formatINR(monthStats.peakDayAmount, isPrivacyMode)
+                  : '₹0.00'}
               </div>
               <p className="mt-1 text-xs text-muted-foreground font-medium truncate">
                 {monthStats.peakDayKey ? formatDate(monthStats.peakDayKey) : 'No spend recorded'}
@@ -510,15 +539,14 @@ export const CalendarView: React.FC = () => {
 
       {/* Monthly Spend by Account / Card Source Breakdown */}
       {monthStats.sourcesList.length > 0 && (
-        <Card className="border-border/80 bg-card shadow-xs">
+        <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <CreditCard className="h-4 w-4 text-primary" /> Monthly Outflow by Account / Card Source
+                <CreditCard className="size-4 text-primary" /> Monthly Outflow by Account / Card
+                Source
               </CardTitle>
-              <Badge variant="secondary" className="font-mono text-xs">
-                {monthStats.sourcesList.length} Active Sources
-              </Badge>
+              <Badge variant="secondary">{monthStats.sourcesList.length} Active Sources</Badge>
             </div>
             <CardDescription className="text-xs">
               Distribution of your monthly spending across linked bank accounts and credit cards
@@ -542,27 +570,28 @@ export const CalendarView: React.FC = () => {
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-center gap-1.5 min-w-0">
                           {isCard ? (
-                            <CreditCard className="h-4 w-4 text-amber-400 shrink-0" />
+                            <CreditCard className="size-4 text-warning shrink-0" />
                           ) : (
-                            <Landmark className="h-4 w-4 text-sky-400 shrink-0" />
+                            <Landmark className="size-4 text-info shrink-0" />
                           )}
                           <p className="text-xs font-semibold text-foreground truncate">
                             {source.bankName}
                           </p>
                         </div>
-                        <Badge variant="outline" className="text-[10px] font-mono px-1 py-0 shrink-0">
+                        <Badge variant="outline" className="px-1 py-0 shrink-0">
                           {percentage.toFixed(0)}%
                         </Badge>
                       </div>
                       <p className="text-[11px] text-muted-foreground font-mono mt-0.5">
-                        {source.variant || source.accountType} {source.mask ? `• ${source.mask}` : ''}
+                        {source.variant || source.accountType}{' '}
+                        {source.mask ? `• ${source.mask}` : ''}
                       </p>
                     </div>
 
                     <div className="mt-3">
                       <div className="flex items-baseline justify-between">
                         <span className="text-sm font-bold font-mono text-foreground tabular-nums">
-                          {formatINR(source.totalSpent)}
+                          {formatINR(source.totalSpent, isPrivacyMode)}
                         </span>
                         <span className="text-[10px] font-mono text-muted-foreground">
                           {source.count} {source.count === 1 ? 'tx' : 'txs'}
@@ -584,9 +613,9 @@ export const CalendarView: React.FC = () => {
       )}
 
       {/* Main Calendar Grid */}
-      <Card className="border-border/80 bg-card shadow-xs overflow-hidden">
+      <Card className="overflow-hidden">
         <div className="overflow-x-auto w-full">
-          <div className="min-w-[600px]">
+          <div className="min-w-0">
             {/* Days of Week Header */}
             <div className="grid grid-cols-7 border-b bg-muted/50 text-center text-xs font-semibold text-muted-foreground py-2.5">
               {DAY_LABELS.map((dayLabel, idx) => (
@@ -607,9 +636,9 @@ export const CalendarView: React.FC = () => {
                 let intensityBg = 'bg-card'
                 if (dayItem.isCurrentMonth && hasSpend) {
                   if (dayItem.debitTotal > 5000) {
-                    intensityBg = 'bg-rose-500/15 hover:bg-rose-500/25'
+                    intensityBg = 'bg-destructive/15 hover:bg-destructive/25'
                   } else if (dayItem.debitTotal > 1500) {
-                    intensityBg = 'bg-amber-500/10 hover:bg-amber-500/20'
+                    intensityBg = 'bg-warning/10 hover:bg-warning/20'
                   } else {
                     intensityBg = 'bg-primary/5 hover:bg-primary/15'
                   }
@@ -620,60 +649,65 @@ export const CalendarView: React.FC = () => {
                 }
 
                 return (
-                  <div
+                  <Button
+                    variant="ghost"
                     key={dayItem.dateKey}
+                    aria-label={`${formatDate(dayItem.dateKey)}, ${dayItem.txCount} transactions`}
+                    aria-pressed={isSelected}
+                    disabled={dayItem.txCount === 0}
                     onClick={() => {
                       if (dayItem.txCount > 0) {
                         setSelectedDayKey(dayItem.dateKey)
                         setDaySearch('')
                       }
                     }}
-                    className={`min-h-[105px] sm:min-h-[120px] p-2 sm:p-2.5 transition-all flex flex-col justify-between relative cursor-pointer select-none ${intensityBg} ${
-                      isSelected ? 'ring-2 ring-primary z-10' : ''
-                    } ${dayItem.isToday ? 'border-t-2 border-t-primary' : ''}`}
+                    className={cn(
+                      'h-auto min-h-16 sm:min-h-[120px] min-w-0 rounded-none whitespace-normal p-1 sm:p-2.5 transition-all flex flex-col justify-between relative cursor-pointer select-none',
+                      intensityBg,
+                      isSelected ? 'ring-2 ring-primary z-10' : '',
+                      dayItem.isToday ? 'border-t-2 border-t-primary' : ''
+                    )}
                   >
                     {/* Day Number Header */}
                     <div className="flex items-center justify-between">
                       <span
-                        className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold font-mono ${
+                        className={cn(
+                          'inline-flex size-6 items-center justify-center rounded-full text-xs font-semibold font-mono',
                           dayItem.isToday
                             ? 'bg-primary text-primary-foreground font-bold'
                             : dayItem.isCurrentMonth
-                            ? 'text-foreground'
-                            : 'text-muted-foreground'
-                        }`}
+                              ? 'text-foreground'
+                              : 'text-muted-foreground'
+                        )}
                       >
                         {dayItem.dayNumber}
                       </span>
 
                       {dayItem.txCount > 0 && (
-                        <Badge
-                          variant="secondary"
-                          className="px-1.5 py-0 text-[10px] font-mono h-4 shrink-0 font-medium"
-                        >
+                        <Badge variant="secondary" className="px-1.5 py-0 h-4 shrink-0">
                           {dayItem.txCount}
                         </Badge>
                       )}
                     </div>
 
                     {/* Day Financial Figures */}
-                    <div className="mt-1.5 space-y-1">
+                    <div className="mt-1.5 hidden sm:flex flex-col gap-1">
                       {hasSpend ? (
                         <div>
-                          <span className="text-[10px] uppercase font-semibold text-rose-400 block leading-tight">
+                          <span className="text-[10px] uppercase font-semibold text-destructive block leading-tight">
                             Spent
                           </span>
                           <span className="text-xs sm:text-sm font-bold font-mono tracking-tight text-foreground tabular-nums block leading-tight">
-                            {formatINR(dayItem.debitTotal)}
+                            {formatINR(dayItem.debitTotal, isPrivacyMode)}
                           </span>
                         </div>
                       ) : hasCredit ? (
                         <div>
-                          <span className="text-[10px] uppercase font-semibold text-emerald-400 block leading-tight">
+                          <span className="text-[10px] uppercase font-semibold text-success block leading-tight">
                             Credit
                           </span>
-                          <span className="text-xs font-bold font-mono text-emerald-400 tabular-nums block leading-tight">
-                            +{formatINR(dayItem.creditTotal)}
+                          <span className="text-xs font-bold font-mono text-success tabular-nums block leading-tight">
+                            +{formatINR(dayItem.creditTotal, isPrivacyMode)}
                           </span>
                         </div>
                       ) : dayItem.isCurrentMonth ? (
@@ -684,15 +718,15 @@ export const CalendarView: React.FC = () => {
 
                       {/* If both debit and credit on same day, show credit as subtext */}
                       {hasSpend && hasCredit && (
-                        <span className="text-[10px] font-mono font-medium text-emerald-400 block">
-                          +{formatINR(dayItem.creditTotal)}
+                        <span className="text-[10px] font-mono font-medium text-success block">
+                          +{formatINR(dayItem.creditTotal, isPrivacyMode)}
                         </span>
                       )}
                     </div>
 
                     {/* Source indicators */}
                     {dayItem.sources.length > 0 && (
-                      <div className="flex items-center gap-1 mt-1 overflow-hidden">
+                      <div className="hidden sm:flex items-center gap-1 mt-1 overflow-hidden">
                         {dayItem.sources.slice(0, 2).map((src, i) => (
                           <span
                             key={i}
@@ -709,7 +743,7 @@ export const CalendarView: React.FC = () => {
                         )}
                       </div>
                     )}
-                  </div>
+                  </Button>
                 )
               })}
             </div>
@@ -724,7 +758,7 @@ export const CalendarView: React.FC = () => {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <DialogTitle className="text-lg font-bold flex items-center gap-2">
-                  <CalendarIcon className="h-5 w-5 text-primary" />
+                  <CalendarIcon className="size-5 text-primary" />
                   {selectedDayKey ? formatDate(selectedDayKey) : 'Day Overview'}
                 </DialogTitle>
                 <DialogDescription className="text-xs mt-0.5">
@@ -732,36 +766,45 @@ export const CalendarView: React.FC = () => {
                 </DialogDescription>
               </div>
               <div className="flex items-center gap-2">
-                <Badge variant="secondary" className="font-mono text-xs">
-                  {selectedDaySummary.count} {selectedDaySummary.count === 1 ? 'Transaction' : 'Transactions'}
+                <Badge variant="secondary">
+                  {selectedDaySummary.count}{' '}
+                  {selectedDaySummary.count === 1 ? 'Transaction' : 'Transactions'}
                 </Badge>
               </div>
             </div>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto space-y-4 py-2 pr-1">
+          <div className="flex-1 overflow-y-auto flex flex-col gap-4 py-2 pr-1">
             {/* Day Financial Summary Ribbon */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
               <div className="rounded-lg bg-muted/40 border p-3">
-                <span className="text-[11px] text-muted-foreground uppercase font-medium">Total Outflow</span>
-                <p className="font-bold font-mono text-rose-400 text-base mt-0.5">
-                  {formatINR(selectedDaySummary.debit)}
+                <span className="text-[11px] text-muted-foreground uppercase font-medium">
+                  Total Outflow
+                </span>
+                <p className="font-bold font-mono text-destructive text-base mt-0.5">
+                  {formatINR(selectedDaySummary.debit, isPrivacyMode)}
                 </p>
               </div>
               <div className="rounded-lg bg-muted/40 border p-3">
-                <span className="text-[11px] text-muted-foreground uppercase font-medium">Total Inflow</span>
-                <p className="font-bold font-mono text-emerald-400 text-base mt-0.5">
-                  {formatINR(selectedDaySummary.credit)}
+                <span className="text-[11px] text-muted-foreground uppercase font-medium">
+                  Total Inflow
+                </span>
+                <p className="font-bold font-mono text-success text-base mt-0.5">
+                  {formatINR(selectedDaySummary.credit, isPrivacyMode)}
                 </p>
               </div>
               <div className="rounded-lg bg-muted/40 border p-3">
-                <span className="text-[11px] text-muted-foreground uppercase font-medium">Net Day Flow</span>
+                <span className="text-[11px] text-muted-foreground uppercase font-medium">
+                  Net Day Flow
+                </span>
                 <p className="font-bold font-mono text-foreground text-base mt-0.5">
-                  {formatINR(selectedDaySummary.credit - selectedDaySummary.debit)}
+                  {formatINR(selectedDaySummary.credit - selectedDaySummary.debit, isPrivacyMode)}
                 </p>
               </div>
               <div className="rounded-lg bg-muted/40 border p-3">
-                <span className="text-[11px] text-muted-foreground uppercase font-medium">Sources Active</span>
+                <span className="text-[11px] text-muted-foreground uppercase font-medium">
+                  Sources Active
+                </span>
                 <p className="font-bold font-mono text-primary text-base mt-0.5">
                   {selectedDaySummary.sources.length} Accounts/Cards
                 </p>
@@ -772,11 +815,14 @@ export const CalendarView: React.FC = () => {
             {selectedDaySummary.sources.length > 0 && (
               <div className="flex items-center gap-2 flex-wrap text-xs bg-muted/20 border rounded-lg p-2.5">
                 <span className="text-muted-foreground font-medium flex items-center gap-1">
-                  <CreditCard className="h-3.5 w-3.5 text-primary" /> Sources:
+                  <CreditCard className="size-3.5 text-primary" /> Sources:
                 </span>
                 {selectedDaySummary.sources.map((src, i) => (
-                  <Badge key={i} variant="outline" className="font-mono text-[11px] py-0.5 px-2">
-                    {src.name}: <strong className="text-foreground ml-1">{formatINR(src.amount)}</strong>
+                  <Badge key={i} variant="outline" className="py-0.5 px-2">
+                    {src.name}:{' '}
+                    <strong className="text-foreground ml-1">
+                      {formatINR(src.amount, isPrivacyMode)}
+                    </strong>
                   </Badge>
                 ))}
               </div>
@@ -785,12 +831,13 @@ export const CalendarView: React.FC = () => {
             {/* Search Filter */}
             <div className="flex items-center justify-between gap-3">
               <div className="relative flex-1 max-w-sm">
-                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
                 <Input
+                  aria-label="Search payee, narration, ref, mode"
                   placeholder="Search payee, narration, ref, mode..."
                   value={daySearch}
                   onChange={(e) => setDaySearch(e.target.value)}
-                  className="pl-8 text-xs h-8"
+                  className="pl-8 h-8"
                 />
               </div>
               <span className="text-xs text-muted-foreground font-mono">
@@ -804,13 +851,27 @@ export const CalendarView: React.FC = () => {
                 <Table className="min-w-[700px]">
                   <TableHeader className="sticky top-0 bg-muted/80 backdrop-blur-xs z-10">
                     <TableRow className="hover:bg-transparent">
-                      <TableHead className="text-[11px] font-semibold uppercase w-20">Type</TableHead>
-                      <TableHead className="text-[11px] font-semibold uppercase text-right w-28">Amount</TableHead>
-                      <TableHead className="text-[11px] font-semibold uppercase">Payee / Narration</TableHead>
-                      <TableHead className="text-[11px] font-semibold uppercase w-32">Source Account</TableHead>
-                      <TableHead className="text-[11px] font-semibold uppercase w-24">Mode</TableHead>
-                      <TableHead className="text-[11px] font-semibold uppercase w-28">Category</TableHead>
-                      <TableHead className="text-[11px] font-semibold uppercase w-28">Ref No</TableHead>
+                      <TableHead className="text-[11px] font-semibold uppercase w-20">
+                        Type
+                      </TableHead>
+                      <TableHead className="text-[11px] font-semibold uppercase text-right w-28">
+                        Amount
+                      </TableHead>
+                      <TableHead className="text-[11px] font-semibold uppercase">
+                        Payee / Narration
+                      </TableHead>
+                      <TableHead className="text-[11px] font-semibold uppercase w-32">
+                        Source Account
+                      </TableHead>
+                      <TableHead className="text-[11px] font-semibold uppercase w-24">
+                        Mode
+                      </TableHead>
+                      <TableHead className="text-[11px] font-semibold uppercase w-28">
+                        Category
+                      </TableHead>
+                      <TableHead className="text-[11px] font-semibold uppercase w-28">
+                        Ref No
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -821,22 +882,25 @@ export const CalendarView: React.FC = () => {
                           <TableCell>
                             <Badge
                               variant={isCredit ? 'secondary' : 'outline'}
-                              className={`text-[10px] font-semibold uppercase px-1.5 py-0 ${
+                              className={cn(
+                                'text-[10px] font-semibold uppercase px-1.5 py-0',
                                 isCredit
-                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                  ? 'bg-success/10 text-success border-success/20'
                                   : 'text-muted-foreground'
-                              }`}
+                              )}
                             >
                               {tx.tx_type}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right font-mono font-bold tabular-nums whitespace-nowrap">
-                            <span className={isCredit ? 'text-emerald-400' : 'text-foreground'}>
-                              {isCredit ? '+' : ''} {formatINR(tx.amount)}
+                            <span className={isCredit ? 'text-success' : 'text-foreground'}>
+                              {isCredit ? '+' : ''} {formatINR(tx.amount, isPrivacyMode)}
                             </span>
                           </TableCell>
                           <TableCell className="max-w-xs">
-                            <div className="font-medium text-foreground truncate">{tx.cleaned_payee}</div>
+                            <div className="font-medium text-foreground truncate">
+                              {tx.cleaned_payee}
+                            </div>
                             <div className="text-[10px] text-muted-foreground truncate font-mono mt-0.5">
                               {tx.raw_narration}
                             </div>
@@ -845,15 +909,11 @@ export const CalendarView: React.FC = () => {
                             {tx.account_name || 'Bank Account'}
                           </TableCell>
                           <TableCell>
-                            <Badge variant="outline" className="text-[10px] font-mono">
-                              {tx.payment_mode}
-                            </Badge>
+                            <Badge variant="outline">{tx.payment_mode}</Badge>
                           </TableCell>
                           <TableCell>
                             {tx.category_name ? (
-                              <Badge variant="secondary" className="text-[10px]">
-                                {tx.category_name}
-                              </Badge>
+                              <Badge variant="secondary">{tx.category_name}</Badge>
                             ) : (
                               <span className="text-muted-foreground text-[11px]">-</span>
                             )}
@@ -871,12 +931,7 @@ export const CalendarView: React.FC = () => {
           </div>
 
           <DialogFooter className="border-t pt-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSelectedDayKey(null)}
-              className="text-xs"
-            >
+            <Button variant="outline" size="sm" onClick={() => setSelectedDayKey(null)}>
               Close
             </Button>
           </DialogFooter>

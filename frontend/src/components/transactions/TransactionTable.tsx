@@ -1,4 +1,21 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react'
+import {
+  Empty,
+  EmptyHeader,
+  EmptyTitle,
+  EmptyDescription,
+  EmptyContent,
+} from '@/components/ui/empty'
+import {
+  InputGroup,
+  InputGroupInput,
+  InputGroupAddon,
+  InputGroupButton,
+} from '@/components/ui/input-group'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { cn } from '@/lib/utils'
+import { QueryError } from '@/components/ui/query-state'
+import { Field, FieldLabel, FieldGroup } from '@/components/ui/field'
+import React, { useState, useMemo, useEffect, useCallback, useId } from 'react'
 import {
   createColumnHelper,
   flexRender,
@@ -7,9 +24,21 @@ import {
 } from '@tanstack/react-table'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSearch, useNavigate } from '@tanstack/react-router'
-import { CATEGORY_TRANSFERS_ID, type Transaction, type TimeWindowPreset, type TransactionsSearchParams } from '@/types'
+import {
+  CATEGORY_TRANSFERS_ID,
+  type Transaction,
+  type TimeWindowPreset,
+  type TransactionsSearchParams,
+} from '@/types'
 export type { TimeWindowPreset } from '@/types'
-import { fetchAccounts, fetchCategories, fetchTransactions, createRule, reapplyRules, updateTransaction } from '@/lib/api'
+import {
+  fetchAccounts,
+  fetchCategories,
+  fetchTransactions,
+  createRule,
+  reapplyRules,
+  updateTransaction,
+} from '@/lib/api'
 import { formatDate } from '@/lib/utils'
 import {
   ArrowDownLeft,
@@ -54,6 +83,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectGroup,
 } from '@/components/ui/select'
 import {
   Dialog,
@@ -67,7 +97,6 @@ import { Card } from '@/components/ui/card'
 import { CopyButton } from '@/components/ui/copy-button'
 import { MerchantAvatar } from '@/components/ui/merchant-avatar'
 import { PrivacyAmount } from '@/components/ui/privacy-amount'
-
 
 function formatISODate(d: Date): string {
   const yyyy = d.getFullYear()
@@ -141,6 +170,7 @@ const columnHelper = createColumnHelper<Transaction>()
 const PAGE_SIZE_OPTIONS = [25, 50, 100, 250, 500, 1000]
 
 export const TransactionTable: React.FC = () => {
+  const fieldId = useId()
   const searchParams = useSearch({ strict: false }) as TransactionsSearchParams
   const navigate = useNavigate()
 
@@ -164,7 +194,9 @@ export const TransactionTable: React.FC = () => {
   const accountId = searchParams.account || searchParams.account_id || 'ALL'
   const categoryId = searchParams.category || searchParams.category_id || 'ALL'
   const txType = (searchParams.type || searchParams.tx_type || 'ALL').toUpperCase()
-  const timeWindow = (searchParams.timeWindow || searchParams.preset || 'overall') as TimeWindowPreset
+  const timeWindow = (searchParams.timeWindow ||
+    searchParams.preset ||
+    'overall') as TimeWindowPreset
   const customStartDate = searchParams.startDate || searchParams.start_date || ''
   const customEndDate = searchParams.endDate || searchParams.end_date || ''
   const minAmount = searchParams.minAmount || searchParams.min_amount || ''
@@ -216,7 +248,8 @@ export const TransactionTable: React.FC = () => {
       if (merged.account && merged.account !== 'ALL') cleaned.account = merged.account
       if (merged.category && merged.category !== 'ALL') cleaned.category = merged.category
       if (merged.type && merged.type !== 'ALL') cleaned.type = merged.type
-      if (merged.timeWindow && merged.timeWindow !== 'overall') cleaned.timeWindow = merged.timeWindow
+      if (merged.timeWindow && merged.timeWindow !== 'overall')
+        cleaned.timeWindow = merged.timeWindow
       if (merged.startDate) cleaned.startDate = merged.startDate
       if (merged.endDate) cleaned.endDate = merged.endDate
       if (merged.minAmount) cleaned.minAmount = merged.minAmount
@@ -317,7 +350,10 @@ export const TransactionTable: React.FC = () => {
   })
 
   const [updatingTxId, setUpdatingTxId] = useState<string | null>(null)
-  const [rulePromptTx, setRulePromptTx] = useState<{ tx: Transaction; newCategoryName: string } | null>(null)
+  const [rulePromptTx, setRulePromptTx] = useState<{
+    tx: Transaction
+    newCategoryName: string
+  } | null>(null)
   const [editNotes, setEditNotes] = useState('')
   const [editTags, setEditTags] = useState('')
   const [isEditingDetails, setIsEditingDetails] = useState(false)
@@ -331,8 +367,13 @@ export const TransactionTable: React.FC = () => {
   }, [selectedTx])
 
   const updateTxMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: import('@/lib/api').UpdateTransactionPayload }) =>
-      updateTransaction(id, payload),
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string
+      payload: import('@/lib/api').UpdateTransactionPayload
+    }) => updateTransaction(id, payload),
     onMutate: ({ id }) => {
       setUpdatingTxId(id)
     },
@@ -362,7 +403,7 @@ export const TransactionTable: React.FC = () => {
     setShowQuickRuleModal(true)
   }
 
-  const { data, isLoading, isFetching } = useQuery({
+  const { data, isLoading, isFetching, isError, refetch } = useQuery({
     queryKey: [
       'transactions',
       page,
@@ -514,6 +555,14 @@ export const TransactionTable: React.FC = () => {
             <div
               className="flex items-center gap-2.5 max-w-md cursor-pointer group"
               onClick={() => setSelectedTx(row)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  setSelectedTx(row)
+                }
+              }}
             >
               <MerchantAvatar payee={payeeText} size="sm" />
               <div className="min-w-0 flex-1">
@@ -522,8 +571,8 @@ export const TransactionTable: React.FC = () => {
                     {payeeText}
                   </p>
                   {row.is_transfer && (
-                    <Badge variant="outline" className="text-[9px] px-1 py-0 font-medium text-muted-foreground shrink-0">
-                      <ArrowLeftRight className="h-2.5 w-2.5 mr-0.5" /> Transfer
+                    <Badge variant="outline" className="px-1 py-0 shrink-0">
+                      <ArrowLeftRight className="size-2.5 mr-0.5" /> Transfer
                     </Badge>
                   )}
                 </div>
@@ -540,8 +589,8 @@ export const TransactionTable: React.FC = () => {
         cell: (info) => {
           const mode = info.getValue() || 'OTHER'
           return (
-            <Badge variant="secondary" className="text-[10px] font-mono font-medium px-1.5 py-0">
-              {mode === 'UPI' && <Zap className="mr-1 h-2.5 w-2.5 text-primary" />}
+            <Badge variant="secondary" className="px-1.5 py-0">
+              {mode === 'UPI' && <Zap className="mr-1 size-2.5 text-primary" />}
               {mode}
             </Badge>
           )
@@ -559,6 +608,7 @@ export const TransactionTable: React.FC = () => {
             <div
               className="inline-block"
               onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
             >
               <Select
                 value={row.category_id || 'UNSET'}
@@ -572,31 +622,49 @@ export const TransactionTable: React.FC = () => {
                 disabled={isUpdating}
               >
                 <SelectTrigger
-                  className="h-7 text-xs border border-border/50 bg-muted/40 hover:bg-muted/80 rounded-full px-2.5 py-0.5 w-auto max-w-[155px] font-medium shadow-none focus:ring-1 focus:ring-primary/40 gap-1.5 cursor-pointer"
-                  title={row.is_manual_category ? 'Category manually set (Click to change)' : 'Click to change category'}
+                  aria-label="Transaction category"
+                  className="h-7 border rounded-full px-2.5 py-0.5 w-auto max-w-[155px] focus:ring-1 focus:ring-primary/40 gap-1.5 cursor-pointer"
+                  title={
+                    row.is_manual_category
+                      ? 'Category manually set (Click to change)'
+                      : 'Click to change category'
+                  }
                 >
                   {isUpdating ? (
-                    <RefreshCw className="h-2.5 w-2.5 animate-spin text-primary shrink-0" />
+                    <RefreshCw className="size-2.5 animate-spin text-primary shrink-0" />
                   ) : (
-                    <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                    <span
+                      className="size-1.5 rounded-full shrink-0"
+                      style={{ backgroundColor: color }}
+                    />
                   )}
                   <span className="truncate">{name}</span>
                   {row.is_manual_category && (
-                    <span className="text-[10px] text-primary/80 font-bold shrink-0" title="Manually edited">✎</span>
+                    <span
+                      className="text-[10px] text-primary/80 font-bold shrink-0"
+                      title="Manually edited"
+                    >
+                      ✎
+                    </span>
                   )}
                 </SelectTrigger>
                 <SelectContent className="min-w-[190px]">
-                  <SelectItem value="UNSET">
-                    <span className="text-muted-foreground italic">Uncategorized</span>
-                  </SelectItem>
-                  {categoriesData?.map((cat) => (
-                    <SelectItem key={cat.id} value={cat.id}>
-                      <div className="flex items-center gap-2">
-                        <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: cat.color_hex }} />
-                        <span>{cat.name}</span>
-                      </div>
+                  <SelectGroup>
+                    <SelectItem value="UNSET">
+                      <span className="text-muted-foreground italic">Uncategorized</span>
                     </SelectItem>
-                  ))}
+                    {categoriesData?.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id}>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="size-2 rounded-full shrink-0"
+                            style={{ backgroundColor: cat.color_hex }}
+                          />
+                          <span>{cat.name}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
             </div>
@@ -606,7 +674,10 @@ export const TransactionTable: React.FC = () => {
       columnHelper.accessor('account_name', {
         header: 'Account',
         cell: (info) => (
-          <span className="text-xs text-muted-foreground whitespace-nowrap truncate max-w-[130px] inline-block" title={info.getValue() || 'Primary Account'}>
+          <span
+            className="text-xs text-muted-foreground whitespace-nowrap truncate max-w-[130px] inline-block"
+            title={info.getValue() || 'Primary Account'}
+          >
             {info.getValue() || 'Primary Account'}
           </span>
         ),
@@ -617,16 +688,16 @@ export const TransactionTable: React.FC = () => {
           const row = info.row.original
           const isCredit = row.tx_type === 'CREDIT'
           return (
-            <div className="flex items-center justify-end space-x-1 font-mono font-bold text-sm tabular-nums">
+            <div className="flex items-center justify-end gap-1 font-mono font-bold text-sm tabular-nums">
               {isCredit ? (
-                <ArrowDownLeft className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                <ArrowDownLeft className="size-3.5 text-success shrink-0" />
               ) : (
-                <ArrowUpRight className="h-3.5 w-3.5 text-rose-400 shrink-0" />
+                <ArrowUpRight className="size-3.5 text-destructive shrink-0" />
               )}
               <PrivacyAmount
                 amount={row.amount}
                 prefix={isCredit ? '+ ' : '- '}
-                className={isCredit ? 'text-emerald-400' : 'text-rose-400'}
+                className={isCredit ? 'text-success' : 'text-destructive'}
               />
             </div>
           )
@@ -637,7 +708,9 @@ export const TransactionTable: React.FC = () => {
         cell: (info) => {
           const bal = info.getValue()
           if (bal === undefined || bal === null) {
-            return <span className="text-muted-foreground/40 text-right block font-mono text-xs">–</span>
+            return (
+              <span className="text-muted-foreground/40 text-right block font-mono text-xs">–</span>
+            )
           }
           return (
             <div className="text-right font-mono text-xs text-muted-foreground tabular-nums">
@@ -651,16 +724,17 @@ export const TransactionTable: React.FC = () => {
         header: () => <span className="sr-only">Details</span>,
         cell: (info) => (
           <Button
+            aria-label="View transaction details"
             variant="ghost"
             size="sm"
             onClick={(e) => {
               e.stopPropagation()
               setSelectedTx(info.row.original)
             }}
-            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground opacity-60 group-hover:opacity-100 transition-opacity"
+            className="size-7 p-0 opacity-60 group-hover:opacity-100 transition-opacity"
             title="View transaction details"
           >
-            <Info className="h-3.5 w-3.5" />
+            <Info data-icon="inline-start" />
           </Button>
         ),
       }),
@@ -701,53 +775,59 @@ export const TransactionTable: React.FC = () => {
   }, [categoryId, categoriesData])
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
+      {isError && <QueryError message="Unable to load transactions" onRetry={refetch} />}
       {/* Search & Filter Controls Card */}
-      <Card className="p-4 border-border/80 bg-card shadow-xs space-y-3.5">
+      <Card className="p-4 flex flex-col gap-3.5">
         {/* Time Window Preset Filter Bar */}
         <div className="flex items-center justify-between gap-2 flex-wrap border-b pb-3">
-          <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
+          <div className="flex flex-wrap items-center gap-2 py-0.5">
             <span className="text-xs font-semibold text-muted-foreground mr-1 flex items-center gap-1 shrink-0">
-              <CalendarIcon className="h-3.5 w-3.5 text-primary" /> Time Window:
+              <CalendarIcon className="size-3.5 text-primary" /> Time Window:
             </span>
-            {timeWindowPills.map((pill) => {
-              const isActive = timeWindow === pill.id
-              return (
-                <button
-                  key={pill.id}
-                  onClick={() => {
-                    updateFilters(
-                      {
-                        timeWindow: pill.id !== 'overall' ? pill.id : undefined,
-                        startDate: pill.id === 'custom' ? customStartDate || undefined : undefined,
-                        endDate: pill.id === 'custom' ? customEndDate || undefined : undefined,
-                        page: undefined,
-                      },
-                      true
-                    )
-                  }}
-                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all shrink-0 cursor-pointer ${
-                    isActive
-                      ? 'bg-primary text-primary-foreground font-semibold shadow-xs'
-                      : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
-                  }`}
-                >
-                  {pill.label}
-                </button>
-              )
-            })}
+            <ToggleGroup
+              value={[timeWindow]}
+              variant="outline"
+              size="sm"
+              aria-label="Time window"
+              className="flex-wrap"
+            >
+              {timeWindowPills.map((pill) => {
+                return (
+                  <ToggleGroupItem
+                    value={pill.id}
+                    key={pill.id}
+                    onClick={() => {
+                      updateFilters(
+                        {
+                          timeWindow: pill.id !== 'overall' ? pill.id : undefined,
+                          startDate:
+                            pill.id === 'custom' ? customStartDate || undefined : undefined,
+                          endDate: pill.id === 'custom' ? customEndDate || undefined : undefined,
+                          page: undefined,
+                        },
+                        true
+                      )
+                    }}
+                  >
+                    {pill.label}
+                  </ToggleGroupItem>
+                )
+              })}
+            </ToggleGroup>
           </div>
 
           <div className="flex items-center gap-2">
             <Button
+              aria-label="Export visible transactions to CSV"
               variant="outline"
               size="sm"
               onClick={handleExportCSV}
               disabled={filteredItems.length === 0}
-              className="h-7 text-xs gap-1.5 px-2.5 cursor-pointer"
+              className="h-7 gap-1.5 px-2.5 cursor-pointer"
               title="Export visible transactions to CSV"
             >
-              <Download className="h-3.5 w-3.5 text-muted-foreground" />
+              <Download data-icon="inline-start" className="text-muted-foreground" />
               Export CSV
             </Button>
 
@@ -756,9 +836,9 @@ export const TransactionTable: React.FC = () => {
                 variant="ghost"
                 size="sm"
                 onClick={handleResetFilters}
-                className="h-7 text-xs text-muted-foreground hover:text-foreground gap-1 px-2 cursor-pointer"
+                className="h-7 gap-1 px-2 cursor-pointer"
               >
-                <RotateCcw className="h-3 w-3" /> Reset Filters
+                <RotateCcw data-icon="inline-start" /> Reset Filters
               </Button>
             )}
           </div>
@@ -766,31 +846,33 @@ export const TransactionTable: React.FC = () => {
 
         {/* Custom Date Range Picker inputs when Custom Range is active */}
         {timeWindow === 'custom' && (
-          <div className="flex items-center gap-3 bg-muted/30 border rounded-lg p-3 text-xs">
+          <div className="flex flex-wrap items-center gap-3 rounded-lg border p-3">
             <span className="font-semibold text-foreground flex items-center gap-1">
-              <SlidersHorizontal className="h-3.5 w-3.5 text-primary" /> Custom Range:
+              <SlidersHorizontal className="size-3.5 text-primary" /> Custom Range:
             </span>
             <div className="flex items-center gap-2 flex-wrap">
               <div className="flex items-center gap-1.5">
                 <span className="text-muted-foreground">From:</span>
                 <Input
+                  aria-label="Start date"
                   type="date"
                   value={customStartDate}
                   onChange={(e) => {
                     updateFilters({ startDate: e.target.value || undefined, page: undefined }, true)
                   }}
-                  className="h-8 text-xs w-36"
+                  className="h-8 w-36"
                 />
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="text-muted-foreground">To:</span>
                 <Input
+                  aria-label="End date"
                   type="date"
                   value={customEndDate}
                   onChange={(e) => {
                     updateFilters({ endDate: e.target.value || undefined, page: undefined }, true)
                   }}
-                  className="h-8 text-xs w-36"
+                  className="h-8 w-36"
                 />
               </div>
             </div>
@@ -800,9 +882,12 @@ export const TransactionTable: React.FC = () => {
         {/* Search & Dropdown Filters Grid */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5">
           {/* Search Input with Instant Clear Button */}
-          <div className="relative md:col-span-2">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
+          <InputGroup className="md:col-span-2">
+            <InputGroupAddon>
+              <Search />
+            </InputGroupAddon>
+            <InputGroupInput
+              aria-label="Search narration, payee, UPI, ref#"
               type="text"
               placeholder="Search narration, payee, UPI, ref#..."
               value={searchInput}
@@ -812,41 +897,50 @@ export const TransactionTable: React.FC = () => {
                   updateFilters({ search: searchInput.trim() || undefined, page: undefined }, true)
                 }
               }}
-              className="pl-9 pr-8 text-xs"
             />
             {searchInput && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchInput('')
-                  updateFilters({ search: undefined, page: undefined }, true)
-                }}
-                className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground p-0.5 rounded-full cursor-pointer"
-                title="Clear search"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
+              <InputGroupAddon align="inline-end">
+                <InputGroupButton
+                  aria-label="Clear search"
+                  variant="ghost"
+                  size="icon-xs"
+                  type="button"
+                  onClick={() => {
+                    setSearchInput('')
+                    updateFilters({ search: undefined, page: undefined }, true)
+                  }}
+
+                  title="Clear search"
+                >
+                  <X data-icon="inline-start" />
+                </InputGroupButton>
+              </InputGroupAddon>
             )}
-          </div>
+          </InputGroup>
 
           {/* Account Filter */}
           <div>
             <Select
               value={accountId}
               onValueChange={(val) => {
-                updateFilters({ account: val && val !== 'ALL' ? val : undefined, page: undefined }, true)
+                updateFilters(
+                  { account: val && val !== 'ALL' ? val : undefined, page: undefined },
+                  true
+                )
               }}
             >
-              <SelectTrigger className="text-xs">
+              <SelectTrigger aria-label="All Accounts">
                 <SelectValue placeholder="All Accounts" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="ALL">All Accounts & Cards</SelectItem>
-                {accountsData?.map((a) => (
-                  <SelectItem key={a.id} value={a.id}>
-                    {a.bank_name} {a.account_number_mask ? `(${a.account_number_mask})` : ''}
-                  </SelectItem>
-                ))}
+                <SelectGroup>
+                  <SelectItem value="ALL">All Accounts & Cards</SelectItem>
+                  {accountsData?.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.bank_name} {a.account_number_mask ? `(${a.account_number_mask})` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               </SelectContent>
             </Select>
           </div>
@@ -856,19 +950,24 @@ export const TransactionTable: React.FC = () => {
             <Select
               value={categoryId}
               onValueChange={(val) => {
-                updateFilters({ category: val && val !== 'ALL' ? val : undefined, page: undefined }, true)
+                updateFilters(
+                  { category: val && val !== 'ALL' ? val : undefined, page: undefined },
+                  true
+                )
               }}
             >
-              <SelectTrigger className="text-xs">
+              <SelectTrigger aria-label="All Categories">
                 <SelectValue placeholder="All Categories" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="ALL">All Categories</SelectItem>
-                {categoriesData?.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                  </SelectItem>
-                ))}
+                <SelectGroup>
+                  <SelectItem value="ALL">All Categories</SelectItem>
+                  {categoriesData?.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               </SelectContent>
             </Select>
           </div>
@@ -878,16 +977,21 @@ export const TransactionTable: React.FC = () => {
             <Select
               value={txType}
               onValueChange={(val) => {
-                updateFilters({ type: val && val !== 'ALL' ? val : undefined, page: undefined }, true)
+                updateFilters(
+                  { type: val && val !== 'ALL' ? val : undefined, page: undefined },
+                  true
+                )
               }}
             >
-              <SelectTrigger className="text-xs">
+              <SelectTrigger aria-label="All Types">
                 <SelectValue placeholder="All Types" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="ALL">All Types</SelectItem>
-                <SelectItem value="DEBIT">Debits (Spend)</SelectItem>
-                <SelectItem value="CREDIT">Credits (Inflow)</SelectItem>
+                <SelectGroup>
+                  <SelectItem value="ALL">All Types</SelectItem>
+                  <SelectItem value="DEBIT">Debits (Spend)</SelectItem>
+                  <SelectItem value="CREDIT">Credits (Inflow)</SelectItem>
+                </SelectGroup>
               </SelectContent>
             </Select>
           </div>
@@ -895,69 +999,86 @@ export const TransactionTable: React.FC = () => {
           {/* Amount Range Filter Row */}
           <div className="md:col-span-4 lg:col-span-5 flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/50 text-xs">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-muted-foreground text-[11px] font-semibold mr-1">
-                Amount:
-              </span>
-              {[
-                { label: 'All', min: '', max: '' },
-                { label: '> ₹1k', min: '1000', max: '' },
-                { label: '> ₹5k', min: '5000', max: '' },
-                { label: '> ₹10k', min: '10000', max: '' },
-                { label: 'Under ₹500', min: '', max: '500' },
-              ].map((preset) => {
-                const isActive = minAmount === preset.min && maxAmount === preset.max
-                return (
-                  <button
-                    key={preset.label}
-                    onClick={() => {
-                      setMinInput(preset.min)
-                      setMaxInput(preset.max)
-                      updateFilters(
-                        {
-                          minAmount: preset.min || undefined,
-                          maxAmount: preset.max || undefined,
-                          page: undefined,
-                        },
-                        true
-                      )
-                    }}
-                    className={`px-2 py-0.5 rounded-md border text-[10px] font-mono transition-colors cursor-pointer ${
-                      isActive
-                        ? 'bg-primary text-primary-foreground font-semibold'
-                        : 'bg-muted/40 text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    {preset.label}
-                  </button>
-                )
-              })}
+              <span className="text-muted-foreground text-[11px] font-semibold mr-1">Amount:</span>
+              <ToggleGroup
+                value={[`${minAmount}|${maxAmount}`]}
+                variant="outline"
+                size="sm"
+                aria-label="Amount presets"
+                className="flex-wrap"
+              >
+                {[
+                  { label: 'All', min: '', max: '' },
+                  { label: '> ₹1k', min: '1000', max: '' },
+                  { label: '> ₹5k', min: '5000', max: '' },
+                  { label: '> ₹10k', min: '10000', max: '' },
+                  { label: 'Under ₹500', min: '', max: '500' },
+                ].map((preset) => {
+                  return (
+                    <ToggleGroupItem
+                      value={`${preset.min}|${preset.max}`}
+                      key={preset.label}
+                      onClick={() => {
+                        setMinInput(preset.min)
+                        setMaxInput(preset.max)
+                        updateFilters(
+                          {
+                            minAmount: preset.min || undefined,
+                            maxAmount: preset.max || undefined,
+                            page: undefined,
+                          },
+                          true
+                        )
+                      }}
+                    >
+                      {preset.label}
+                    </ToggleGroupItem>
+                  )
+                })}
+              </ToggleGroup>
             </div>
 
             <div className="flex items-center gap-1.5">
               <Input
+                aria-label="Min ₹"
                 type="number"
                 placeholder="Min ₹"
                 value={minInput}
                 onChange={(e) => setMinInput(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
-                    updateFilters({ minAmount: minInput || undefined, maxAmount: maxInput || undefined, page: undefined }, true)
+                    updateFilters(
+                      {
+                        minAmount: minInput || undefined,
+                        maxAmount: maxInput || undefined,
+                        page: undefined,
+                      },
+                      true
+                    )
                   }
                 }}
-                className="h-7 w-20 text-[11px] font-mono"
+                className="h-7 w-20"
               />
               <span className="text-muted-foreground text-[10px]">–</span>
               <Input
+                aria-label="Max ₹"
                 type="number"
                 placeholder="Max ₹"
                 value={maxInput}
                 onChange={(e) => setMaxInput(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
-                    updateFilters({ minAmount: minInput || undefined, maxAmount: maxInput || undefined, page: undefined }, true)
+                    updateFilters(
+                      {
+                        minAmount: minInput || undefined,
+                        maxAmount: maxInput || undefined,
+                        page: undefined,
+                      },
+                      true
+                    )
                   }
                 }}
-                className="h-7 w-20 text-[11px] font-mono"
+                className="h-7 w-20"
               />
             </div>
           </div>
@@ -968,69 +1089,101 @@ export const TransactionTable: React.FC = () => {
           <div className="flex items-center gap-1.5 flex-wrap pt-2 border-t border-border/40 text-[11px]">
             <span className="text-muted-foreground font-medium">Active filters:</span>
             {search && (
-              <Badge variant="secondary" className="gap-1 font-mono text-[10px] px-1.5 py-0.5">
+              <Badge variant="secondary" className="gap-1 px-1.5 py-0.5">
                 Search: "{search}"
-                <X
-                  className="h-3 w-3 cursor-pointer hover:text-foreground"
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="Remove filter"
                   onClick={() => {
                     setSearchInput('')
                     updateFilters({ search: undefined, page: undefined }, true)
                   }}
-                />
+                >
+                  <X data-icon="inline-start" />
+                </Button>
               </Badge>
             )}
             {activeAccount && (
-              <Badge variant="secondary" className="gap-1 font-mono text-[10px] px-1.5 py-0.5">
+              <Badge variant="secondary" className="gap-1 px-1.5 py-0.5">
                 Account: {activeAccount.bank_name} ({activeAccount.account_number_mask})
-                <X
-                  className="h-3 w-3 cursor-pointer hover:text-foreground"
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="Remove filter"
                   onClick={() => updateFilters({ account: undefined, page: undefined }, true)}
-                />
+                >
+                  <X data-icon="inline-start" />
+                </Button>
               </Badge>
             )}
             {activeCategory && (
-              <Badge variant="secondary" className="gap-1 font-mono text-[10px] px-1.5 py-0.5">
+              <Badge variant="secondary" className="gap-1 px-1.5 py-0.5">
                 Category: {activeCategory.name}
-                <X
-                  className="h-3 w-3 cursor-pointer hover:text-foreground"
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="Remove filter"
                   onClick={() => updateFilters({ category: undefined, page: undefined }, true)}
-                />
+                >
+                  <X data-icon="inline-start" />
+                </Button>
               </Badge>
             )}
             {txType !== 'ALL' && (
-              <Badge variant="secondary" className="gap-1 font-mono text-[10px] px-1.5 py-0.5">
+              <Badge variant="secondary" className="gap-1 px-1.5 py-0.5">
                 Type: {txType === 'DEBIT' ? 'Debits' : 'Credits'}
-                <X
-                  className="h-3 w-3 cursor-pointer hover:text-foreground"
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="Remove filter"
                   onClick={() => updateFilters({ type: undefined, page: undefined }, true)}
-                />
+                >
+                  <X data-icon="inline-start" />
+                </Button>
               </Badge>
             )}
             {timeWindow !== 'overall' && (
-              <Badge variant="secondary" className="gap-1 font-mono text-[10px] px-1.5 py-0.5">
+              <Badge variant="secondary" className="gap-1 px-1.5 py-0.5">
                 Window: {timeWindow}
-                <X
-                  className="h-3 w-3 cursor-pointer hover:text-foreground"
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="Remove filter"
                   onClick={() =>
                     updateFilters(
-                      { timeWindow: undefined, startDate: undefined, endDate: undefined, page: undefined },
+                      {
+                        timeWindow: undefined,
+                        startDate: undefined,
+                        endDate: undefined,
+                        page: undefined,
+                      },
                       true
                     )
                   }
-                />
+                >
+                  <X data-icon="inline-start" />
+                </Button>
               </Badge>
             )}
             {(minAmount || maxAmount) && (
-              <Badge variant="secondary" className="gap-1 font-mono text-[10px] px-1.5 py-0.5">
+              <Badge variant="secondary" className="gap-1 px-1.5 py-0.5">
                 Amount: ₹{minAmount || '0'} – {maxAmount ? `₹${maxAmount}` : '∞'}
-                <X
-                  className="h-3 w-3 cursor-pointer hover:text-foreground"
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="Remove filter"
                   onClick={() => {
                     setMinInput('')
                     setMaxInput('')
-                    updateFilters({ minAmount: undefined, maxAmount: undefined, page: undefined }, true)
+                    updateFilters(
+                      { minAmount: undefined, maxAmount: undefined, page: undefined },
+                      true
+                    )
                   }}
-                />
+                >
+                  <X data-icon="inline-start" />
+                </Button>
               </Badge>
             )}
           </div>
@@ -1039,52 +1192,62 @@ export const TransactionTable: React.FC = () => {
 
       {/* Financial KPIs Strip for Current View */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card className="p-3 border-border/70 bg-card/80 flex items-center justify-between">
-          <div className="space-y-0.5">
+        <Card className="p-3 flex items-center justify-between">
+          <div className="flex flex-col gap-0.5">
             <p className="text-[11px] font-medium text-muted-foreground">Page Records</p>
             <p className="text-base font-bold font-mono text-foreground tabular-nums">
               {filteredItems.length}
-              <span className="text-[11px] font-normal text-muted-foreground ml-1">/ {totalCount}</span>
+              <span className="text-[11px] font-normal text-muted-foreground ml-1">
+                / {totalCount}
+              </span>
             </p>
           </div>
-          <div className="h-8 w-8 rounded-lg bg-muted/60 flex items-center justify-center text-muted-foreground">
-            <Wallet className="h-4 w-4" />
+          <div className="size-8 rounded-lg bg-muted/60 flex items-center justify-center text-muted-foreground">
+            <Wallet className="size-4" />
           </div>
         </Card>
 
-        <Card className="p-3 border-border/70 bg-card/80 flex items-center justify-between">
-          <div className="space-y-0.5">
-            <p className="text-[11px] font-medium text-rose-400">Page Debits (Spend)</p>
-            <p className="text-base font-bold font-mono text-rose-400 tabular-nums">
+        <Card className="p-3 flex items-center justify-between">
+          <div className="flex flex-col gap-0.5">
+            <p className="text-[11px] font-medium text-destructive">Page Debits (Spend)</p>
+            <p className="text-base font-bold font-mono text-destructive tabular-nums">
               <PrivacyAmount amount={pageStats.debits} prefix="- " />
             </p>
           </div>
-          <div className="h-8 w-8 rounded-lg bg-rose-500/10 flex items-center justify-center text-rose-400">
-            <TrendingDown className="h-4 w-4" />
+          <div className="size-8 rounded-lg bg-destructive/10 flex items-center justify-center text-destructive">
+            <TrendingDown className="size-4" />
           </div>
         </Card>
 
-        <Card className="p-3 border-border/70 bg-card/80 flex items-center justify-between">
-          <div className="space-y-0.5">
-            <p className="text-[11px] font-medium text-emerald-400">Page Credits (Inflow)</p>
-            <p className="text-base font-bold font-mono text-emerald-400 tabular-nums">
+        <Card className="p-3 flex items-center justify-between">
+          <div className="flex flex-col gap-0.5">
+            <p className="text-[11px] font-medium text-success">Page Credits (Inflow)</p>
+            <p className="text-base font-bold font-mono text-success tabular-nums">
               <PrivacyAmount amount={pageStats.credits} prefix="+ " />
             </p>
           </div>
-          <div className="h-8 w-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400">
-            <TrendingUp className="h-4 w-4" />
+          <div className="size-8 rounded-lg bg-success/10 flex items-center justify-center text-success">
+            <TrendingUp className="size-4" />
           </div>
         </Card>
 
-        <Card className="p-3 border-border/70 bg-card/80 flex items-center justify-between">
-          <div className="space-y-0.5">
+        <Card className="p-3 flex items-center justify-between">
+          <div className="flex flex-col gap-0.5">
             <p className="text-[11px] font-medium text-muted-foreground">Page Net Cashflow</p>
-            <p className={`text-base font-bold font-mono tabular-nums ${pageStats.net >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-              <PrivacyAmount amount={Math.abs(pageStats.net)} prefix={pageStats.net >= 0 ? '+ ' : '- '} />
+            <p
+              className={cn(
+                'text-base font-bold font-mono tabular-nums',
+                pageStats.net >= 0 ? 'text-success' : 'text-destructive'
+              )}
+            >
+              <PrivacyAmount
+                amount={Math.abs(pageStats.net)}
+                prefix={pageStats.net >= 0 ? '+ ' : '- '}
+              />
             </p>
           </div>
-          <div className="h-8 w-8 rounded-lg bg-muted/60 flex items-center justify-center text-muted-foreground">
-            <Building2 className="h-4 w-4" />
+          <div className="size-8 rounded-lg bg-muted/60 flex items-center justify-center text-muted-foreground">
+            <Building2 className="size-4" />
           </div>
         </Card>
       </div>
@@ -1093,11 +1256,18 @@ export const TransactionTable: React.FC = () => {
       <div className="flex items-center justify-between gap-3 flex-wrap px-1 text-xs">
         <div className="text-muted-foreground font-mono flex items-center gap-1.5">
           <span>Showing</span>
-          <span className="font-semibold text-foreground">{startItem}–{endItem}</span>
+          <span className="font-semibold text-foreground">
+            {startItem}–{endItem}
+          </span>
           <span>of</span>
           <span className="font-semibold text-foreground">{totalCount}</span>
           <span>transactions</span>
-          {isFetching && <span className="inline-block h-2 w-2 rounded-full bg-primary animate-ping ml-1" title="Updating..." />}
+          {isFetching && (
+            <span
+              className="inline-block size-2 rounded-full bg-primary animate-ping ml-1"
+              title="Updating..."
+            />
+          )}
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
@@ -1105,15 +1275,17 @@ export const TransactionTable: React.FC = () => {
           <div className="flex items-center gap-1.5">
             <span className="text-muted-foreground text-[11px]">Rows:</span>
             <Select value={String(pageSize)} onValueChange={handlePageSizeChange}>
-              <SelectTrigger className="h-7 w-[95px] text-xs font-mono">
+              <SelectTrigger aria-label="Transactions per page" className="h-7 w-[95px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent align="end">
-                {PAGE_SIZE_OPTIONS.map((size) => (
-                  <SelectItem key={size} value={String(size)} className="font-mono text-xs">
-                    {size} / page
-                  </SelectItem>
-                ))}
+                <SelectGroup>
+                  {PAGE_SIZE_OPTIONS.map((size) => (
+                    <SelectItem key={size} value={String(size)} className="font-mono text-xs">
+                      {size} / page
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               </SelectContent>
             </Select>
           </div>
@@ -1121,15 +1293,16 @@ export const TransactionTable: React.FC = () => {
           {/* Quick Page Jump Input */}
           <form onSubmit={handleJumpToPage} className="flex items-center gap-1">
             <Input
+              aria-label="Jump to transaction page"
               type="number"
               min={1}
               max={totalPages}
               placeholder={`Page 1–${totalPages}`}
               value={jumpPageInput}
               onChange={(e) => setJumpPageInput(e.target.value)}
-              className="h-7 w-24 text-[11px] font-mono"
+              className="h-7 w-24"
             />
-            <Button type="submit" variant="secondary" size="sm" className="h-7 px-2 text-xs cursor-pointer">
+            <Button type="submit" variant="secondary" size="sm" className="h-7 px-2 cursor-pointer">
               Go
             </Button>
           </form>
@@ -1137,14 +1310,17 @@ export const TransactionTable: React.FC = () => {
       </div>
 
       {/* Transaction Table Card */}
-      <Card className="overflow-hidden border-border/80 bg-card shadow-xs">
+      <Card className="overflow-hidden">
         <div className="overflow-x-auto max-h-[70vh]">
           <Table>
             <TableHeader className="sticky top-0 bg-card/95 backdrop-blur-xs z-10 border-b shadow-xs">
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id} className="hover:bg-transparent">
                   {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id} className="text-xs font-semibold text-muted-foreground uppercase tracking-wider bg-muted/40 py-3">
+                    <TableHead
+                      key={header.id}
+                      className="text-xs font-semibold text-muted-foreground uppercase tracking-wider bg-muted/40 py-3"
+                    >
                       {header.isPlaceholder
                         ? null
                         : flexRender(header.column.columnDef.header, header.getContext())}
@@ -1157,8 +1333,8 @@ export const TransactionTable: React.FC = () => {
               {isLoading ? (
                 <TableRow>
                   <TableCell colSpan={columns.length} className="h-44 text-center">
-                    <div className="flex flex-col items-center justify-center space-y-2 text-muted-foreground">
-                      <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                      <div className="size-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                       <p className="text-xs">Loading transactions ledger...</p>
                     </div>
                   </TableCell>
@@ -1169,6 +1345,13 @@ export const TransactionTable: React.FC = () => {
                     key={row.id}
                     className="hover:bg-muted/60 transition-colors group cursor-pointer"
                     onClick={() => setSelectedTx(row.original)}
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+                        e.preventDefault()
+                        setSelectedTx(row.original)
+                      }
+                    }}
                   >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id} className="py-2.5">
@@ -1180,23 +1363,26 @@ export const TransactionTable: React.FC = () => {
               ) : (
                 <TableRow>
                   <TableCell colSpan={columns.length} className="h-44 text-center">
-                    <div className="flex flex-col items-center justify-center space-y-2 text-muted-foreground">
-                      <Info className="h-8 w-8 text-muted-foreground/60" />
-                      <p className="text-sm font-semibold text-foreground">No matching transactions found</p>
-                      <p className="text-xs max-w-sm text-muted-foreground">
-                        Try adjusting your search terms, time window, or filter criteria.
-                      </p>
-                      {isFiltered && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleResetFilters}
-                          className="mt-2 text-xs gap-1.5 cursor-pointer"
-                        >
-                          <RotateCcw className="h-3 w-3" /> Clear all filters
-                        </Button>
-                      )}
-                    </div>
+                    <Empty>
+                      <EmptyHeader>
+                        <EmptyTitle>No matching transactions</EmptyTitle>
+                        <EmptyDescription>
+                          Try adjusting your search terms, time window, or filter criteria.
+                        </EmptyDescription>
+                      </EmptyHeader>
+                      <EmptyContent>
+                        {isFiltered && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleResetFilters}
+                            className="mt-2 gap-1.5 cursor-pointer"
+                          >
+                            <RotateCcw data-icon="inline-start" /> Clear all filters
+                          </Button>
+                        )}
+                      </EmptyContent>
+                    </Empty>
                   </TableCell>
                 </TableRow>
               )}
@@ -1208,8 +1394,11 @@ export const TransactionTable: React.FC = () => {
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-border/60 bg-muted/20 px-4 py-3">
           {/* Range and Info */}
           <div className="text-xs text-muted-foreground font-mono">
-            Showing <span className="font-semibold text-foreground">{startItem}–{endItem}</span> of{' '}
-            <span className="font-semibold text-foreground">{totalCount}</span> transactions
+            Showing{' '}
+            <span className="font-semibold text-foreground">
+              {startItem}–{endItem}
+            </span>{' '}
+            of <span className="font-semibold text-foreground">{totalCount}</span> transactions
             {startDate && endDate && (
               <span className="ml-2 text-[11px] text-muted-foreground hidden lg:inline">
                 ({formatDate(startDate)} – {formatDate(endDate)})
@@ -1221,14 +1410,15 @@ export const TransactionTable: React.FC = () => {
           <div className="flex items-center gap-1.5 flex-wrap justify-center">
             {/* First Page Button */}
             <Button
+              aria-label="First Page"
               variant="outline"
               size="sm"
               onClick={() => updateFilters({ page: undefined }, false)}
               disabled={page <= 1}
-              className="h-8 w-8 p-0 cursor-pointer"
+              className="size-8 p-0 cursor-pointer"
               title="First Page"
             >
-              <ChevronsLeft className="h-3.5 w-3.5" />
+              <ChevronsLeft data-icon="inline-start" />
               <span className="sr-only">First Page</span>
             </Button>
 
@@ -1236,11 +1426,13 @@ export const TransactionTable: React.FC = () => {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => updateFilters({ page: Math.max(1, page - 1) > 1 ? page - 1 : undefined }, false)}
+              onClick={() =>
+                updateFilters({ page: Math.max(1, page - 1) > 1 ? page - 1 : undefined }, false)
+              }
               disabled={page <= 1}
-              className="h-8 gap-1 px-2.5 text-xs cursor-pointer"
+              className="h-8 gap-1 px-2.5 cursor-pointer"
             >
-              <ChevronLeft className="h-3.5 w-3.5" />
+              <ChevronLeft data-icon="inline-start" />
               <span className="hidden sm:inline">Prev</span>
             </Button>
 
@@ -1249,24 +1441,34 @@ export const TransactionTable: React.FC = () => {
               {paginationPages.map((item, idx) => {
                 if (item === 'ellipsis') {
                   return (
-                    <span key={`ellipsis-${idx}`} className="px-1.5 text-xs text-muted-foreground select-none">
+                    <span
+                      key={`ellipsis-${idx}`}
+                      className="px-1.5 text-xs text-muted-foreground select-none"
+                    >
                       …
                     </span>
                   )
                 }
                 const isCurrent = item === page
                 return (
-                  <button
+                  <Button
+                    variant="ghost"
                     key={`page-${item}`}
-                    onClick={() => updateFilters({ page: (item as number) > 1 ? (item as number) : undefined }, false)}
-                    className={`h-8 min-w-[32px] px-2 rounded-md text-xs font-mono transition-all cursor-pointer ${
+                    onClick={() =>
+                      updateFilters(
+                        { page: (item as number) > 1 ? (item as number) : undefined },
+                        false
+                      )
+                    }
+                    className={cn(
+                      'h-8 min-w-[32px] px-2 rounded-md text-xs font-mono transition-all cursor-pointer',
                       isCurrent
                         ? 'bg-primary text-primary-foreground font-bold shadow-xs'
                         : 'bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground border border-transparent hover:border-border'
-                    }`}
+                    )}
                   >
                     {item}
-                  </button>
+                  </Button>
                 )
               })}
             </div>
@@ -1277,22 +1479,23 @@ export const TransactionTable: React.FC = () => {
               size="sm"
               onClick={() => updateFilters({ page: Math.min(totalPages, page + 1) }, false)}
               disabled={page >= totalPages}
-              className="h-8 gap-1 px-2.5 text-xs cursor-pointer"
+              className="h-8 gap-1 px-2.5 cursor-pointer"
             >
               <span className="hidden sm:inline">Next</span>
-              <ChevronRight className="h-3.5 w-3.5" />
+              <ChevronRight data-icon="inline-start" />
             </Button>
 
             {/* Last Page Button */}
             <Button
+              aria-label={`Last Page (${totalPages})`}
               variant="outline"
               size="sm"
               onClick={() => updateFilters({ page: totalPages }, false)}
               disabled={page >= totalPages}
-              className="h-8 w-8 p-0 cursor-pointer"
+              className="size-8 p-0 cursor-pointer"
               title={`Last Page (${totalPages})`}
             >
-              <ChevronsRight className="h-3.5 w-3.5" />
+              <ChevronsRight data-icon="inline-start" />
               <span className="sr-only">Last Page</span>
             </Button>
           </div>
@@ -1302,15 +1505,21 @@ export const TransactionTable: React.FC = () => {
             <form onSubmit={handleJumpToPage} className="flex items-center gap-1">
               <span className="text-muted-foreground text-[11px] hidden md:inline">Go to:</span>
               <Input
+                aria-label="Jump to transaction page"
                 type="number"
                 min={1}
                 max={totalPages}
                 placeholder={String(page)}
                 value={jumpPageInput}
                 onChange={(e) => setJumpPageInput(e.target.value)}
-                className="h-8 w-16 text-xs font-mono text-center"
+                className="h-8 w-16 text-center"
               />
-              <Button type="submit" variant="secondary" size="sm" className="h-8 px-2.5 text-xs cursor-pointer">
+              <Button
+                type="submit"
+                variant="secondary"
+                size="sm"
+                className="h-8 px-2.5 cursor-pointer"
+              >
                 Go
               </Button>
             </form>
@@ -1323,46 +1532,53 @@ export const TransactionTable: React.FC = () => {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-base font-semibold flex items-center gap-2">
-              <Info className="h-4 w-4 text-primary" /> Transaction Details
+              <Info className="size-4 text-primary" /> Transaction Details
             </DialogTitle>
             <DialogDescription className="text-xs">
               Complete raw metadata and parsed financial fields
             </DialogDescription>
           </DialogHeader>
           {selectedTx && (
-            <div className="space-y-3 pt-2 text-xs">
-              <div className="rounded-lg border p-3 bg-muted/30 space-y-2">
+            <div className="flex flex-col gap-3 pt-2 text-xs">
+              <div className="rounded-lg border p-3 bg-muted/30 flex flex-col gap-2">
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Amount:</span>
                   <span className="font-bold font-mono text-base text-foreground">
                     <PrivacyAmount
                       amount={selectedTx.amount}
                       prefix={selectedTx.tx_type === 'CREDIT' ? '+ ' : '- '}
-                      className={selectedTx.tx_type === 'CREDIT' ? 'text-emerald-400' : 'text-rose-400'}
+                      className={
+                        selectedTx.tx_type === 'CREDIT' ? 'text-success' : 'text-destructive'
+                      }
                     />
                   </span>
                 </div>
-                {selectedTx.running_balance !== undefined && selectedTx.running_balance !== null && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">Running Balance:</span>
-                    <span className="font-mono text-xs font-semibold text-foreground">
-                      <PrivacyAmount amount={selectedTx.running_balance} />
-                    </span>
-                  </div>
-                )}
+                {selectedTx.running_balance !== undefined &&
+                  selectedTx.running_balance !== null && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Running Balance:</span>
+                      <span className="font-mono text-xs font-semibold text-foreground">
+                        <PrivacyAmount amount={selectedTx.running_balance} />
+                      </span>
+                    </div>
+                  )}
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Date:</span>
-                  <span className="font-mono text-foreground">{formatDate(selectedTx.tx_date)}</span>
+                  <span className="font-mono text-foreground">
+                    {formatDate(selectedTx.tx_date)}
+                  </span>
                 </div>
                 {selectedTx.value_date && selectedTx.value_date !== selectedTx.tx_date && (
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Value Date:</span>
-                    <span className="font-mono text-foreground">{formatDate(selectedTx.value_date)}</span>
+                    <span className="font-mono text-foreground">
+                      {formatDate(selectedTx.value_date)}
+                    </span>
                   </div>
                 )}
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Type:</span>
-                  <Badge variant={selectedTx.tx_type === 'CREDIT' ? 'default' : 'secondary'} className="text-[10px]">
+                  <Badge variant={selectedTx.tx_type === 'CREDIT' ? 'default' : 'secondary'}>
                     {selectedTx.tx_type}
                   </Badge>
                 </div>
@@ -1380,7 +1596,7 @@ export const TransactionTable: React.FC = () => {
                   <span className="text-muted-foreground flex items-center gap-1.5">
                     Category:
                     {selectedTx.is_manual_category && (
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-primary border-primary/40 font-normal">
+                      <Badge variant="outline" className="px-1.5 py-0">
                         Manual
                       </Badge>
                     )}
@@ -1396,28 +1612,38 @@ export const TransactionTable: React.FC = () => {
                     }}
                     disabled={updateTxMutation.isPending && updatingTxId === selectedTx.id}
                   >
-                    <SelectTrigger className="h-8 text-xs w-48 sm:w-56 cursor-pointer">
+                    <SelectTrigger
+                      aria-label="Select Category"
+                      className="h-8 w-48 sm:w-56 cursor-pointer"
+                    >
                       <SelectValue placeholder="Select Category" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="UNSET">
-                        <span className="text-muted-foreground italic">Uncategorized</span>
-                      </SelectItem>
-                      {categoriesData?.map((cat) => (
-                        <SelectItem key={cat.id} value={cat.id}>
-                          <div className="flex items-center gap-2">
-                            <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: cat.color_hex }} />
-                            <span>{cat.name}</span>
-                          </div>
+                      <SelectGroup>
+                        <SelectItem value="UNSET">
+                          <span className="text-muted-foreground italic">Uncategorized</span>
                         </SelectItem>
-                      ))}
+                        {categoriesData?.map((cat) => (
+                          <SelectItem key={cat.id} value={cat.id}>
+                            <div className="flex items-center gap-2">
+                              <span
+                                className="size-2 rounded-full shrink-0"
+                                style={{ backgroundColor: cat.color_hex }}
+                              />
+                              <span>{cat.name}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
                     </SelectContent>
                   </Select>
                 </div>
                 {selectedTx.cleaned_payee && (
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Cleaned Payee:</span>
-                    <span className="font-semibold text-foreground">{selectedTx.cleaned_payee}</span>
+                    <span className="font-semibold text-foreground">
+                      {selectedTx.cleaned_payee}
+                    </span>
                   </div>
                 )}
                 {selectedTx.upi_vpa && (
@@ -1436,7 +1662,9 @@ export const TransactionTable: React.FC = () => {
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Ref / UTR:</span>
                     <div className="flex items-center gap-1.5">
-                      <span className="font-mono text-foreground">{selectedTx.reference_number}</span>
+                      <span className="font-mono text-foreground">
+                        {selectedTx.reference_number}
+                      </span>
                       <CopyButton value={selectedTx.reference_number} label="Copy Ref / UTR" />
                     </div>
                   </div>
@@ -1456,7 +1684,7 @@ export const TransactionTable: React.FC = () => {
               </div>
 
               {/* Notes & Tags Editor */}
-              <div className="space-y-2 pt-2 border-t">
+              <div className="flex flex-col gap-2 pt-2 border-t">
                 <div className="flex items-center justify-between">
                   <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                     Notes & Tags
@@ -1465,7 +1693,7 @@ export const TransactionTable: React.FC = () => {
                     <Button
                       size="sm"
                       variant="secondary"
-                      className="h-6 text-[11px] px-2.5 gap-1 font-semibold cursor-pointer"
+                      className="h-6 px-2.5 gap-1 cursor-pointer"
                       disabled={updateTxMutation.isPending}
                       onClick={() => {
                         updateTxMutation.mutate({
@@ -1475,36 +1703,48 @@ export const TransactionTable: React.FC = () => {
                         setIsEditingDetails(false)
                       }}
                     >
-                      <Save className="h-3 w-3" /> Save Notes & Tags
+                      <Save data-icon="inline-start" /> Save Notes & Tags
                     </Button>
                   )}
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-[10px] text-muted-foreground block mb-0.5 font-medium">Custom Notes</label>
+                <FieldGroup className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <Field>
+                    <FieldLabel
+                      htmlFor={`${fieldId}-1485`}
+                      className="text-[10px] text-muted-foreground block mb-0.5 font-medium"
+                    >
+                      Custom Notes
+                    </FieldLabel>
                     <Input
+                      id={`${fieldId}-1485`}
                       placeholder="Add private note..."
-                      className="h-8 text-xs bg-background"
+                      className="h-8"
                       value={isEditingDetails ? editNotes : selectedTx.notes || ''}
                       onChange={(e) => {
                         setIsEditingDetails(true)
                         setEditNotes(e.target.value)
                       }}
                     />
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-muted-foreground block mb-0.5 font-medium">Tags (comma-separated)</label>
+                  </Field>
+                  <Field>
+                    <FieldLabel
+                      htmlFor={`${fieldId}-1497`}
+                      className="text-[10px] text-muted-foreground block mb-0.5 font-medium"
+                    >
+                      Tags (comma-separated)
+                    </FieldLabel>
                     <Input
+                      id={`${fieldId}-1497`}
                       placeholder="e.g. tax, business, personal"
-                      className="h-8 text-xs bg-background"
+                      className="h-8"
                       value={isEditingDetails ? editTags : selectedTx.tags || ''}
                       onChange={(e) => {
                         setIsEditingDetails(true)
                         setEditTags(e.target.value)
                       }}
                     />
-                  </div>
-                </div>
+                  </Field>
+                </FieldGroup>
               </div>
 
               {/* Quick Action: Create Auto-Categorization Rule */}
@@ -1512,9 +1752,10 @@ export const TransactionTable: React.FC = () => {
                 <Button
                   size="sm"
                   onClick={() => handleOpenQuickRule(selectedTx)}
-                  className="text-xs font-semibold gap-1.5 w-full sm:w-auto cursor-pointer"
+                  className="gap-1.5 w-full sm:w-auto cursor-pointer"
                 >
-                  <Sparkles className="h-3.5 w-3.5 text-primary-foreground" /> Create Auto-Rule from Payee
+                  <Sparkles data-icon="inline-start" className="text-primary-foreground" /> Create
+                  Auto-Rule from Payee
                 </Button>
               </div>
             </div>
@@ -1527,75 +1768,104 @@ export const TransactionTable: React.FC = () => {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-base font-semibold flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-primary" /> Create Auto-Categorization Rule
+              <Sparkles className="size-4 text-primary" /> Create Auto-Categorization Rule
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Future and existing transactions matching this pattern will be categorized automatically
+              Future and existing transactions matching this pattern will be categorized
+              automatically
             </DialogDescription>
           </DialogHeader>
 
           {quickRuleSuccessMsg ? (
-            <div className="py-6 flex flex-col items-center justify-center space-y-2 text-center">
-              <CheckCircle2 className="h-8 w-8 text-emerald-400" />
+            <div className="py-6 flex flex-col items-center justify-center gap-2 text-center">
+              <CheckCircle2 className="size-8 text-success" />
               <p className="text-xs font-semibold text-foreground">{quickRuleSuccessMsg}</p>
             </div>
           ) : (
-            <div className="space-y-3 py-2 text-xs">
-              <div className="space-y-1">
-                <label className="font-semibold text-foreground">Target Field</label>
-                <Select value={quickRuleField} onValueChange={(val) => setQuickRuleField(val || 'cleaned_payee')}>
-                  <SelectTrigger className="text-xs h-8.5">
+            <FieldGroup className="flex flex-col gap-3 py-2 text-xs">
+              <Field className="flex flex-col gap-1">
+                <FieldLabel htmlFor={`${fieldId}-1547`} className="font-semibold text-foreground">
+                  Target Field
+                </FieldLabel>
+                <Select
+                  value={quickRuleField}
+                  onValueChange={(val) => setQuickRuleField(val || 'cleaned_payee')}
+                >
+                  <SelectTrigger id={`${fieldId}-1547`} className="h-8.5">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="cleaned_payee">Cleaned Payee Name</SelectItem>
-                    <SelectItem value="raw_narration">Raw Statement Narration</SelectItem>
-                    <SelectItem value="upi_vpa">UPI VPA</SelectItem>
+                    <SelectGroup>
+                      <SelectItem value="cleaned_payee">Cleaned Payee Name</SelectItem>
+                      <SelectItem value="raw_narration">Raw Statement Narration</SelectItem>
+                      <SelectItem value="upi_vpa">UPI VPA</SelectItem>
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
-              </div>
+              </Field>
 
-              <div className="space-y-1">
-                <label className="font-semibold text-foreground">Pattern / Match Keyword *</label>
+              <Field className="flex flex-col gap-1">
+                <FieldLabel htmlFor={`${fieldId}-1560`} className="font-semibold text-foreground">
+                  Pattern / Match Keyword *
+                </FieldLabel>
                 <Input
+                  id={`${fieldId}-1560`}
                   value={quickRulePattern}
                   onChange={(e) => setQuickRulePattern(e.target.value)}
-                  className="text-xs font-mono h-8.5"
+                  className="h-8.5"
                   placeholder="e.g. SWIGGY"
                 />
-              </div>
+              </Field>
 
-              <div className="space-y-1">
-                <label className="font-semibold text-foreground">Assign Category *</label>
-                <Select value={quickRuleCategory} onValueChange={(val) => setQuickRuleCategory(val || '')}>
-                  <SelectTrigger className="text-xs h-8.5">
+              <Field className="flex flex-col gap-1">
+                <FieldLabel htmlFor={`${fieldId}-1571`} className="font-semibold text-foreground">
+                  Assign Category *
+                </FieldLabel>
+                <Select
+                  value={quickRuleCategory}
+                  onValueChange={(val) => setQuickRuleCategory(val || '')}
+                >
+                  <SelectTrigger id={`${fieldId}-1571`} className="h-8.5">
                     <SelectValue placeholder="Select Category" />
                   </SelectTrigger>
                   <SelectContent>
-                    {categoriesData?.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
+                    <SelectGroup>
+                      {categoriesData?.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
-              </div>
+              </Field>
 
               <DialogFooter className="gap-2 pt-3">
-                <Button variant="outline" size="sm" onClick={() => setShowQuickRuleModal(false)} className="cursor-pointer">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowQuickRuleModal(false)}
+                  className="cursor-pointer"
+                >
                   Cancel
                 </Button>
                 <Button
                   size="sm"
                   onClick={() => createRuleQuickMutation.mutate()}
-                  disabled={createRuleQuickMutation.isPending || !quickRulePattern.trim() || !quickRuleCategory}
-                  className="font-semibold gap-1.5 cursor-pointer"
+                  disabled={
+                    createRuleQuickMutation.isPending ||
+                    !quickRulePattern.trim() ||
+                    !quickRuleCategory
+                  }
+                  className="gap-1.5 cursor-pointer"
                 >
-                  <Plus className="h-3.5 w-3.5" />
-                  {createRuleQuickMutation.isPending ? 'Saving & Applying...' : 'Create & Apply Rule'}
+                  <Plus data-icon="inline-start" />
+                  {createRuleQuickMutation.isPending
+                    ? 'Saving & Applying...'
+                    : 'Create & Apply Rule'}
                 </Button>
               </DialogFooter>
-            </div>
+            </FieldGroup>
           )}
         </DialogContent>
       </Dialog>
@@ -1605,37 +1875,41 @@ export const TransactionTable: React.FC = () => {
         <div className="fixed bottom-6 right-6 z-50 max-w-md rounded-xl border border-primary/30 bg-card p-4 shadow-xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-4">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-2 text-primary font-semibold text-xs">
-              <Sparkles className="h-4 w-4" />
+              <Sparkles className="size-4" />
               <span>Create Auto-Rule for Future Transactions?</span>
             </div>
-            <button
+            <Button
+              variant="ghost"
               onClick={() => setRulePromptTx(null)}
-              className="text-muted-foreground hover:text-foreground text-xs cursor-pointer"
+              className="cursor-pointer"
             >
-              <X className="h-3.5 w-3.5" />
-            </button>
+              <X data-icon="inline-start" />
+            </Button>
           </div>
           <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
-            You categorized this transaction as <strong className="text-foreground">{rulePromptTx.newCategoryName}</strong>. Would you like to automatically assign this category to all future transactions from <strong className="text-foreground">{rulePromptTx.tx.cleaned_payee}</strong>?
+            You categorized this transaction as{' '}
+            <strong className="text-foreground">{rulePromptTx.newCategoryName}</strong>. Would you
+            like to automatically assign this category to all future transactions from{' '}
+            <strong className="text-foreground">{rulePromptTx.tx.cleaned_payee}</strong>?
           </p>
           <div className="mt-3 flex items-center justify-end gap-2">
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 text-xs cursor-pointer"
+              className="h-7 cursor-pointer"
               onClick={() => setRulePromptTx(null)}
             >
               Dismiss
             </Button>
             <Button
               size="sm"
-              className="h-7 text-xs gap-1.5 font-semibold cursor-pointer"
+              className="h-7 gap-1.5 cursor-pointer"
               onClick={() => {
                 handleOpenQuickRule(rulePromptTx.tx, rulePromptTx.tx.category_id)
                 setRulePromptTx(null)
               }}
             >
-              <Sparkles className="h-3 w-3" />
+              <Sparkles data-icon="inline-start" />
               Create Rule
             </Button>
           </div>

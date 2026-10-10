@@ -1,7 +1,7 @@
-@import "tailwindcss";
-@import "tw-animate-css";
-@import "./shadcn-tailwind.css";
-@import "@fontsource-variable/inter";
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import './shadcn-tailwind.css';
+@import '@fontsource-variable/inter';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -25,6 +25,9 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -56,12 +59,15 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
+  --primary: oklch(0.42 0.11 160);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  --muted-foreground: oklch(0.48 0 0);
+  --success: oklch(0.42 0.11 160);
+  --warning: oklch(0.43 0.1 65);
+  --info: oklch(0.43 0.12 255);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
@@ -74,10 +80,10 @@
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --radius: 0;
+  --radius: 0.625rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
@@ -92,12 +98,15 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
+  --primary: oklch(0.77 0.14 160);
+  --primary-foreground: oklch(0.18 0.03 160);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
   --muted-foreground: oklch(0.708 0 0);
+  --success: oklch(0.77 0.14 160);
+  --warning: oklch(0.8 0.12 80);
+  --info: oklch(0.76 0.1 255);
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
@@ -112,7 +121,7 @@
   --chart-5: oklch(0.269 0 0);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
@@ -123,7 +132,7 @@
 body {
   background-color: var(--background);
   color: var(--foreground);
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+  font-family: 'Inter Variable', sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -158,4 +167,53 @@ body {
   display: inline-block;
   letter-spacing: 0.15em;
   font-family: monospace;
+}
+
+::selection {
+  background: color-mix(in oklch, var(--primary), transparent 75%);
+}
+input,
+textarea {
+  caret-color: var(--primary);
+}
+html {
+  scrollbar-color: var(--muted-foreground) var(--background);
+  scroll-padding-top: 5rem;
+}
+
+/* Keep state feedback while removing spatial motion for motion-sensitive users. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-in,
+  .animate-out,
+  .animate-pulse {
+    animation: none;
+  }
+  .animate-spin {
+    animation: none;
+  }
+  .transition-all,
+  .transition-transform {
+    transition-property: color, background-color, border-color, opacity;
+  }
+  [data-slot='dialog-content'],
+  [data-slot='sheet-content'],
+  [data-slot='select-content'],
+  [data-slot='popover-content'] {
+    animation: none;
+  }
+}
+
+/* Compact desktop controls become comfortable touch targets on phones. */
+@media (pointer: coarse) {
+  [data-slot='button'],
+  [data-slot='toggle'],
+  [data-slot='toggle-group-item'],
+  [data-slot='select-trigger'],
+  [data-slot='tabs-trigger'],
+  [data-sidebar='menu-button'] {
+    min-height: 2.75rem;
+  }
+  [data-slot='button'][aria-label] {
+    min-width: 2.75rem;
+  }
 }

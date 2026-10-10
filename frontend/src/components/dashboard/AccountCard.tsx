@@ -1,3 +1,5 @@
+import { cn } from '@/lib/utils'
+import { usePrivacy } from '@/components/privacy-provider'
 import React from 'react'
 import { Account } from '@/types'
 import { formatINR } from '@/lib/utils'
@@ -10,32 +12,33 @@ interface AccountCardProps {
 }
 
 export const AccountCard: React.FC<AccountCardProps> = ({ account }) => {
+  const { isPrivacyMode } = usePrivacy()
   const isCreditCard = account.account_type === 'CREDIT_CARD'
 
   // Card network badge colors
   const networkBadge = account.card_network ? (
-    <Badge variant="outline" className="text-[10px] font-mono font-semibold px-1.5 py-0">
+    <Badge variant="outline" className="px-1.5 py-0">
       {account.card_network}
     </Badge>
   ) : null
 
   const variantBadge = account.card_variant ? (
-    <Badge variant="secondary" className="text-[10px] font-medium px-1.5 py-0">
+    <Badge variant="secondary" className="px-1.5 py-0">
       {account.card_variant}
     </Badge>
   ) : null
 
   return (
-    <Card className="overflow-hidden border-border/80 bg-card shadow-xs transition-colors hover:border-border">
+    <Card className="overflow-hidden transition-colors">
       <CardContent className="p-5 flex flex-col justify-between h-full">
         <div>
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-foreground border">
+              <div className="flex size-9 items-center justify-center rounded-lg bg-muted text-foreground border">
                 {isCreditCard ? (
-                  <CreditCard className="h-4 w-4 text-amber-400" />
+                  <CreditCard className="size-4 text-warning" />
                 ) : (
-                  <Landmark className="h-4 w-4 text-sky-400" />
+                  <Landmark className="size-4 text-info" />
                 )}
               </div>
               <div>
@@ -43,7 +46,7 @@ export const AccountCard: React.FC<AccountCardProps> = ({ account }) => {
                   {account.bank_name}
                 </h4>
                 <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                  <Badge variant="outline" className="text-[10px] uppercase font-semibold py-0 px-1.5 text-muted-foreground border-border/80">
+                  <Badge variant="outline" className="uppercase py-0 px-1.5">
                     {account.account_type.replace('_', ' ')}
                   </Badge>
                   <span className="text-[11px] font-mono text-muted-foreground">
@@ -59,7 +62,7 @@ export const AccountCard: React.FC<AccountCardProps> = ({ account }) => {
               </div>
             </div>
             {networkBadge || (
-              <Badge variant="outline" className="text-[10px] font-mono px-1.5 py-0">
+              <Badge variant="outline" className="px-1.5 py-0">
                 {account.currency || 'INR'}
               </Badge>
             )}
@@ -72,25 +75,28 @@ export const AccountCard: React.FC<AccountCardProps> = ({ account }) => {
               {isCreditCard ? 'Current Outstanding' : 'Available Balance'}
             </p>
             <p
-              className={`text-lg font-bold font-mono tracking-tight tabular-nums mt-0.5 ${
+              className={cn(
+                'text-lg font-bold font-mono tracking-tight tabular-nums mt-0.5',
                 isCreditCard
                   ? account.current_balance > 0
-                    ? 'text-rose-400'
+                    ? 'text-destructive'
                     : 'text-foreground'
                   : account.current_balance < 0
-                  ? 'text-rose-400'
-                  : 'text-emerald-400'
-              }`}
+                    ? 'text-destructive'
+                    : 'text-success'
+              )}
             >
-              {formatINR(account.current_balance)}
+              {formatINR(account.current_balance, isPrivacyMode)}
             </p>
           </div>
 
           {isCreditCard && account.credit_limit && (
             <div className="text-right">
-              <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Credit Limit</p>
+              <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                Credit Limit
+              </p>
               <p className="text-sm font-semibold font-mono text-muted-foreground tabular-nums mt-0.5">
-                {formatINR(account.credit_limit)}
+                {formatINR(account.credit_limit, isPrivacyMode)}
               </p>
             </div>
           )}

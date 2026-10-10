@@ -1,3 +1,4 @@
+import { usePrivacy } from '@/components/privacy-provider'
 import React from 'react'
 import { LucideIcon } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
@@ -21,42 +22,53 @@ export const OverviewCard: React.FC<OverviewCardProps> = ({
   icon: Icon,
   variant = 'default',
 }) => {
+  const { isPrivacyMode } = usePrivacy()
   const variantStyles = {
     default: {
       iconBg: 'bg-primary/10 text-primary border-primary/20',
       textAccent: 'text-foreground',
     },
     income: {
-      iconBg: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
-      textAccent: 'text-emerald-600 dark:text-emerald-400',
+      iconBg: 'bg-success/10 text-success border-success/20',
+      textAccent: 'text-success ',
     },
     expense: {
-      iconBg: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20',
+      iconBg: 'bg-destructive/10 text-destructive border-destructive/20',
       textAccent: 'text-foreground',
     },
     savings: {
-      iconBg: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20',
-      textAccent: 'text-sky-600 dark:text-sky-400',
+      iconBg: 'bg-info/10 text-info border-info/20',
+      textAccent: 'text-info ',
     },
   }
 
   const { iconBg } = variantStyles[variant]
 
   return (
-    <Card className="overflow-hidden border-border/80 bg-card shadow-xs transition-all duration-200 hover:border-primary/30 hover:shadow-sm">
+    <Card className="overflow-hidden transition-all duration-200">
       <CardContent className="p-5">
         <div className="flex items-center justify-between">
           <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             {title}
           </span>
-          <div className={cn('flex h-8 w-8 items-center justify-center rounded-lg border transition-transform duration-200 group-hover:scale-105', iconBg)}>
-            <Icon className="h-4 w-4" />
+          <div
+            className={cn(
+              'flex size-8 items-center justify-center rounded-lg border transition-transform duration-200 group-hover:scale-105',
+              iconBg
+            )}
+          >
+            <Icon className="size-4" />
           </div>
         </div>
         <div className="mt-3">
           <div className="text-2xl font-bold font-mono tracking-tight text-foreground tabular-nums privacy-blur">
             {numericValue !== undefined ? (
-              <AnimatedNumber value={numericValue} formatFn={formatINR} />
+              <AnimatedNumber
+                value={numericValue}
+                formatFn={(value) => formatINR(value, isPrivacyMode)}
+              />
+            ) : isPrivacyMode ? (
+              '₹••••••'
             ) : (
               amount
             )}

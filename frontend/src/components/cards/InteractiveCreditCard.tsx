@@ -1,3 +1,5 @@
+import { cn } from '@/lib/utils'
+import { usePrivacy } from '@/components/privacy-provider'
 import React, { useRef, useState } from 'react'
 import { Wifi } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -30,13 +32,14 @@ export const InteractiveCreditCard: React.FC<CreditCardProps> = ({
   colorScheme = 'indigo',
   compact = false,
 }) => {
+  const { isPrivacyMode } = usePrivacy()
   const cardRef = useRef<HTMLDivElement>(null)
   const [rotation, setRotation] = useState({ x: 0, y: 0 })
   const [glare, setGlare] = useState({ x: 50, y: 50, opacity: 0 })
   const [isHovered, setIsHovered] = useState(false)
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!cardRef.current) return
+    if (!cardRef.current || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
     const rect = cardRef.current.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
@@ -56,7 +59,7 @@ export const InteractiveCreditCard: React.FC<CreditCardProps> = ({
   }
 
   const handleMouseEnter = () => {
-    setIsHovered(true)
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) setIsHovered(true)
   }
 
   const handleMouseLeave = () => {
@@ -69,23 +72,20 @@ export const InteractiveCreditCard: React.FC<CreditCardProps> = ({
   const getGradients = () => {
     switch (colorScheme) {
       case 'emerald':
-        return 'from-emerald-950 via-teal-900 to-slate-950 border-emerald-500/40 shadow-emerald-950/40'
+        return 'from-slate-900 via-slate-800 to-slate-950 border-border'
       case 'amber':
-        return 'from-amber-950 via-yellow-950 to-stone-950 border-amber-500/40 shadow-amber-950/40'
+        return 'from-stone-900 via-stone-800 to-stone-950 border-border'
       case 'rose':
-        return 'from-rose-950 via-pink-950 to-slate-950 border-rose-500/40 shadow-rose-950/40'
+        return 'from-slate-900 via-slate-800 to-slate-950 border-border'
       case 'slate':
         return 'from-slate-900 via-neutral-900 to-zinc-950 border-slate-600/50 shadow-black/70'
       default:
-        return 'from-slate-950 via-indigo-950 to-slate-900 border-indigo-500/40 shadow-indigo-950/60'
+        return 'from-slate-950 via-slate-800 to-slate-900 border-border'
     }
   }
 
   return (
-    <div
-      style={{ perspective: '1200px' }}
-      className="w-full select-none"
-    >
+    <div style={{ perspective: '1200px' }} className="w-full select-none">
       <div
         ref={cardRef}
         onMouseMove={handleMouseMove}
@@ -98,9 +98,13 @@ export const InteractiveCreditCard: React.FC<CreditCardProps> = ({
             ? 'transform 0.04s ease-out'
             : 'transform 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
         }}
-        className={`relative aspect-[1.586/1] w-full ${
-          compact ? 'max-w-[280px] p-3.5 rounded-xl' : 'max-w-sm p-5 rounded-2xl'
-        } bg-gradient-to-br ${getGradients()} border text-white shadow-xl transition-shadow duration-300 hover:shadow-2xl overflow-hidden cursor-pointer`}
+        className={cn(
+          'relative aspect-[1.586/1] w-full',
+          compact ? 'max-w-[280px] p-3.5 rounded-xl' : 'max-w-sm p-5 rounded-2xl',
+          'bg-gradient-to-br',
+          getGradients(),
+          'border text-white shadow-xl transition-shadow duration-300 hover:shadow-2xl overflow-hidden'
+        )}
       >
         {/* Ambient Glare Light Foil */}
         <div
@@ -117,49 +121,79 @@ export const InteractiveCreditCard: React.FC<CreditCardProps> = ({
         {/* Top Row: Bank Name & Contactless WiFi */}
         <div className="relative z-10 flex items-center justify-between">
           <div className="flex flex-col">
-            <span className={`${compact ? 'text-[11px]' : 'text-xs'} font-bold tracking-wider uppercase text-white/90`}>
+            <span
+              className={cn(
+                compact ? 'text-[11px]' : 'text-xs',
+                'font-bold tracking-wider uppercase text-white/90'
+              )}
+            >
               {bankName}
             </span>
-            <span className={`${compact ? 'text-[9px]' : 'text-[10px]'} font-medium text-white/60 tracking-wide`}>
+            <span
+              className={cn(
+                compact ? 'text-[9px]' : 'text-[10px]',
+                'font-medium text-white/60 tracking-wide'
+              )}
+            >
               {variant || cardName}
             </span>
           </div>
           <div className="flex items-center gap-1.5">
-            <Wifi className={`${compact ? 'h-3.5 w-3.5' : 'h-4 w-4'} text-white/70 rotate-90`} />
-            <Badge
-              variant="outline"
-              className="border-white/20 bg-white/5 text-[9px] font-semibold text-white/90 px-1.5 py-0"
-            >
+            <Wifi className={cn(compact ? 'size-3.5' : 'size-4', 'text-white/70 rotate-90')} />
+            <Badge variant="outline" className="border-white/20 px-1.5 py-0">
               {network || 'VISA'}
             </Badge>
           </div>
         </div>
 
         {/* EMV Chip & Contactless */}
-        <div className={`relative z-10 ${compact ? 'my-2.5' : 'my-4'} flex items-center gap-3`}>
+        <div
+          className={cn('relative z-10', compact ? 'my-2.5' : 'my-4', 'flex items-center gap-3')}
+        >
           {/* Gold EMV Chip */}
-          <div className={`relative ${compact ? 'h-5 w-7 rounded-xs' : 'h-7 w-9 rounded-md'} bg-gradient-to-br from-amber-200 via-amber-400 to-amber-600 p-0.5 shadow-inner`}>
-            <div className="h-full w-full rounded-xs border border-amber-800/40 bg-amber-300/60 grid grid-cols-2 gap-0.5">
-              <div className="border-r border-b border-amber-700/30" />
-              <div className="border-b border-amber-700/30" />
-              <div className="border-r border-amber-700/30" />
+          <div
+            className={cn(
+              'relative',
+              compact ? 'h-5 w-7 rounded-xs' : 'h-7 w-9 rounded-md',
+              'bg-gradient-to-br from-warning via-warning to-warning p-0.5 shadow-inner'
+            )}
+          >
+            <div className="h-full w-full rounded-xs border border-warning/40 bg-warning/60 grid grid-cols-2 gap-0.5">
+              <div className="border-r border-b border-warning/30" />
+              <div className="border-b border-warning/30" />
+              <div className="border-r border-warning/30" />
               <div />
             </div>
           </div>
         </div>
 
         {/* Masked Card Number */}
-        <div className={`relative z-10 font-mono tracking-widest ${compact ? 'text-xs' : 'text-sm'} text-white/90 font-medium`}>
-          •••• •••• •••• {last4.replace(/[^0-9]/g, '') || '8888'}
+        <div
+          className={cn(
+            'relative z-10 font-mono tracking-widest',
+            compact ? 'text-xs' : 'text-sm',
+            'text-white/90 font-medium'
+          )}
+        >
+          •••• •••• •••• {last4.replace(/[^0-9]/g, '') || '••••'}
         </div>
 
         {/* Bottom Row: Cardholder & Limits */}
-        <div className={`relative z-10 ${compact ? 'mt-2' : 'mt-3'} flex items-end justify-between`}>
+        <div
+          className={cn(
+            'relative z-10',
+            compact ? 'mt-2' : 'mt-3',
+            'flex items-end justify-between'
+          )}
+        >
           <div className="flex flex-col">
-            <span className="text-[7px] uppercase tracking-widest text-white/50">
-              Cardholder
-            </span>
-            <span className={`text-[10px] font-semibold tracking-wider text-white/90 uppercase truncate ${compact ? 'max-w-[110px]' : 'max-w-[150px]'}`}>
+            <span className="text-[7px] uppercase tracking-widest text-white/50">Cardholder</span>
+            <span
+              className={cn(
+                'text-[10px] font-semibold tracking-wider text-white/90 uppercase truncate',
+                compact ? 'max-w-[110px]' : 'max-w-[150px]'
+              )}
+            >
               {cardholderName}
             </span>
           </div>
@@ -169,17 +203,25 @@ export const InteractiveCreditCard: React.FC<CreditCardProps> = ({
               <span className="text-[7px] uppercase tracking-widest text-white/50">
                 Due: {dueDate}
               </span>
-              <span className={`${compact ? 'text-[11px]' : 'text-xs'} font-bold font-mono text-emerald-400`}>
-                {formatINR(totalDue)}
+              <span
+                className={cn(
+                  compact ? 'text-[11px]' : 'text-xs',
+                  'font-bold font-mono text-white'
+                )}
+              >
+                {formatINR(totalDue, isPrivacyMode)}
               </span>
             </div>
           ) : creditLimit ? (
             <div className="flex flex-col text-right">
-              <span className="text-[7px] uppercase tracking-widest text-white/50">
-                Limit
-              </span>
-              <span className={`${compact ? 'text-[11px]' : 'text-xs'} font-bold font-mono text-white/80`}>
-                {formatINR(creditLimit)}
+              <span className="text-[7px] uppercase tracking-widest text-white/50">Limit</span>
+              <span
+                className={cn(
+                  compact ? 'text-[11px]' : 'text-xs',
+                  'font-bold font-mono text-white/80'
+                )}
+              >
+                {formatINR(creditLimit, isPrivacyMode)}
               </span>
             </div>
           ) : null}

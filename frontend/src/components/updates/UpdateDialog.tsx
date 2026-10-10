@@ -119,43 +119,45 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
   if (!versionInfo) return null
 
   return (
-    <Dialog open={open} onOpenChange={stage === 'updating' || stage === 'restarting' ? undefined : onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={stage === 'updating' || stage === 'restarting' ? undefined : onOpenChange}
+    >
       <DialogContent className="sm:max-w-lg max-h-[90vh] flex flex-col p-6">
         <DialogHeader>
           <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Sparkles className="h-5 w-5" />
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Sparkles className="size-5" />
             </div>
             <div>
               <DialogTitle className="text-base font-semibold">
                 Software Update Available
               </DialogTitle>
               <DialogDescription className="text-xs">
-                {versionInfo.release_name || `Release ${versionInfo.latest_version}`} is ready to install
+                {versionInfo.release_name || `Release ${versionInfo.latest_version}`} is ready to
+                install
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
         {/* Version Details */}
-        <div className="space-y-4 my-2 overflow-y-auto pr-1 text-sm">
+        <div className="flex flex-col gap-4 my-2 overflow-y-auto pr-1 text-sm">
           <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-3">
-            <div className="space-y-0.5">
+            <div className="flex flex-col gap-0.5">
               <p className="text-[11px] font-medium text-muted-foreground">Current Installed</p>
               <p className="font-mono text-xs font-semibold">{versionInfo.current_version}</p>
             </div>
             <div className="text-muted-foreground font-mono">→</div>
-            <div className="space-y-0.5 text-right">
+            <div className="flex flex-col gap-0.5 text-right">
               <p className="text-[11px] font-medium text-muted-foreground">Latest Available</p>
-              <Badge variant="default" className="font-mono text-xs bg-primary text-primary-foreground">
-                {versionInfo.latest_version}
-              </Badge>
+              <Badge variant="default">{versionInfo.latest_version}</Badge>
             </div>
           </div>
 
           {/* Release Highlights / Changelog */}
           {versionInfo.release_notes ? (
-            <div className="space-y-1.5">
+            <div className="flex flex-col gap-1.5">
               <p className="text-xs font-semibold text-foreground">What's New in this Release</p>
               <div className="rounded-lg border bg-muted/20 p-3 text-xs text-muted-foreground whitespace-pre-wrap max-h-40 overflow-y-auto font-sans leading-relaxed selection:bg-primary/20">
                 {versionInfo.release_notes}
@@ -168,23 +170,22 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
           )}
 
           {/* Safe Backup Notice */}
-          <div className="flex items-start gap-2.5 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs text-emerald-800 dark:text-emerald-300">
-            <ShieldCheck className="h-4 w-4 shrink-0 mt-0.5 text-emerald-600 dark:text-emerald-400" />
+          <div className="flex items-start gap-2.5 rounded-lg border border-success/20 bg-success/5 p-3 text-xs text-success">
+            <ShieldCheck className="size-4 shrink-0 mt-0.5 text-success" />
             <div>
-              <p className="font-medium text-emerald-950 dark:text-emerald-200">
-                Safe 100% Offline SQLite Backup
-              </p>
+              <p className="font-medium text-success">Safe 100% Offline SQLite Backup</p>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Before updating, an automatic snapshot of your entire database is created in <span className="font-mono text-foreground">~/.localfinance/backups/</span>.
+                Before updating, an automatic snapshot of your entire database is created in{' '}
+                <span className="font-mono text-foreground">~/.localfinance/backups/</span>.
               </p>
             </div>
           </div>
 
           {/* Status Message during updates */}
           {stage === 'updating' && (
-            <div className="flex flex-col items-center justify-center p-6 space-y-3 bg-muted/40 rounded-xl border border-primary/20">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <div className="text-center space-y-1">
+            <div className="flex flex-col items-center justify-center p-6 gap-3 bg-muted/40 rounded-xl border border-primary/20">
+              <Loader2 className="size-8 animate-spin text-primary" />
+              <div className="text-center flex flex-col gap-1">
                 <p className="text-sm font-semibold">Downloading &amp; Applying Update...</p>
                 <p className="text-xs text-muted-foreground">
                   Validating SHA256 checksum against release manifest and updating binary in place.
@@ -194,12 +195,13 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
           )}
 
           {stage === 'restarting' && (
-            <div className="flex flex-col items-center justify-center p-6 space-y-3 bg-primary/5 rounded-xl border border-primary/20">
-              <RefreshCw className="h-8 w-8 animate-spin text-primary" />
-              <div className="text-center space-y-1">
+            <div className="flex flex-col items-center justify-center p-6 gap-3 bg-primary/5 rounded-xl border border-primary/20">
+              <RefreshCw className="size-8 animate-spin text-primary" />
+              <div className="text-center flex flex-col gap-1">
                 <p className="text-sm font-semibold text-primary">Restarting LocalFinance Server</p>
                 <p className="text-xs text-muted-foreground">
-                  Waiting for updated server to respond ({restartSeconds}s, attempt {pollAttempt}/20)...
+                  Waiting for updated server to respond ({restartSeconds}s, attempt {pollAttempt}
+                  /20)...
                 </p>
                 {updateResult?.backup_path && (
                   <p className="text-[11px] text-muted-foreground mt-2 font-mono truncate max-w-sm">
@@ -211,29 +213,44 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
           )}
 
           {stage === 'done' && (
-            <div className="flex flex-col items-center justify-center p-6 space-y-3 bg-emerald-500/10 rounded-xl border border-emerald-500/30">
-              <CheckCircle2 className="h-8 w-8 text-emerald-500" />
-              <div className="text-center space-y-1">
-                <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">Update Installed Successfully!</p>
-                <p className="text-xs text-muted-foreground">Server upgraded to {versionInfo.latest_version}. Reloading application...</p>
+            <div className="flex flex-col items-center justify-center p-6 gap-3 bg-success/10 rounded-xl border border-success/30">
+              <CheckCircle2 className="size-8 text-success" />
+              <div className="text-center flex flex-col gap-1">
+                <p className="text-sm font-semibold text-success">Update Installed Successfully!</p>
+                <p className="text-xs text-muted-foreground">
+                  Server upgraded to {versionInfo.latest_version}. Reloading application...
+                </p>
               </div>
             </div>
           )}
 
           {stage === 'restart_timeout' && (
-            <Alert className="border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200">
-              <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-              <AlertTitle className="text-xs font-semibold">Reconnection Taking Longer than Expected</AlertTitle>
-              <AlertDescription className="text-xs mt-1 space-y-2">
+            <Alert className="border-warning/30 bg-warning/10 text-warning">
+              <AlertCircle className="size-4 text-warning" />
+              <AlertTitle className="text-xs font-semibold">
+                Reconnection Taking Longer than Expected
+              </AlertTitle>
+              <AlertDescription className="text-xs mt-1 flex flex-col gap-2">
                 <p>
-                  The binary update was applied, but the web interface hasn't reconnected after 30 seconds.
-                  If the process did not restart automatically, please start it from your terminal or launcher.
+                  The binary update was applied, but the web interface hasn't reconnected after 30
+                  seconds. If the process did not restart automatically, please start it from your
+                  terminal or launcher.
                 </p>
                 <div className="flex items-center gap-2 pt-1">
-                  <Button size="sm" variant="outline" onClick={handleRetryRestartPoll} className="h-7 text-xs">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleRetryRestartPoll}
+                    className="h-7"
+                  >
                     Retry Connection
                   </Button>
-                  <Button size="sm" variant="secondary" onClick={() => window.location.reload()} className="h-7 text-xs">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => window.location.reload()}
+                    className="h-7"
+                  >
                     Reload Page
                   </Button>
                 </div>
@@ -243,7 +260,7 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
 
           {stage === 'error' && (
             <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
+              <AlertCircle className="size-4" />
               <AlertTitle>Update Failed</AlertTitle>
               <AlertDescription className="text-xs mt-1">
                 {errorMsg}
@@ -254,7 +271,7 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
                     rel="noreferrer"
                     className="inline-flex items-center gap-1 font-semibold underline hover:text-foreground"
                   >
-                    Download release manually from GitHub <ExternalLink className="h-3 w-3" />
+                    Download release manually from GitHub <ExternalLink className="size-3" />
                   </a>
                 </div>
               </AlertDescription>
@@ -263,8 +280,8 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
 
           {/* If auto-update is not possible (e.g. running from DMG or no permissions) */}
           {!versionInfo.can_auto_update && stage === 'idle' && (
-            <Alert className="border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200">
-              <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            <Alert className="border-warning/30 bg-warning/10 text-warning">
+              <AlertCircle className="size-4 text-warning" />
               <AlertTitle className="text-xs font-semibold">Manual Update Required</AlertTitle>
               <AlertDescription className="text-xs mt-1">
                 {versionInfo.auto_update_error ||
@@ -279,9 +296,9 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
             variant="ghost"
             size="sm"
             onClick={() => window.open(versionInfo.release_url, '_blank')}
-            className="text-xs text-muted-foreground hover:text-foreground h-9 gap-1.5"
+            className="h-9 gap-1.5"
           >
-            <ExternalLink className="h-3.5 w-3.5" />
+            <ExternalLink data-icon="inline-start" />
             Release on GitHub
           </Button>
 
@@ -292,7 +309,7 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
                   variant="outline"
                   size="sm"
                   onClick={() => onOpenChange(false)}
-                  className="text-xs h-9"
+                  className="h-9"
                 >
                   Later
                 </Button>
@@ -302,19 +319,21 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
                     variant="default"
                     size="sm"
                     onClick={handleApplyUpdate}
-                    className="text-xs font-semibold h-9 gap-1.5 bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
+                    className="h-9 gap-1.5"
                   >
-                    <ArrowUpCircle className="h-4 w-4" />
+                    <ArrowUpCircle data-icon="inline-start" />
                     Update &amp; Restart
                   </Button>
                 ) : (
                   <Button
                     variant="default"
                     size="sm"
-                    onClick={() => window.open(versionInfo.asset_url || versionInfo.release_url, '_blank')}
-                    className="text-xs font-semibold h-9 gap-1.5"
+                    onClick={() =>
+                      window.open(versionInfo.asset_url || versionInfo.release_url, '_blank')
+                    }
+                    className="h-9 gap-1.5"
                   >
-                    <Download className="h-4 w-4" />
+                    <Download data-icon="inline-start" />
                     Download Release
                   </Button>
                 )}
@@ -327,7 +346,7 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
                   variant="outline"
                   size="sm"
                   onClick={() => onOpenChange(false)}
-                  className="text-xs h-9"
+                  className="h-9"
                 >
                   Close
                 </Button>
@@ -336,9 +355,9 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
                     variant="default"
                     size="sm"
                     onClick={handleApplyUpdate}
-                    className="text-xs h-9 gap-1.5"
+                    className="h-9 gap-1.5"
                   >
-                    <RefreshCw className="h-3.5 w-3.5" />
+                    <RefreshCw data-icon="inline-start" />
                     Retry Update
                   </Button>
                 )}
