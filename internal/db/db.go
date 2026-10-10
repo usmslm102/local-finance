@@ -2091,31 +2091,6 @@ func (d *DB) LinkTransferPair(debitTxID, creditTxID, reason string) error {
 	return tx.Commit()
 }
 
-func (d *DB) UnlinkTransferPair(txID string) error {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	tx, err := d.conn.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	var peerID sql.NullString
-	if err := tx.QueryRow(`SELECT transfer_peer_id FROM transactions WHERE id = ?`, txID).Scan(&peerID); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(`UPDATE transactions SET is_transfer = 0, transfer_peer_id = NULL, transfer_match_reason = NULL WHERE id = ?`, txID); err != nil {
-		return err
-	}
-	// Only clear a reciprocal relationship; an old/orphaned link must never
-	// detach an unrelated pair established in the meantime.
-	if peerID.Valid && peerID.String != "" {
-		if _, err := tx.Exec(`UPDATE transactions SET is_transfer = 0, transfer_peer_id = NULL, transfer_match_reason = NULL WHERE id = ? AND transfer_peer_id = ?`, peerID.String, txID); err != nil {
-			return err
-		}
-	}
-	return tx.Commit()
-}
-
 func (d *DB) ToggleExcludeTransaction(txID string) (bool, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()

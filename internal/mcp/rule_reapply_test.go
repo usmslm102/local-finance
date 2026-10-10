@@ -82,3 +82,61 @@ func TestMCPRuleSavesReapplyWholeLedgerAndRollback(t *testing.T) {
 		t.Fatalf("edits lost: %+v %v", tx, err)
 	}
 }
+
+func TestMCPReapplyThenUnlinkRestoresAutomaticCategories(t *testing.T) {
+	m, database := testManager(t)
+	if _, err := database.Exec(`INSERT INTO accounts (id,bank_name,account_type) VALUES ('a','Fictional A','SAVINGS'),('b','Fictional B','SAVINGS');
+ INSERT INTO transactions (id,account_id,tx_hash,tx_date,raw_narration,cleaned_payee,tx_type,amount,category_id,is_manual_category,payment_mode,reference_number,notes,tags) VALUES
+ ('debit','a','debit','2026-01-10','QuasarShop','QuasarShop','DEBIT',10,'cat_others',0,'OTHER','','',''),
+ ('credit','b','credit','2026-01-10','QuasarShop','QuasarShop','CREDIT',10,'cat_others',0,'OTHER','','',''),
+ ('manual','b','manual','2026-01-10','QuasarShop','QuasarShop','DEBIT',10,'cat_transfers',1,'OTHER','','','')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.LinkTransferPair("debit", "credit", "MANUAL"); err != nil {
+		t.Fatal(err)
+	}
+	token := enable(t, m)
+	allowed := true
+	if _, err := m.ConfigureAccess(true, m.Status().Port, &allowed, nil); err != nil {
+		t.Fatal(err)
+	}
+	session := connect(t, m, token)
+	callWrite(t, session, "save_categorization_rule", map[string]any{"match_pattern": "QuasarShop", "target_category_id": "cat_food", "priority": 10000}, false)
+	if err := database.UnlinkTransferPair("debit"); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"debit", "credit"} {
+		tx, err := database.GetTransaction(id)
+		if err != nil || tx.IsTransfer || tx.CategoryID == nil || *tx.CategoryID != "cat_food" {
+			t.Fatalf("unlinked %s: %+v %v", id, tx, err)
+		}
+	}
+	if err := database.UnlinkTransferPair("manual"); err != nil {
+		t.Fatal(err)
+	}
+	manual, err := database.GetTransaction("manual")
+	if err != nil || manual.CategoryID == nil || *manual.CategoryID != "cat_transfers" {
+		t.Fatalf("manual edit changed: %+v %v", manual, err)
+	}
+	overview, err := database.GetAnalyticsOverview()
+	if err != nil || overview.TotalExpense != 10 || overview.TotalIncome != 10 {
+		t.Fatalf("unlinked transactions missing: %+v %v", overview, err)
+	}
+	// Recategorization failure must leave both links intact.
+	if err := database.LinkTransferPair("debit", "credit", "MANUAL"); err != nil {
+		t.Fatal(err)
+	}
+	callWrite(t, session, "save_categorization_rule", map[string]any{"match_pattern": "QuasarShop", "target_category_id": "cat_food", "priority": 10000}, false)
+	if _, err := database.Exec(`CREATE TRIGGER reject_unlink BEFORE UPDATE OF category_id ON transactions WHEN NEW.category_id = 'cat_food' BEGIN SELECT RAISE(ABORT,'fictional failure'); END`); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.UnlinkTransferPair("debit"); err == nil {
+		t.Fatal("expected atomic unlink failure")
+	}
+	for _, id := range []string{"debit", "credit"} {
+		tx, err := database.GetTransaction(id)
+		if err != nil || !tx.IsTransfer {
+			t.Fatalf("partially unlinked: %+v %v", tx, err)
+		}
+	}
+}

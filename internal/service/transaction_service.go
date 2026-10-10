@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"regexp"
 	"strings"
 	"time"
 
@@ -524,45 +523,9 @@ func (s *TransactionService) matchCategory(pt parser.ParsedTransaction, rules []
 		return &transferCat
 	}
 
+	tx := models.Transaction{RawNarration: pt.RawNarration, CleanedPayee: pt.CleanedPayee, ReferenceNumber: pt.ReferenceNumber, UPIVPA: pt.UPIVPA, TxType: pt.TxType}
 	for _, r := range rules {
-		if !r.MatchesTxType(string(pt.TxType)) {
-			continue
-		}
-		if r.MatchesException(pt.RawNarration, pt.CleanedPayee) {
-			continue
-		}
-
-		targetVal := ""
-		switch r.MatchField {
-		case "cleaned_payee":
-			targetVal = pt.CleanedPayee
-		case "raw_narration":
-			targetVal = pt.RawNarration
-		case "reference_number":
-			targetVal = pt.ReferenceNumber
-		case "upi_vpa":
-			if pt.UPIVPA != nil {
-				targetVal = *pt.UPIVPA
-			}
-		default:
-			targetVal = pt.RawNarration
-		}
-
-		matched := false
-		switch r.MatchType {
-		case "CONTAINS":
-			matched = strings.Contains(strings.ToUpper(targetVal), strings.ToUpper(r.MatchPattern))
-		case "EXACT":
-			matched = strings.EqualFold(targetVal, r.MatchPattern)
-		case "STARTS_WITH":
-			matched = strings.HasPrefix(strings.ToUpper(targetVal), strings.ToUpper(r.MatchPattern))
-		case "REGEX":
-			if re, err := regexp.Compile(r.MatchPattern); err == nil {
-				matched = re.MatchString(targetVal)
-			}
-		}
-
-		if matched {
+		if r.MatchesTransaction(tx) {
 			catID := r.TargetCategoryID
 			return &catID
 		}

@@ -36,3 +36,5 @@ permission revocation, both native formats, upload and repeat import, read parit
 account masking, paginated holdings, missing IDs, bounded/local file rejection,
 and unchanged bank ledger. Review the delta from PR #15's previous head, then
 update that PR and run the required checks.
+
+Snapshot views retrieve portfolio identities together with snapshots in one database query, keeping grouping consistent during concurrent deletion and avoiding per-snapshot lookups.

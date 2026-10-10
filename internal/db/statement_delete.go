@@ -1,5 +1,10 @@
 package db
 
+import (
+	"database/sql"
+	"local-finance/internal/models"
+)
+
 // StatementDeletion reports the exact rows removed by a committed deletion.
 type StatementDeletion struct {
 	StatementImportID   string `json:"statement_import_id"`
@@ -50,4 +55,40 @@ func (d *DB) DeleteStatementImport(id string) (*StatementDeletion, error) {
 		return nil, err
 	}
 	return result, nil
+}
+
+// UnlinkTransferPair also restores automatic categories assigned while paired.
+// Both halves and their categories change in one transaction; manual edits survive.
+func (d *DB) UnlinkTransferPair(txID string) error {
+	return d.WithStatementImport(func(w *StatementWriter) error {
+		var peerID sql.NullString
+		if err := w.conn.QueryRow("SELECT transfer_peer_id FROM transactions WHERE id = ?", txID).Scan(&peerID); err != nil {
+			return err
+		}
+		ids := []any{txID}
+		if peerID.Valid && peerID.String != "" {
+			result, err := w.conn.Exec("UPDATE transactions SET is_transfer = 0, transfer_peer_id = NULL, transfer_match_reason = NULL WHERE id = ? AND transfer_peer_id = ?", peerID.String, txID)
+			if err != nil {
+				return err
+			}
+			count, err := result.RowsAffected()
+			if err != nil {
+				return err
+			}
+			if count > 0 {
+				ids = append(ids, peerID.String)
+			}
+		}
+		if _, err := w.conn.Exec("UPDATE transactions SET is_transfer = 0, transfer_peer_id = NULL, transfer_match_reason = NULL WHERE id = ?", txID); err != nil {
+			return err
+		}
+		predicate := " AND category_id = ? AND id IN (?"
+		if len(ids) == 2 {
+			predicate += ",?"
+		}
+		predicate += ")"
+		args := append([]any{models.CategoryTransfersID}, ids...)
+		_, err := w.reapplyRulesMatching(true, predicate, args...)
+		return err
+	})
 }

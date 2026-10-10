@@ -2,8 +2,6 @@ package db
 
 import (
 	"database/sql"
-	"regexp"
-	"strings"
 
 	"github.com/google/uuid"
 	"local-finance/internal/models"
@@ -132,46 +130,12 @@ func (d *statementStore) reapplyRulesMatching(resetUnmatched bool, predicate str
 			cid := models.CategoryTransfersID
 			matchedCatID = &cid
 		}
+		tx := models.Transaction{RawNarration: item.narration, CleanedPayee: item.payee, ReferenceNumber: item.ref, UPIVPA: &item.vpa, TxType: models.TxType(item.txType)}
 		for _, r := range rules {
 			if matchedCatID != nil {
 				break
 			}
-			if !r.MatchesTxType(item.txType) {
-				continue
-			}
-			if r.MatchesException(item.narration, item.payee) {
-				continue
-			}
-
-			targetVal := ""
-			switch r.MatchField {
-			case "cleaned_payee":
-				targetVal = item.payee
-			case "raw_narration":
-				targetVal = item.narration
-			case "reference_number":
-				targetVal = item.ref
-			case "upi_vpa":
-				targetVal = item.vpa
-			default:
-				targetVal = item.narration
-			}
-
-			matched := false
-			switch r.MatchType {
-			case "CONTAINS":
-				matched = strings.Contains(strings.ToUpper(targetVal), strings.ToUpper(r.MatchPattern))
-			case "EXACT":
-				matched = strings.EqualFold(targetVal, r.MatchPattern)
-			case "STARTS_WITH":
-				matched = strings.HasPrefix(strings.ToUpper(targetVal), strings.ToUpper(r.MatchPattern))
-			case "REGEX":
-				if re, err := regexp.Compile(r.MatchPattern); err == nil {
-					matched = re.MatchString(targetVal)
-				}
-			}
-
-			if matched {
+			if r.MatchesTransaction(tx) {
 				cid := r.TargetCategoryID
 				matchedCatID = &cid
 				break

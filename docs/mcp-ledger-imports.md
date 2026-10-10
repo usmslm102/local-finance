@@ -78,3 +78,5 @@ and overlapping imports, balances/peer links/bills, independent permission
 discovery/execution and migration/reset/restore. Run Go tests/vet and frontend
 build/lint/tests. Review the committed diff from merged main along Standards and
 Spec axes, fix meaningful findings, and create a new PR.
+
+Security/design review: file uploads use platform no-follow handle traversal (pinned ancestor handles on Windows; directory-relative nonblocking opens on Linux/macOS). Rule matching is shared with statement imports. Unlinking reconciled transfers restores automatic categories atomically while preserving manual categories.

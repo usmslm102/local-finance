@@ -141,7 +141,8 @@ func TestLocalCSVPathPolicy(t *testing.T) {
 		if err := os.Symlink(target, link); err != nil {
 			t.Skipf("symlinks unavailable: %v", err)
 		}
-		if err := checkStatementPathComponents(filepath.Join(link, "statement.csv")); err == nil {
+		if file, err := openLocalStatementFile(filepath.Join(link, "statement.csv"), 1024, []string{".csv"}); err == nil {
+			file.Close()
 			t.Fatal("followed symlink ancestor")
 		}
 	})

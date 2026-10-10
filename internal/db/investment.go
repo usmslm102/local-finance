@@ -40,34 +40,6 @@ func (d *DB) ListInvestmentSnapshots() ([]models.InvestmentSnapshot, error) {
 	return d.listInvestmentSnapshots()
 }
 
-// GetInvestmentSnapshot loads one portfolio without decoding unrelated history.
-func (d *DB) GetInvestmentSnapshot(id string) (*models.InvestmentSnapshot, error) {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-	var data string
-	if err := d.conn.QueryRow(`SELECT data_json FROM investment_snapshots WHERE id = ?`, id).Scan(&data); err != nil {
-		return nil, err
-	}
-	var snapshot models.InvestmentSnapshot
-	if err := json.Unmarshal([]byte(data), &snapshot); err != nil {
-		return nil, err
-	}
-	return &snapshot, nil
-}
-
-// InvestmentPortfolioKey uses the earliest stored snapshot's random ID instead
-// of a reversible digest of a short broker reference. It remains stable while
-// that snapshot exists, and requires no additional portfolio storage.
-func (d *DB) InvestmentPortfolioKey(snapshot *models.InvestmentSnapshot) (string, error) {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-	var key string
-	err := d.conn.QueryRow(`SELECT id FROM investment_snapshots
-		WHERE provider = ? AND account_ref = ? AND json_extract(data_json, '$.currency') = ?
-		ORDER BY rowid ASC LIMIT 1`, snapshot.Provider, snapshot.AccountRef, snapshot.Currency).Scan(&key)
-	return key, err
-}
-
 // listInvestmentSnapshots requires the caller to hold d.mu. Export already
 // holds a read lock, so it must not recursively acquire it with a writer waiting.
 func (d *DB) listInvestmentSnapshots() ([]models.InvestmentSnapshot, error) {
@@ -100,4 +72,52 @@ func (d *DB) DeleteInvestmentSnapshot(id string) (bool, error) {
 	}
 	count, err := res.RowsAffected()
 	return count > 0, err
+}
+
+// InvestmentSnapshotWithPortfolio couples a snapshot with its grouping identity
+// from the same read, so deletion cannot change keys midway through a response.
+type InvestmentSnapshotWithPortfolio struct {
+	Snapshot     models.InvestmentSnapshot
+	PortfolioKey string
+}
+
+const investmentSnapshotsWithPortfolio = `SELECT id, data_json,
+ FIRST_VALUE(id) OVER (PARTITION BY provider, account_ref, json_extract(data_json, '$.currency') ORDER BY rowid) AS portfolio_key,
+ as_of, imported_at FROM investment_snapshots`
+
+func (d *DB) ListInvestmentSnapshotsWithPortfolio() ([]InvestmentSnapshotWithPortfolio, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	rows, err := d.conn.Query("SELECT data_json, portfolio_key FROM (" + investmentSnapshotsWithPortfolio + ") ORDER BY as_of DESC, imported_at DESC, id DESC")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := []InvestmentSnapshotWithPortfolio{}
+	for rows.Next() {
+		var item InvestmentSnapshotWithPortfolio
+		var data string
+		if err := rows.Scan(&data, &item.PortfolioKey); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal([]byte(data), &item.Snapshot); err != nil {
+			return nil, err
+		}
+		result = append(result, item)
+	}
+	return result, rows.Err()
+}
+
+func (d *DB) GetInvestmentSnapshotWithPortfolio(id string) (*InvestmentSnapshotWithPortfolio, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	var item InvestmentSnapshotWithPortfolio
+	var data string
+	if err := d.conn.QueryRow("SELECT data_json, portfolio_key FROM ("+investmentSnapshotsWithPortfolio+") WHERE id = ?", id).Scan(&data, &item.PortfolioKey); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal([]byte(data), &item.Snapshot); err != nil {
+		return nil, err
+	}
+	return &item, nil
 }

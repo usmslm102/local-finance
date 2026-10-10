@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	"local-finance/internal/db"
 	"local-finance/internal/investment"
 	"local-finance/internal/models"
 	"local-finance/internal/service"
@@ -164,11 +165,11 @@ func TestInvestmentPortfolioKeysDisambiguateMaskedReferences(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	keyA, err := database.InvestmentPortfolioKey(&a)
+	keyA, err := portfolioKeyForTest(t, database, a.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	keyB, err := database.InvestmentPortfolioKey(&b)
+	keyB, err := portfolioKeyForTest(t, database, b.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +182,7 @@ func TestInvestmentPortfolioKeysDisambiguateMaskedReferences(t *testing.T) {
 	if _, _, err := database.SaveInvestmentSnapshot(&a, a.ID); err != nil {
 		t.Fatal(err)
 	}
-	laterKey, err := database.InvestmentPortfolioKey(&a)
+	laterKey, err := portfolioKeyForTest(t, database, a.ID)
 	if err != nil || laterKey != first.PortfolioKey {
 		t.Fatalf("new snapshot changed portfolio identity: %s %v", laterKey, err)
 	}
@@ -191,8 +192,17 @@ func TestInvestmentPortfolioKeysDisambiguateMaskedReferences(t *testing.T) {
 	if _, _, err := database.SaveInvestmentSnapshot(&a, a.ID); err != nil {
 		t.Fatal(err)
 	}
-	usdKey, err := database.InvestmentPortfolioKey(&a)
+	usdKey, err := portfolioKeyForTest(t, database, a.ID)
 	if err != nil || usdKey == first.PortfolioKey {
 		t.Fatalf("currency merged portfolios: %s %v", usdKey, err)
 	}
+}
+
+func portfolioKeyForTest(t *testing.T, database *db.DB, id string) (string, error) {
+	t.Helper()
+	item, err := database.GetInvestmentSnapshotWithPortfolio(id)
+	if err != nil {
+		return "", err
+	}
+	return item.PortfolioKey, nil
 }
