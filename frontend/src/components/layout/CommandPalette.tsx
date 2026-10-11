@@ -92,6 +92,22 @@ export const CommandPalette: React.FC = () => {
           <CommandEmpty>No results found.</CommandEmpty>
 
           <CommandGroup heading="Navigation">
+            <CommandItem onSelect={() => runCommand(() => navigate({ to: '/planning' }))}>
+              <Target className="size-4" />
+              <span>Savings Forecast</span>
+            </CommandItem>
+            <CommandItem
+              onSelect={() =>
+                runCommand(() => navigate({ to: '/planning', search: { tab: 'goals' } }))
+              }
+            >
+              <Target className="size-4" />
+              <span>Savings Goals</span>
+            </CommandItem>
+            <CommandItem onSelect={() => runCommand(() => navigate({ to: '/data-health' }))}>
+              <ReceiptText className="size-4" />
+              <span>Data Health & Statement Coverage</span>
+            </CommandItem>
             <CommandItem
               onSelect={() => runCommand(() => navigate({ to: '/' }))}
               className="flex items-center gap-2.5 px-3 py-2 cursor-pointer"

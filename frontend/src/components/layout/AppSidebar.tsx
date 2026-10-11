@@ -65,6 +65,7 @@ const mainNavItems: NavItem[] = [
 ]
 
 const intelligenceNavItems: NavItem[] = [
+  { title: 'Savings & Planning', url: '/planning', icon: Target },
   { title: 'Investments', url: '/investments', icon: Briefcase },
   {
     title: 'Cash Flow & Sankey',
@@ -110,6 +111,7 @@ const intelligenceNavItems: NavItem[] = [
 ]
 
 const systemNavItems: NavItem[] = [
+  { title: 'Data Health', url: '/data-health', icon: ShieldCheck },
   {
     title: 'Import Statements',
     url: '/import',

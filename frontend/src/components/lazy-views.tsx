@@ -57,3 +57,12 @@ export const InvestmentsView = lazy(() =>
     default: module.InvestmentsView,
   }))
 )
+
+export const PlanningView = lazy(() =>
+  import('@/components/planning/PlanningView').then((module) => ({ default: module.PlanningView }))
+)
+export const DataHealthView = lazy(() =>
+  import('@/components/data-health/DataHealthView').then((module) => ({
+    default: module.DataHealthView,
+  }))
+)

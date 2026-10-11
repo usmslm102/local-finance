@@ -423,7 +423,8 @@ export const TransactionTable: React.FC = () => {
         page_size: pageSize,
         search: search || undefined,
         account_id: accountId !== 'ALL' ? accountId : undefined,
-        category_id: categoryId !== 'ALL' ? categoryId : undefined,
+        category_id: !['ALL', 'REVIEW_NEEDED'].includes(categoryId) ? categoryId : undefined,
+        review_needed: categoryId === 'REVIEW_NEEDED',
         tx_type: txType !== 'ALL' ? txType : undefined,
         start_date: startDate,
         end_date: endDate,
@@ -771,6 +772,7 @@ export const TransactionTable: React.FC = () => {
 
   const activeCategory = useMemo(() => {
     if (categoryId === 'ALL') return null
+    if (categoryId === 'REVIEW_NEEDED') return { name: 'Needs category review' }
     return categoriesData?.find((c) => c.id === categoryId)
   }, [categoryId, categoriesData])
 
@@ -962,6 +964,7 @@ export const TransactionTable: React.FC = () => {
               <SelectContent>
                 <SelectGroup>
                   <SelectItem value="ALL">All Categories</SelectItem>
+                  <SelectItem value="REVIEW_NEEDED">Needs category review</SelectItem>
                   {categoriesData?.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.name}

@@ -153,6 +153,7 @@ export interface TransactionParams {
   end_date?: string
   page?: number
   page_size?: number
+  review_needed?: boolean
 }
 
 export async function fetchTransactions(params: TransactionParams = {}): Promise<TransactionListResponse> {
@@ -161,6 +162,7 @@ export async function fetchTransactions(params: TransactionParams = {}): Promise
   if (params.max_amount) query.append('max_amount', params.max_amount)
   if (params.account_id) query.append('account_id', params.account_id)
   if (params.category_id) query.append('category_id', params.category_id)
+  if (params.review_needed) query.append('review_needed', 'true')
   if (params.tx_type) query.append('tx_type', params.tx_type)
   if (params.search) query.append('search', params.search)
   if (params.start_date) query.append('start_date', params.start_date)
@@ -931,4 +933,35 @@ export function updateMCPSettings(enabled: boolean, port: number, allowCategoriz
 }
 export function rotateMCPToken(): Promise<{ token: string; settings: MCPSettings }> {
   return mcpRequest('token/rotate', { method: 'POST' })
+}
+
+export async function fetchSavingsGoals(): Promise<import('../types/planning').SavingsGoal[]> {
+  const res = await fetchWithAuth(`${BASE_URL}/goals`)
+  if (!res.ok) throw new Error('Unable to load savings goals')
+  return res.json()
+}
+export async function saveSavingsGoal(
+  goal: import('../types/planning').GoalInput,
+  id?: string
+): Promise<void> {
+  const res = await fetchWithAuth(`${BASE_URL}/goals${id ? `/${encodeURIComponent(id)}` : ''}`, {
+    method: id ? 'PUT' : 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(goal),
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error(data.error || 'Unable to save savings goal')
+  }
+}
+export async function deleteSavingsGoal(id: string): Promise<void> {
+  const res = await fetchWithAuth(`${BASE_URL}/goals/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  })
+  if (!res.ok) throw new Error('Unable to delete savings goal. Refresh and try again.')
+}
+export async function fetchDataHealth(): Promise<import('../types/planning').DataHealthAccount[]> {
+  const res = await fetchWithAuth(`${BASE_URL}/analytics/data-health`)
+  if (!res.ok) throw new Error('Unable to load data health')
+  return res.json()
 }

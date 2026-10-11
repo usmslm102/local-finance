@@ -96,6 +96,10 @@ func (d *DB) ResetDatabase() error {
 	}
 	defer tx.Rollback()
 
+	if _, err := tx.Exec(`DELETE FROM savings_goals`); err != nil {
+		return err
+	}
+
 	if _, err := tx.Exec(`DELETE FROM investment_snapshots`); err != nil {
 		return err
 	}
@@ -309,18 +313,19 @@ func (d *DB) RecalculateAccountBalance(accountID string) error {
 }
 
 type TransactionFilter struct {
-	ID         string
-	AccountID  string
-	CategoryID string
-	TxType     string
-	Search     string
-	StartDate  string
-	EndDate    string
-	IsTransfer *bool
-	MinAmount  *float64
-	MaxAmount  *float64
-	Limit      int
-	Offset     int
+	ID           string
+	AccountID    string
+	CategoryID   string
+	ReviewNeeded bool
+	TxType       string
+	Search       string
+	StartDate    string
+	EndDate      string
+	IsTransfer   *bool
+	MinAmount    *float64
+	MaxAmount    *float64
+	Limit        int
+	Offset       int
 }
 
 func (d *DB) ListTransactions(f TransactionFilter) ([]models.Transaction, int, error) {
@@ -334,6 +339,9 @@ func (d *DB) ListTransactions(f TransactionFilter) ([]models.Transaction, int, e
 	if f.AccountID != "" {
 		where = append(where, "t.account_id = ?")
 		args = append(args, f.AccountID)
+	}
+	if f.ReviewNeeded {
+		where = append(where, "COALESCE(t.category_id, '') IN ('', 'cat_others') AND "+financialActivityFilter("t"))
 	}
 	if f.CategoryID != "" {
 		where = append(where, "t.category_id = ?")
@@ -614,9 +622,9 @@ func (d *DB) CreateRule(r *models.CategorizationRule) error {
 // InsertRule preserves an explicit priority, including zero. CreateRule retains
 // the application's historical zero-as-default behavior for existing callers.
 func (d *DB) InsertRule(r *models.CategorizationRule) error {
- d.mu.Lock()
- defer d.mu.Unlock()
- return (&statementStore{conn: d.conn}).InsertRule(r)
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return (&statementStore{conn: d.conn}).InsertRule(r)
 }
 
 func (d *DB) UpdateRule(r *models.CategorizationRule) error {
@@ -680,13 +688,13 @@ func (d *DB) DeleteCategory(id string) error {
 }
 
 func (d *DB) ReapplyRules() (int, error) {
- var count int
- err := d.WithStatementImport(func(w *StatementWriter) error {
-  var err error
-  count, err = w.reapplyRules(false)
-  return err
- })
- return count, err
+	var count int
+	err := d.WithStatementImport(func(w *StatementWriter) error {
+		var err error
+		count, err = w.reapplyRules(false)
+		return err
+	})
+	return count, err
 }
 
 func (d *DB) CreateOrUpdateCreditCardBill(b *models.CreditCardBill) error {
@@ -1090,17 +1098,19 @@ func (d *DB) GetAnalyticsOverview() (*models.AnalyticsOverview, error) {
 		}
 	}
 
-	// 4. Monthly Trends (Excluding internal transfers)
+	// 4. Latest 12 recorded months, returned chronologically for charts.
 	trendRows, err := d.conn.Query(`
-		SELECT 
+		SELECT month, income, expense FROM (
+		SELECT
 			strftime('%Y-%m', tx_date) as month,
 			SUM(CASE WHEN ` + incomeFilter("") + ` THEN amount ELSE 0 END) as income,
 			SUM(CASE WHEN ` + spendingFilter("") + ` THEN amount ELSE 0 END) as expense
 		FROM transactions
 		WHERE ` + financialFlowFilter("") + `
 		GROUP BY month
-		ORDER BY month ASC
+		ORDER BY month DESC
 		LIMIT 12
+		) ORDER BY month ASC
 	`)
 	if err == nil {
 		defer trendRows.Close()
@@ -1229,6 +1239,10 @@ func (d *DB) GetDatabaseInfo() (*models.DatabaseInfo, error) {
 func (d *DB) ExportAllDataJSON() (*models.FullExportData, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
+	goals, err := d.listSavingsGoals()
+	if err != nil {
+		return nil, err
+	}
 	investments, err := d.listInvestmentSnapshots()
 	if err != nil {
 		return nil, err
@@ -1260,6 +1274,7 @@ func (d *DB) ExportAllDataJSON() (*models.FullExportData, error) {
 	}
 
 	return &models.FullExportData{
+		Goals:            goals,
 		Investments:      investments,
 		ExportedAt:       time.Now(),
 		Version:          "1.0",

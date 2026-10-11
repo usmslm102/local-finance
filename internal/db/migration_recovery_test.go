@@ -35,7 +35,7 @@ func TestMCPSettingsMigrationWithoutHistory(t *testing.T) {
 			if _, err := database.Exec(`
                 ALTER TABLE mcp_settings DROP COLUMN allow_statement_writes;
                 ALTER TABLE mcp_settings DROP COLUMN allow_categorization_writes;
-                DROP TABLE investment_snapshots;
+                DROP TABLE savings_goals; DROP TABLE investment_snapshots;
                 DELETE FROM goose_db_version WHERE version_id >= 14;
                 INSERT INTO accounts (id, bank_name, account_type) VALUES ('fixture-account', 'Fixture bank', 'savings');
                 INSERT INTO transactions (id, account_id, tx_hash, tx_date, raw_narration, tx_type, amount, category_id, notes, tags, is_manual_category)
@@ -100,7 +100,7 @@ func TestMCPMigrationRecoveryFailsWithoutPartialChanges(t *testing.T) {
 			if _, err := database.Exec(`
 				ALTER TABLE mcp_settings DROP COLUMN allow_statement_writes;
                 ALTER TABLE mcp_settings DROP COLUMN allow_categorization_writes;
-				DROP TABLE investment_snapshots;
+				DROP TABLE savings_goals; DROP TABLE investment_snapshots;
 				DELETE FROM goose_db_version WHERE version_id >= 14;
 				DELETE FROM mcp_settings;
 			` + fixture.mutation); err != nil {

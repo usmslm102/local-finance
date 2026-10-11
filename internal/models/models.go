@@ -344,6 +344,7 @@ type DatabaseInfo struct {
 }
 
 type FullExportData struct {
+	Goals            []SavingsGoal        `json:"goals"`
 	Investments      []InvestmentSnapshot `json:"investments"`
 	ExportedAt       time.Time            `json:"exported_at"`
 	Version          string               `json:"version"`

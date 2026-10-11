@@ -53,6 +53,11 @@ func SetupRouter(database *db.DB, svc *service.TransactionService, staticFS fs.F
 		apiGroup.PUT("/mcp/settings", h.UpdateMCPSettings)
 		apiGroup.POST("/mcp/token/rotate", h.RotateMCPToken)
 
+		apiGroup.GET("/goals", h.ListSavingsGoals)
+		apiGroup.POST("/goals", h.SaveSavingsGoal)
+		apiGroup.PUT("/goals/:id", h.SaveSavingsGoal)
+		apiGroup.DELETE("/goals/:id", h.DeleteSavingsGoal)
+		apiGroup.GET("/analytics/data-health", h.GetDataHealth)
 		apiGroup.GET("/accounts", h.ListAccounts)
 		apiGroup.GET("/investments", h.ListInvestments)
 		apiGroup.GET("/investments/formats", h.InvestmentFormats)

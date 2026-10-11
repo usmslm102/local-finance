@@ -38,6 +38,8 @@ import {
   WrappedView,
   SalaryView,
   InvestmentsView,
+  PlanningView,
+  DataHealthView,
 } from '@/components/lazy-views'
 import { InvestmentTotals } from '@/components/investments/InvestmentTotals'
 import { PrivacyProvider } from '@/components/privacy-provider'
@@ -81,6 +83,10 @@ const RootLayoutContent: React.FC = () => {
         return 'Cash Flow & Sankey'
       case '/salary':
         return 'Salary & Income Insights'
+      case '/planning':
+        return 'Savings & Planning'
+      case '/data-health':
+        return 'Data Health'
       case '/investments':
         return 'Investments'
       case '/calendar':
@@ -316,6 +322,29 @@ const DashboardPage: React.FC = () => {
       )}
       <InvestmentTotals snapshots={investments.data ?? []} />
       <MonthlyReview compact />
+      <div className="flex flex-wrap items-center justify-between gap-3 border-y py-4">
+        <div>
+          <h2 className="font-semibold">Plan beyond this month</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Check your statement coverage, set a savings goal, or test a spending scenario.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Link to="/planning" className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+            Savings forecast
+          </Link>
+          <Link
+            to="/planning"
+            search={{ tab: 'goals' }}
+            className={buttonVariants({ variant: 'outline', size: 'sm' })}
+          >
+            Savings goals
+          </Link>
+          <Link to="/data-health" className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
+            Data health
+          </Link>
+        </div>
+      </div>
 
       {/* KPI Overview Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -634,6 +663,15 @@ const salaryRoute = createRoute({
 })
 
 const routeTree = rootRoute.addChildren([
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/planning',
+    validateSearch: (search: Record<string, unknown>): { tab?: 'goals' } => ({
+      tab: search.tab === 'goals' ? 'goals' : undefined,
+    }),
+    component: PlanningView,
+  }),
+  createRoute({ getParentRoute: () => rootRoute, path: '/data-health', component: DataHealthView }),
   createRoute({
     getParentRoute: () => rootRoute,
     path: '/investments',

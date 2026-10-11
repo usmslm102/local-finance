@@ -208,10 +208,13 @@ internal/db/migrations/
 - [x] Open next month's existing budget editor with the category preselected through search.
 - [x] Keep review reads separate from imports and ledger mutations; honor app authentication and discreet mode.
 - [ ] Link refunds and shared-expense repayments before calculating personal net spending.
-- [ ] Build cash forecasts with explicit assumptions and data freshness.
-- [ ] Add savings goals and planned expenses.
+- [x] Monthly savings scenarios with explicit assumptions, missing baseline months, source freshness, and capped goal reserves.
+- [ ] Daily cash forecasts with payment dates and scheduled cash movements.
+- [x] Local savings goals with progress, target dates and monthly pacing; one-off expenses in temporary scenarios.
+- [ ] Persistent planned expenses with scheduled dates.
+- [x] Data health view with per-account statement coverage, stale-source checks and exact category-review ledger links.
 
-Review amounts reflect recorded debits; refunds are not deducted. Incomplete statement coverage is displayed even when spending totals are available. No schema migration is needed for this release.
+Review amounts reflect recorded debits; refunds are not deducted. Incomplete statement coverage is displayed even when spending totals are available. Monthly Review uses existing records. Savings goals add migration 00018, applied automatically at startup; goals are included in backup, restore, export and database reset.
 
 ## 🔮 Future Roadmap & Suggested Capabilities (Prioritized)
 
