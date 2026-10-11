@@ -10,10 +10,10 @@ import (
 func (d *DB) GetRule(id string) (*models.CategorizationRule, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
-	return d.getRule(id)
+	return (&statementStore{conn: d.conn}).getRule(id)
 }
 
-func (d *DB) getRule(id string) (*models.CategorizationRule, error) {
+func (d *statementStore) getRule(id string) (*models.CategorizationRule, error) {
 	var r models.CategorizationRule
 	err := d.conn.QueryRow(`
 		SELECT r.id, r.priority, r.match_field, r.match_type, r.match_pattern,
@@ -31,6 +31,10 @@ func (d *DB) getRule(id string) (*models.CategorizationRule, error) {
 func (d *DB) PatchRule(id string, patch models.CategorizationRulePatch) (*models.CategorizationRule, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	return (&statementStore{conn: d.conn}).PatchRule(id, patch)
+}
+
+func (d *statementStore) PatchRule(id string, patch models.CategorizationRulePatch) (*models.CategorizationRule, error) {
 	current, err := d.getRule(id)
 	if err != nil {
 		return nil, err

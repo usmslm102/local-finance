@@ -20,7 +20,7 @@ func init() {
 }
 
 func (ZerodhaHoldingsParser) Info() ParserInfo {
-	return ParserInfo{Provider: "Zerodha", Name: "Holdings export", Extensions: []string{".xlsx"}}
+	return ParserInfo{Provider: "Zerodha", Name: "Holdings export", Extensions: []string{".xlsx"}, Requirements: []string{"Original Zerodha holdings export with Client ID and Holdings statement as on YYYY-MM-DD.", "Holdings table columns: Symbol, ISIN, Quantity Available, Average Price, Previous Closing Price, Unrealized P&L.", "Include the complete portfolio; leave source worksheets and values intact."}}
 }
 
 func (ZerodhaHoldingsParser) ID() string { return "zerodha_holdings_xlsx_v1" }

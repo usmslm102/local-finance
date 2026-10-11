@@ -53,13 +53,13 @@ func TestMCPManagementProtection(t *testing.T) {
 	if w := send("PUT", "/api/mcp/settings", `{"enabled":false,"port":8081}`, "", "http://localhost:5173", ""); w.Code != 200 {
 		t.Fatalf("dev origin rejected: %d", w.Code)
 	}
-	if w := send("PUT", "/api/mcp/settings", `{"enabled":false,"port":8081,"allow_categorization_writes":true}`, "", "", ""); w.Code != 200 || !bytes.Contains(w.Body.Bytes(), []byte(`"allow_categorization_writes":true`)) {
+	if w := send("PUT", "/api/mcp/settings", `{"enabled":false,"port":8081,"allow_categorization_writes":true,"allow_statement_writes":true}`, "", "", ""); w.Code != 200 || !bytes.Contains(w.Body.Bytes(), []byte(`"allow_categorization_writes":true`)) || !bytes.Contains(w.Body.Bytes(), []byte(`"allow_statement_writes":true`)) {
 		t.Fatalf("write opt-in: %d %s", w.Code, w.Body.String())
 	}
 	if w := send("PUT", "/api/mcp/settings", `{"enabled":false,"port":8081}`, "", "", ""); w.Code != 200 || !bytes.Contains(w.Body.Bytes(), []byte(`"allow_categorization_writes":true`)) {
 		t.Fatalf("legacy settings request lost permission: %d %s", w.Code, w.Body.String())
 	}
-	if w := send("PUT", "/api/mcp/settings", `{"enabled":false,"port":8081,"allow_categorization_writes":false}`, "", "", ""); w.Code != 200 || !bytes.Contains(w.Body.Bytes(), []byte(`"allow_categorization_writes":false`)) {
+	if w := send("PUT", "/api/mcp/settings", `{"enabled":false,"port":8081,"allow_categorization_writes":false,"allow_statement_writes":false}`, "", "", ""); w.Code != 200 || !bytes.Contains(w.Body.Bytes(), []byte(`"allow_categorization_writes":false`)) || !bytes.Contains(w.Body.Bytes(), []byte(`"allow_statement_writes":false`)) {
 		t.Fatalf("write revocation: %d %s", w.Code, w.Body.String())
 	}
 	hash, err := HashPassword("test-password")

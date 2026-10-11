@@ -16,6 +16,7 @@ import (
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"local-finance/internal/db"
+	"local-finance/internal/models"
 )
 
 func testManager(t *testing.T) (*Manager, *db.DB) {
@@ -177,6 +178,9 @@ func TestToolsReadOnlyAndParity(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	if _, _, err := database.SaveInvestmentSnapshot(&models.InvestmentSnapshot{ID: "investment-test", Provider: "Fictional", AccountRef: "fictional-ref", AsOf: "2026-01-01", Currency: "INR", Holdings: []models.InvestmentHolding{}, Warnings: []string{}}, "fictional-investment-hash"); err != nil {
+		t.Fatal(err)
+	}
 	before, err := database.ExportAllDataJSON()
 	if err != nil {
 		t.Fatal(err)
@@ -189,11 +193,11 @@ func TestToolsReadOnlyAndParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(list.Tools) != 23 {
+	if len(list.Tools) != 26 {
 		t.Fatalf("got %d tools", len(list.Tools))
 	}
 	args := map[string]map[string]any{
-		"get_transaction": {"id": "0"}, "get_merchant_profile": {"name": "Shop"}, "get_monthly_review": {"month": "2026-01"}, "list_monthly_review_evidence": {"month": "2026-01", "category": "cat_groceries"}, "get_wrapped": {"year": "2026"}, "get_cashflow": {"period": "2026-01"}, "get_budget_summary": {"month": "2026-01"},
+		"get_investment_snapshot": {"id": "investment-test"}, "get_transaction": {"id": "0"}, "get_merchant_profile": {"name": "Shop"}, "get_monthly_review": {"month": "2026-01"}, "list_monthly_review_evidence": {"month": "2026-01", "category": "cat_groceries"}, "get_wrapped": {"year": "2026"}, "get_cashflow": {"period": "2026-01"}, "get_budget_summary": {"month": "2026-01"},
 	}
 	for _, tool := range list.Tools {
 		t.Run(tool.Name, func(t *testing.T) {
@@ -271,7 +275,7 @@ func TestRestoreAndResetRevokeCredentials(t *testing.T) {
 	m, database := testManager(t)
 	token := enable(t, m)
 	allowed := true
-	if _, err := m.ConfigureAccess(true, m.Status().Port, &allowed); err != nil {
+	if _, err := m.ConfigureAccess(true, m.Status().Port, &allowed, &allowed); err != nil {
 		t.Fatal(err)
 	}
 	backup := filepath.Join(t.TempDir(), "backup.db")
@@ -293,7 +297,7 @@ func TestRestoreAndResetRevokeCredentials(t *testing.T) {
 		t.Fatal(err)
 	}
 	settings, _ := database.GetMCPSettings()
-	if settings.Enabled || settings.TokenHash != "" || settings.AllowCategorizationWrites || m.Status().AllowCategorizationWrites || request(m, token, "", "") != 503 {
+	if settings.Enabled || settings.TokenHash != "" || settings.AllowCategorizationWrites || settings.AllowStatementWrites || m.Status().AllowCategorizationWrites || m.Status().AllowStatementWrites || request(m, token, "", "") != 503 {
 		t.Fatal("restore reactivated credential")
 	}
 	enable(t, m)

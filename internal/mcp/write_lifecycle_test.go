@@ -17,7 +17,7 @@ func TestRevokeDrainsSDKWriteBeforeRestore(t *testing.T) {
 	m, database := testManager(t)
 	token := enable(t, m)
 	allowed := true
-	if _, err := m.ConfigureAccess(true, m.Status().Port, &allowed); err != nil {
+	if _, err := m.ConfigureAccess(true, m.Status().Port, &allowed, &allowed); err != nil {
 		t.Fatal(err)
 	}
 	backup := filepath.Join(t.TempDir(), "before-write.db")
@@ -120,7 +120,7 @@ func TestRevokeDrainsSDKWriteBeforeRestore(t *testing.T) {
 		t.Fatal(err)
 	}
 	settings, err := database.GetMCPSettings()
-	if err != nil || settings.Enabled || settings.AllowCategorizationWrites || settings.TokenHash != "" {
+	if err != nil || settings.Enabled || settings.AllowCategorizationWrites || settings.AllowStatementWrites || settings.TokenHash != "" {
 		t.Fatalf("restore retained access: %+v %v", settings, err)
 	}
 	categories, err := database.ListCategories()

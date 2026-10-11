@@ -73,3 +73,51 @@ func (d *DB) DeleteInvestmentSnapshot(id string) (bool, error) {
 	count, err := res.RowsAffected()
 	return count > 0, err
 }
+
+// InvestmentSnapshotWithPortfolio couples a snapshot with its grouping identity
+// from the same read, so deletion cannot change keys midway through a response.
+type InvestmentSnapshotWithPortfolio struct {
+	Snapshot     models.InvestmentSnapshot
+	PortfolioKey string
+}
+
+const investmentSnapshotsWithPortfolio = `SELECT id, data_json,
+ FIRST_VALUE(id) OVER (PARTITION BY provider, account_ref, json_extract(data_json, '$.currency') ORDER BY rowid) AS portfolio_key,
+ as_of, imported_at FROM investment_snapshots`
+
+func (d *DB) ListInvestmentSnapshotsWithPortfolio() ([]InvestmentSnapshotWithPortfolio, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	rows, err := d.conn.Query("SELECT data_json, portfolio_key FROM (" + investmentSnapshotsWithPortfolio + ") ORDER BY as_of DESC, imported_at DESC, id DESC")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := []InvestmentSnapshotWithPortfolio{}
+	for rows.Next() {
+		var item InvestmentSnapshotWithPortfolio
+		var data string
+		if err := rows.Scan(&data, &item.PortfolioKey); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal([]byte(data), &item.Snapshot); err != nil {
+			return nil, err
+		}
+		result = append(result, item)
+	}
+	return result, rows.Err()
+}
+
+func (d *DB) GetInvestmentSnapshotWithPortfolio(id string) (*InvestmentSnapshotWithPortfolio, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	var item InvestmentSnapshotWithPortfolio
+	var data string
+	if err := d.conn.QueryRow("SELECT data_json, portfolio_key FROM ("+investmentSnapshotsWithPortfolio+") WHERE id = ?", id).Scan(&data, &item.PortfolioKey); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal([]byte(data), &item.Snapshot); err != nil {
+		return nil, err
+	}
+	return &item, nil
+}

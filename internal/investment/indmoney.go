@@ -19,7 +19,7 @@ func init() {
 
 func (INDmoneyHoldingsParser) ID() string { return "indmoney_us_holdings_xls_v1" }
 func (INDmoneyHoldingsParser) Info() ParserInfo {
-	return ParserInfo{Provider: "INDmoney", Name: "US stock holdings export", Extensions: []string{".xls"}}
+	return ParserInfo{Provider: "INDmoney", Name: "US stock holdings export", Extensions: []string{".xls"}, Requirements: []string{"Original INDmoney US stock holdings export in legacy .xls format, with INDmoney identification, Broker Account and Holdings as on YYYY-MM-DD.", "Holdings columns: Stock Symbol, Holding Since, Quantity, Avg. Price ($), Total Value ($).", "Values remain in USD. Acquisition costs and investment returns are unavailable; do not infer them from current average price."}}
 }
 
 var indmoneyHeaders = []string{"Stock Symbol", "Holding Since", "Quantity", "Avg. Price ($)", "Total Value ($)"}

@@ -37,6 +37,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   Select,
   SelectContent,
@@ -803,8 +804,18 @@ export const StatementUploader: React.FC = () => {
                 {statementsHistory && statementsHistory.length > 0 ? (
                   statementsHistory.map((s) => (
                     <TableRow key={s.id} className="hover:bg-muted/40 text-xs">
-                      <TableCell className="font-medium text-foreground max-w-xs truncate">
-                        {s.filename}
+                      <TableCell className="font-medium text-foreground max-w-xs">
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={<span tabIndex={0} />}
+                            className="block truncate rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            {s.filename}
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-[min(32rem,calc(100vw-2rem))] whitespace-normal break-all">
+                            {s.filename}
+                          </TooltipContent>
+                        </Tooltip>
                       </TableCell>
                       <TableCell className="text-muted-foreground">{s.bank_name || 'Bank Account'}</TableCell>
                       <TableCell>

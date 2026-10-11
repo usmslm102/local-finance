@@ -58,17 +58,17 @@ func TestCategorizationWritesAndPermissionChanges(t *testing.T) {
 		}
 	}
 	allowed := true
-	if _, err := m.ConfigureAccess(true, m.Status().Port, &allowed); err != nil {
+	if _, err := m.ConfigureAccess(true, m.Status().Port, &allowed, nil); err != nil {
 		t.Fatal(err)
 	}
 	session := connect(t, m, token)
 	tools, err := session.ListTools(context.Background(), nil)
-	if err != nil || len(tools.Tools) != 25 {
+	if err != nil || len(tools.Tools) != 28 {
 		t.Fatalf("tool discovery: %+v %v", tools, err)
 	}
 	for _, tool := range tools.Tools {
 		if tool.Name == "save_category" || tool.Name == "save_categorization_rule" {
-			if tool.Annotations.ReadOnlyHint || tool.Annotations.IdempotentHint || tool.Annotations.DestructiveHint == nil || *tool.Annotations.DestructiveHint || tool.Annotations.OpenWorldHint == nil || *tool.Annotations.OpenWorldHint {
+			if tool.Annotations.ReadOnlyHint || tool.Annotations.IdempotentHint || tool.Annotations.DestructiveHint == nil || *tool.Annotations.DestructiveHint != (tool.Name == "save_categorization_rule") || tool.Annotations.OpenWorldHint == nil || *tool.Annotations.OpenWorldHint {
 				t.Fatalf("write annotations: %+v", tool.Annotations)
 			}
 		} else if !tool.Annotations.ReadOnlyHint {
@@ -131,7 +131,7 @@ func TestCategorizationWritesAndPermissionChanges(t *testing.T) {
 		t.Fatalf("lost persisted permission: %v", err)
 	}
 	allowed = false
-	if _, err := m.ConfigureAccess(true, m.Status().Port, &allowed); err != nil {
+	if _, err := m.ConfigureAccess(true, m.Status().Port, &allowed, nil); err != nil {
 		t.Fatal(err)
 	}
 	// The same authenticated session must lose writes, even if its tool list is cached.
@@ -142,7 +142,7 @@ func TestCategorizationWritesAndPermissionChanges(t *testing.T) {
 	}
 	read = connect(t, m, token)
 	tools, err = read.ListTools(context.Background(), nil)
-	if err != nil || len(tools.Tools) != 23 {
+	if err != nil || len(tools.Tools) != 26 {
 		t.Fatalf("read-only discovery: %+v %v", tools, err)
 	}
 	callWrite(t, read, "list_categories", map[string]any{}, false)
@@ -152,7 +152,7 @@ func TestInvalidCategorizationWritesDoNotMutateData(t *testing.T) {
 	m, database := testManager(t)
 	token := enable(t, m)
 	allowed := true
-	if _, err := m.ConfigureAccess(true, m.Status().Port, &allowed); err != nil {
+	if _, err := m.ConfigureAccess(true, m.Status().Port, &allowed, nil); err != nil {
 		t.Fatal(err)
 	}
 	session := connect(t, m, token)

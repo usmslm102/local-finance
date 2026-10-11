@@ -68,3 +68,35 @@ func (r *CategorizationRule) ValidatePatterns() error {
 	}
 	return nil
 }
+
+// MatchesTransaction is shared by statement categorization and ledger reapplication.
+// Transfer precedence and unmatched-category policy belong to the caller.
+func (r *CategorizationRule) MatchesTransaction(tx Transaction) bool {
+	if !r.MatchesTxType(string(tx.TxType)) || r.MatchesException(tx.RawNarration, tx.CleanedPayee) {
+		return false
+	}
+	target := tx.RawNarration
+	switch r.MatchField {
+	case "cleaned_payee":
+		target = tx.CleanedPayee
+	case "reference_number":
+		target = tx.ReferenceNumber
+	case "upi_vpa":
+		target = ""
+		if tx.UPIVPA != nil {
+			target = *tx.UPIVPA
+		}
+	}
+	switch r.MatchType {
+	case "CONTAINS":
+		return strings.Contains(strings.ToUpper(target), strings.ToUpper(r.MatchPattern))
+	case "EXACT":
+		return strings.EqualFold(target, r.MatchPattern)
+	case "STARTS_WITH":
+		return strings.HasPrefix(strings.ToUpper(target), strings.ToUpper(r.MatchPattern))
+	case "REGEX":
+		re, err := regexp.Compile(r.MatchPattern)
+		return err == nil && re.MatchString(target)
+	}
+	return false
+}

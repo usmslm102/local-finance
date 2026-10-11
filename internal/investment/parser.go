@@ -17,10 +17,11 @@ type Parser interface {
 
 // ParserInfo describes the adapter's import capabilities to any client.
 type ParserInfo struct {
-	ID         string   `json:"id"`
-	Provider   string   `json:"provider"`
-	Name       string   `json:"name"`
-	Extensions []string `json:"extensions"`
+	ID           string   `json:"id"`
+	Provider     string   `json:"provider"`
+	Name         string   `json:"name"`
+	Requirements []string `json:"requirements"`
+	Extensions   []string `json:"extensions"`
 }
 
 type Registry struct{ parsers []Parser }
@@ -44,6 +45,7 @@ func (r *Registry) List() []ParserInfo {
 		info := p.Info()
 		info.ID = p.ID()
 		info.Extensions = append([]string{}, info.Extensions...)
+		info.Requirements = append([]string{}, info.Requirements...)
 		result = append(result, info)
 	}
 	return result

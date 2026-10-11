@@ -1,5 +1,9 @@
 # MCP category and rule writes
 
+Historical design for PR #13. Automatic ledger reapplication and statement writes
+are specified in [the follow-up design](mcp-ledger-imports.md), which supersedes
+the original restriction on recategorizing existing transactions.
+
 ## Scope
 
 Extend the existing local MCP with `save_category` to create/update custom category

@@ -11,6 +11,10 @@ import (
 
 // Write tools share strict argument validation and the existing result envelope.
 func registerWriteTool(server *sdk.Server, name, description string, properties map[string]any, required []string, save func(json.RawMessage) (any, error)) {
+	registerMutationTool(server, name, description, properties, required, false, save)
+}
+
+func registerMutationTool(server *sdk.Server, name, description string, properties map[string]any, required []string, destructive bool, save func(json.RawMessage) (any, error)) {
 	schema := map[string]any{"type": "object", "properties": properties, "required": required, "additionalProperties": false}
 	encoded, _ := json.Marshal(schema)
 	var inputSchema jsonschema.Schema
@@ -21,7 +25,7 @@ func registerWriteTool(server *sdk.Server, name, description string, properties 
 	if err != nil {
 		panic(err)
 	}
-	closed, destructive := false, false
+	closed := false
 	server.AddTool(&sdk.Tool{Name: name, Description: description, InputSchema: schema,
 		Annotations: &sdk.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &destructive, IdempotentHint: false, OpenWorldHint: &closed}}, func(ctx context.Context, req *sdk.CallToolRequest) (*sdk.CallToolResult, error) {
 		var input any
