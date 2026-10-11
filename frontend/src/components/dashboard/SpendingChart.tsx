@@ -21,7 +21,7 @@ export const SpendingChart: React.FC<{ data: CategorySpend[] }> = ({ data }) => 
     <Card>
       <CardHeader>
         <CardTitle>Spending by category</CardTitle>
-        <CardDescription>All recorded spending categories across your accounts</CardDescription>
+        <CardDescription>Spending categories across your accounts</CardDescription>
       </CardHeader>
       <CardContent>
         {!chartData.length ? (

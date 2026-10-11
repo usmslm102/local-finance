@@ -1,5 +1,5 @@
 import { usePrivacy } from '@/components/privacy-provider'
-import { Suspense, useEffect } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { buttonVariants } from '@/components/ui/button'
 import { PageLoading, QueryError } from '@/components/ui/query-state'
 import { MonthlyReview } from '@/components/cashflow/MonthlyReview'
@@ -16,6 +16,8 @@ import { AppSidebar } from '@/components/layout/AppSidebar'
 import { CommandPalette } from '@/components/layout/CommandPalette'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { Separator } from '@/components/ui/separator'
+import { OverviewTimeFrame } from '@/components/dashboard/OverviewTimeFrame'
+import type { OverviewRange } from '@/lib/overview-range'
 import { OverviewCard } from '@/components/dashboard/OverviewCard'
 import { SpendingChart } from '@/components/dashboard/SpendingChart'
 import { CashFlowChart } from '@/components/dashboard/CashFlowChart'
@@ -57,7 +59,7 @@ import type {
   SettingsSearchParams,
   SalarySearchParams,
 } from '@/types'
-import { fetchAccounts, fetchAnalytics, fetchCreditCardBills, fetchInvestments } from '@/lib/api'
+import { fetchAccounts, fetchAnalytics, fetchAnalyticsRange, fetchCreditCardBills, fetchInvestments } from '@/lib/api'
 import { formatINR } from '@/lib/utils'
 import { Wallet, TrendingDown, TrendingUp, Landmark, UploadCloud, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -228,6 +230,8 @@ const rootRoute = createRootRoute({
 // Overview Dashboard Page
 const DashboardPage: React.FC = () => {
   const { isPrivacyMode } = usePrivacy()
+  const [range, setRange] = useState<OverviewRange>({})
+  const runwayBaseline = useQuery({ queryKey: ['analytics'], queryFn: fetchAnalytics })
   const investments = useQuery({ queryKey: ['investments'], queryFn: fetchInvestments })
   const {
     data: analytics,
@@ -235,8 +239,8 @@ const DashboardPage: React.FC = () => {
     isError,
     refetch,
   } = useQuery({
-    queryKey: ['analytics'],
-    queryFn: fetchAnalytics,
+    queryKey: range.start_date ? ['analytics', range] : ['analytics'],
+    queryFn: () => fetchAnalyticsRange(range),
   })
 
   const { data: accounts } = useQuery({
@@ -249,8 +253,6 @@ const DashboardPage: React.FC = () => {
     queryFn: () => fetchCreditCardBills(),
   })
 
-  if (isLoading) return <PageLoading label="Loading financial overview" />
-  if (isError) return <QueryError message="Unable to load financial overview" onRetry={refetch} />
 
   const totalIncome = analytics?.total_income || 0
   const totalExpense = analytics?.total_expense || 0
@@ -276,8 +278,15 @@ const DashboardPage: React.FC = () => {
         </Link>
       </div>
 
+      <OverviewTimeFrame range={range} onChange={setRange} />
+      {isLoading ? <PageLoading label="Loading financial overview" /> : isError ? (
+        <QueryError message="Unable to load financial overview" onRetry={refetch} />
+      ) : <>
+      {range.start_date && analytics?.total_transactions === 0 && (
+        <p className="rounded-xl border p-4 text-sm text-muted-foreground" role="status">No transactions in this time frame. Choose a wider range or import a statement.</p>
+      )}
       {/* First-time Welcome Banner when no transactions exist */}
-      {(!analytics || analytics.total_transactions === 0) && (
+      {!range.start_date && (!analytics || analytics.total_transactions === 0) && (
         <Card className="from-primary/10 via-card to-card p-6 sm:p-8 flex flex-col gap-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex flex-col gap-1.5 max-w-xl">
@@ -371,7 +380,7 @@ const DashboardPage: React.FC = () => {
           title="Bank Liquidity"
           amount={formatINR(analytics?.total_bank_liquidity || 0, isPrivacyMode)}
           numericValue={analytics?.total_bank_liquidity || 0}
-          subtitle="Savings & Current accounts"
+          subtitle="Latest savings & current account balances"
           icon={Landmark}
           variant="savings"
         />
@@ -382,7 +391,7 @@ const DashboardPage: React.FC = () => {
           subtitle={
             analytics?.total_credit_limit
               ? `${(analytics.credit_utilization_rate || 0).toFixed(1)}% of ${formatINR(analytics.total_credit_limit, isPrivacyMode)} limit`
-              : 'Active card dues'
+              : 'Latest active card dues'
           }
           icon={Wallet}
           variant={
@@ -398,7 +407,7 @@ const DashboardPage: React.FC = () => {
         <NetWorthRunwayCard
           totalLiquidity={analytics.total_bank_liquidity || 0}
           totalCreditDue={analytics.total_credit_due || 0}
-          monthlyExpenses={analytics.monthly_trends?.map((m) => m.expense) || []}
+          monthlyExpenses={runwayBaseline.data?.monthly_trends?.map((m) => m.expense) || []}
         />
       )}
 
@@ -432,6 +441,7 @@ const DashboardPage: React.FC = () => {
 
       {/* Top Payees */}
       <TopPayeesList data={analytics?.top_payees || []} />
+      </>}
     </div>
   )
 }

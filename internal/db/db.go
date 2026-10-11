@@ -1081,6 +1081,31 @@ func (d *DB) GetSubscriptionsSummary() (*models.SubscriptionsSummary, error) {
 }
 
 func (d *DB) GetAnalyticsOverview() (*models.AnalyticsOverview, error) {
+	return d.GetAnalyticsOverviewRange("", "")
+}
+
+// GetAnalyticsOverviewRange filters transaction flows by inclusive dates.
+// Account balances and latest card bills remain current snapshots.
+func (d *DB) GetAnalyticsOverviewRange(startDate, endDate string) (*models.AnalyticsOverview, error) {
+	dateFilter := ""
+	var dateArgs []any
+	for _, bound := range []struct{ date, operator string }{{startDate, ">="}, {endDate, "<="}} {
+		if bound.date == "" {
+			continue
+		}
+		if _, err := time.Parse(time.DateOnly, bound.date); err != nil {
+			return nil, fmt.Errorf("invalid overview date: %w", err)
+		}
+		dateFilter += " AND tx_date " + bound.operator + " ?"
+		dateArgs = append(dateArgs, bound.date)
+	}
+	if startDate != "" && endDate != "" && startDate > endDate {
+		return nil, fmt.Errorf("start date must not be after end date")
+	}
+	trendLimit := " LIMIT 12"
+	if dateFilter != "" {
+		trendLimit = ""
+	}
 	overview := &models.AnalyticsOverview{
 		CategoryBreakdown: []models.CategorySpend{},
 		MonthlyTrends:     []models.MonthlyCashFlow{},
@@ -1094,8 +1119,8 @@ func (d *DB) GetAnalyticsOverview() (*models.AnalyticsOverview, error) {
 			SUM(CASE WHEN `+incomeFilter("")+` THEN amount ELSE 0 END),
 			SUM(CASE WHEN `+spendingFilter("")+` THEN amount ELSE 0 END)
 		FROM personal_transactions
-		WHERE `+financialActivityFilter("")+`
-	`).Scan(&totalIncome, &totalExpense)
+		WHERE `+financialActivityFilter("")+dateFilter+`
+	`, dateArgs...).Scan(&totalIncome, &totalExpense)
 	if err != nil {
 		return nil, err
 	}
@@ -1113,7 +1138,7 @@ func (d *DB) GetAnalyticsOverview() (*models.AnalyticsOverview, error) {
 
 	// 2. Count Accounts & Transactions
 	_ = d.conn.QueryRow(`SELECT COUNT(*) FROM accounts`).Scan(&overview.TotalAccounts)
-	_ = d.conn.QueryRow(`SELECT COUNT(*) FROM personal_transactions`).Scan(&overview.TotalTransactions)
+	_ = d.conn.QueryRow(`SELECT COUNT(*) FROM personal_transactions WHERE 1=1`+dateFilter, dateArgs...).Scan(&overview.TotalTransactions)
 
 	// 3. Category Breakdown (Expenses only, excluding internal transfers)
 	catRows, err := d.conn.Query(`
@@ -1126,10 +1151,10 @@ func (d *DB) GetAnalyticsOverview() (*models.AnalyticsOverview, error) {
 			COUNT(t.id) as tx_count
 		FROM personal_transactions t
 		LEFT JOIN categories c ON t.category_id = c.id
-		WHERE ` + spendingFilter("t") + `
+		WHERE `+spendingFilter("t")+dateFilter+`
 		GROUP BY cat_id, cat_name, color_hex, icon
 		ORDER BY total_amount DESC
-	`)
+	`, dateArgs...)
 	if err == nil {
 		defer catRows.Close()
 		for catRows.Next() {
@@ -1148,15 +1173,15 @@ func (d *DB) GetAnalyticsOverview() (*models.AnalyticsOverview, error) {
 		SELECT month, income, expense FROM (
 		SELECT
 			strftime('%Y-%m', tx_date) as month,
-			SUM(CASE WHEN ` + incomeFilter("") + ` THEN amount ELSE 0 END) as income,
-			SUM(CASE WHEN ` + spendingFilter("") + ` THEN amount ELSE 0 END) as expense
+			SUM(CASE WHEN `+incomeFilter("")+` THEN amount ELSE 0 END) as income,
+			SUM(CASE WHEN `+spendingFilter("")+` THEN amount ELSE 0 END) as expense
 		FROM personal_transactions
-		WHERE ` + financialFlowFilter("") + `
+		WHERE `+financialFlowFilter("")+dateFilter+`
 		GROUP BY month
 		ORDER BY month DESC
-		LIMIT 12
+		`+trendLimit+`
 		) ORDER BY month ASC
-	`)
+	`, dateArgs...)
 	if err == nil {
 		defer trendRows.Close()
 		for trendRows.Next() {
@@ -1176,11 +1201,11 @@ func (d *DB) GetAnalyticsOverview() (*models.AnalyticsOverview, error) {
 			SUM(amount) as total_spent,
 			COUNT(id) as tx_count
 		FROM personal_transactions
-		WHERE ` + spendingFilter("") + ` AND cleaned_payee != ''
+		WHERE `+spendingFilter("")+dateFilter+` AND cleaned_payee != ''
 		GROUP BY cleaned_payee, payment_mode
 		ORDER BY total_spent DESC
 		LIMIT 10
-	`)
+	`, dateArgs...)
 	if err == nil {
 		defer payeeRows.Close()
 		for payeeRows.Next() {

@@ -353,7 +353,20 @@ func (h *Handler) ListRules(c *gin.Context) {
 }
 
 func (h *Handler) GetAnalyticsOverview(c *gin.Context) {
-	overview, err := h.db.GetAnalyticsOverview()
+	startDate, endDate := c.Query("start_date"), c.Query("end_date")
+	for _, date := range []string{startDate, endDate} {
+		if date != "" {
+			if _, err := time.Parse(time.DateOnly, date); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Dates must use YYYY-MM-DD"})
+				return
+			}
+		}
+	}
+	if startDate != "" && endDate != "" && startDate > endDate {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Start date must not be after end date"})
+		return
+	}
+	overview, err := h.db.GetAnalyticsOverviewRange(startDate, endDate)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

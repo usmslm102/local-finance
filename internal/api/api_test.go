@@ -120,6 +120,24 @@ func TestAPIRoutes(t *testing.T) {
 			expectCode: http.StatusOK,
 		},
 		{
+			name:       "Analytics Overview Range",
+			method:     "GET",
+			url:        "/api/analytics/overview?start_date=2026-08-01&end_date=2026-08-31",
+			expectCode: http.StatusOK,
+		},
+		{
+			name:       "Analytics Overview Invalid Date",
+			method:     "GET",
+			url:        "/api/analytics/overview?start_date=2026-02-30",
+			expectCode: http.StatusBadRequest,
+		},
+		{
+			name:       "Analytics Overview Reversed Range",
+			method:     "GET",
+			url:        "/api/analytics/overview?start_date=2026-08-31&end_date=2026-08-01",
+			expectCode: http.StatusBadRequest,
+		},
+		{
 			name:       "Analytics Cash Flow Intelligence",
 			method:     "GET",
 			url:        "/api/analytics/cashflow?period=2026-08",

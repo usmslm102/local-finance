@@ -136,7 +136,14 @@ async function fetchWithAuth(input: RequestInfo | URL, init?: RequestInit): Prom
 }
 
 export async function fetchAnalytics(): Promise<AnalyticsOverview> {
-  const res = await fetchWithAuth(`${BASE_URL}/analytics/overview`)
+  return fetchAnalyticsRange()
+}
+
+export async function fetchAnalyticsRange(range: { start_date?: string; end_date?: string } = {}): Promise<AnalyticsOverview> {
+  const query = new URLSearchParams()
+  if (range.start_date) query.set('start_date', range.start_date)
+  if (range.end_date) query.set('end_date', range.end_date)
+  const res = await fetchWithAuth(`${BASE_URL}/analytics/overview?${query}`)
   if (!res.ok) throw new Error('Failed to fetch analytics')
   return res.json()
 }

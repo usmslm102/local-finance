@@ -75,3 +75,58 @@ func TestAnalyticsOverviewReturnsLatestRecordedMonthsChronologically(t *testing.
 		})
 	}
 }
+
+func TestAnalyticsOverviewRangeFiltersFlowsInclusively(t *testing.T) {
+	d, err := NewDB(filepath.Join(t.TempDir(), "range.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	account, err := d.GetOrCreateAccount("Test Bank", models.AccountTypeSavings, "", "XX1234", "", "", "", "", "", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, date := range []string{"2024-01-31", "2024-02-01", "2024-02-29", "2024-03-01"} {
+		for _, kind := range []models.TxType{models.TxTypeCredit, models.TxTypeDebit} {
+			tx := &models.Transaction{AccountID: account.ID, TxDate: date, TxHash: fmt.Sprintf("%d-%s", i, kind), TxType: kind, Amount: 100, CleanedPayee: "Fictional Shop"}
+			if _, err := d.UpsertTransaction(tx); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	got, err := d.GetAnalyticsOverviewRange("2024-02-01", "2024-02-29")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.TotalIncome != 200 || got.TotalExpense != 200 || got.TotalTransactions != 4 {
+		t.Fatalf("incorrect range totals: %+v", got)
+	}
+	if len(got.MonthlyTrends) != 1 || got.MonthlyTrends[0].Month != "2024-02" {
+		t.Fatalf("incorrect trends: %+v", got.MonthlyTrends)
+	}
+	if len(got.CategoryBreakdown) != 1 || got.CategoryBreakdown[0].TotalAmount != 200 || got.CategoryBreakdown[0].TxCount != 2 || got.CategoryBreakdown[0].Percentage != 100 {
+		t.Fatalf("incorrect categories: %+v", got.CategoryBreakdown)
+	}
+	if len(got.TopPayees) != 1 || got.TopPayees[0].TotalSpent != 200 || got.TopPayees[0].TxCount != 2 {
+		t.Fatalf("incorrect payees: %+v", got.TopPayees)
+	}
+	all, err := d.GetAnalyticsOverview()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if all.TotalExpense != 400 || all.TotalTransactions != 8 || all.TotalAccounts != got.TotalAccounts || all.TotalBankLiquidity != got.TotalBankLiquidity {
+		t.Fatalf("incorrect all-time or current snapshot: %+v", all)
+	}
+	empty, err := d.GetAnalyticsOverviewRange("2025-01-01", "2025-01-31")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if empty.TotalIncome != 0 || empty.TotalExpense != 0 || empty.TotalTransactions != 0 || len(empty.MonthlyTrends) != 0 {
+		t.Fatalf("incorrect empty range: %+v", empty)
+	}
+	for _, dates := range [][2]string{{"2024-02-30", ""}, {"", "invalid"}, {"2024-03-01", "2024-02-01"}} {
+		if _, err := d.GetAnalyticsOverviewRange(dates[0], dates[1]); err == nil {
+			t.Fatalf("accepted invalid range %v", dates)
+		}
+	}
+}
