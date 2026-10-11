@@ -9,7 +9,8 @@ import (
 )
 
 // ImportSplitwiseAutomatically performs matching and accounting in one commit.
-// Unmatched cash-backed entries are dropped; paid-by-other shares need no cash link.
+// Unmatched user-paid expenses remain pending; unmatched settlements are dropped.
+// Paid-by-other shares need no cash link.
 func (d *DB) ImportSplitwiseAutomatically(entries []models.SplitwiseEntry) (models.SplitwiseImportResult, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -34,6 +35,22 @@ func (d *DB) ImportSplitwiseAutomatically(entries []models.SplitwiseEntry) (mode
 func (w *StatementWriter) ReconcileSplitwise() error {
 	_, err := reconcileSplitwise(w.conn)
 	return err
+}
+
+// ReconcileSplitwise refreshes saved pending rows on startup as well as imports.
+// Confirmed and ignored rows are deliberately never reconsidered.
+func (d *DB) ReconcileSplitwise() error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	tx, err := d.conn.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := reconcileSplitwise(tx); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func reconcileSplitwise(conn statementConnection) (models.SplitwiseImportResult, error) {
@@ -88,6 +105,15 @@ func reconcileSplitwise(conn statementConnection) (models.SplitwiseImportResult,
 				return result, err
 			}
 			if len(matches) == 0 {
+				if e.Kind == "EXPENSE" {
+					// Keep user-paid expenses visible even without a candidate.
+					// Pending entries have no ledger effect or bank link.
+					if _, err := conn.Exec(`UPDATE splitwise_entries SET category_id=? WHERE id=? AND is_manual_category=0`, category, e.ID); err != nil {
+						return result, err
+					}
+					result.Review++
+					continue
+				}
 				if _, err := conn.Exec(`DELETE FROM splitwise_entries WHERE id=? AND status='REVIEW'`, e.ID); err != nil {
 					return result, err
 				}
@@ -102,7 +128,7 @@ func reconcileSplitwise(conn statementConnection) (models.SplitwiseImportResult,
 		} else if e.Kind == "EXPENSE" && e.Share > 0 {
 			result.PaidByOthers++
 		}
-		if _, err := conn.Exec(`UPDATE splitwise_entries SET status='CONFIRMED',transaction_id=?,category_id=? WHERE id=?`, link, category, e.ID); err != nil {
+		if _, err := conn.Exec(`UPDATE splitwise_entries SET status='CONFIRMED',transaction_id=?,category_id=CASE WHEN is_manual_category=1 THEN category_id ELSE ? END WHERE id=?`, link, category, e.ID); err != nil {
 			return result, fmt.Errorf("apply Splitwise entry: %w", err)
 		}
 	}

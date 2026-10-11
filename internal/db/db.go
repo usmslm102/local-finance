@@ -80,6 +80,10 @@ func NewDB(dbPath string) (*DB, error) {
 		conn.Close()
 		return nil, fmt.Errorf("failed to seed default rules: %w", err)
 	}
+	if err := d.ReconcileSplitwise(); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("failed to reconcile saved Splitwise entries: %w", err)
+	}
 
 	return d, nil
 }

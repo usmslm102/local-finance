@@ -71,7 +71,7 @@ func (h *Handler) SplitwiseCandidates(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "invalid share"})
 		return
 	}
-	items, err := h.db.SplitwiseCandidates(c.Param("id"), models.SplitwiseMatchOptions{Share: share, Search: c.Query("search")})
+	items, err := h.db.SplitwiseCandidates(c.Param("id"), models.SplitwiseMatchOptions{Share: share, Search: c.Query("search"), IncludeNearMatches: c.Query("review") == "true"})
 	if err != nil {
 		splitwiseError(c, err)
 		return

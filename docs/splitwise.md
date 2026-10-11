@@ -1,6 +1,6 @@
 # Splitwise imports and personal spending
 
-Open **Splitwise** in the sidebar, or **Statement Import → Splitwise**. Enter a stable group name and your member name (defaults to Sanjay), then import your group CSV. Preview is optional; no per-transaction review is required. All data stays local. The fictional export is `samples/splitwise/fictional-group.csv`.
+Open **Splitwise** in the sidebar, or **Statement Import → Splitwise**. Enter a stable group name and your member name (defaults to Sanjay), then import your group CSV. Preview is optional; exact and small-tolerance matches apply automatically. Only unmatched expenses you paid need review. All data stays local. The fictional export is `samples/splitwise/fictional-group.csv`.
 
 ## Automatic accounting
 
@@ -14,11 +14,21 @@ net = 0: no identifiable personal payment or share; skip
 
 Other people's expenses are skipped when both your identifiable payment and your share are zero. An expense paid entirely by you for somebody else still maps to your bank debit and has zero personal spending. Multiple payers with equal paid and owed amounts cannot be identified from this export; such zero-net rows are skipped. This is a limitation of the export's information.
 
-Expenses you paid require an INR bank debit within ₹5 of the derived paid amount. The matcher searches the entry date and preceding 15 days, prioritizing exact amounts, then nearest dates, then smallest amount difference. It consumes each bank movement only once and protects excluded movements and paired internal transfers. Unmatched cash-backed entries are dropped, without changing bank accounting. Re-import the CSV after importing missing bank statements if you want to try those entries again.
+Expenses you paid require an INR bank debit within ₹5 of the derived paid amount. The matcher searches the entry date and preceding 15 days, prioritizing exact amounts, then nearest dates, then smallest amount difference. It consumes each bank movement only once and protects excluded movements and paired internal transfers. Unmatched expenses you paid remain pending and visible without changing bank accounting. Unmatched CSV Payment rows are skipped and can be retried by re-importing the CSV after loading missing statements.
 
 Your shares of expenses paid by someone else appear as accountless expense rows in **Transactions**. They do not require a bank match and never create cash or change account balances. New Splitwise expenses start in **Others & Uncategorized** and use the same priority, transaction type, exception, field and pattern matching as normal category rules. **Settings → Reapply rules** updates them too. Categories, notes and tags can be edited in Transactions; manual edits survive rules and re-imports. Linked bank expenses preserve manually assigned bank categories and original cash details, and expose the Splitwise description alongside the original narration.
 
 CSV Payment rows are settlements, never additional personal expenses or income. A ₹50 taxi share paid by Asha counts as ₹50 spending. A later ₹50 repayment to Asha changes cash but adds no spending.
+
+## Review expenses you paid
+
+When no bank debit matches within ₹5, the **Expenses you paid · bank match needed** section keeps your CSV expense visible. Select **Review bank match** to see the five closest eligible INR debits from the entry date and preceding 15 days, ranked by closest amount and then nearest date. There is no percentage limit for review suggestions. Use **Show more** to expand up to 50 candidates, or search bank payee/narration to find the correct debit. Approval validates eligibility independently of the displayed shortlist. Excluded transactions, self-transfers, already-linked movements and previously removed links are not suggested.
+
+The review shows what Splitwise says you paid, your share, the original bank amount, the difference and the effect on spending. A larger difference requires **Approve amount difference**. Pending entries never affect totals. Approval revalidates the bank candidate atomically, replaces its reported expense with the original CSV share, and preserves the original bank amount, hash, balance and user metadata. The difference is not automatically added as a separate expense. CSV Payment settlements still require the normal ₹5 tolerance and participant evidence; they cannot use this override.
+
+**Dismiss entry** removes it from review and keeps that dismissal through re-imports. The review explains this persistence; an **Undo dismissal** action restores the most recently dismissed entry while the page remains open. Confirmed mappings with an amount difference display it in the matched list and can still be removed to restore the bank's original accounting.
+
+Opening the upgraded application recalculates saved pending rows automatically. Exact/small-tolerance links can apply; larger differences remain for approval. Existing confirmations and dismissals are preserved. Earlier releases deleted unmatched rows rather than retaining their CSV data, so those cannot be reconstructed from the database: re-import the same group CSV once after updating. No database migration is needed for this change.
 
 ## Payment matching and suggested rules
 

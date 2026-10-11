@@ -35,7 +35,7 @@ func TestSplitwiseAutomaticImportRulesMappingsAndRemoval(t *testing.T) {
 		t.Fatal(err)
 	}
 	result, err := d.ImportSplitwiseAutomatically(entries)
-	if err != nil || result.Matched != 2 || result.PaidByOthers != 1 || result.Skipped != 1 || result.Uninvolved != 1 {
+	if err != nil || result.Matched != 2 || result.PaidByOthers != 1 || result.Skipped != 0 || result.Review != 1 || result.Uninvolved != 1 {
 		t.Fatalf("auto import: %+v %v", result, err)
 	}
 	// A saved regex only identifies the bank participant of a CSV Payment.
@@ -218,7 +218,7 @@ func TestSplitwiseExpenseRecoversAfterCsvThenBankThenCsv(t *testing.T) {
 		t.Fatal(err)
 	}
 	result, err := d.ImportSplitwiseAutomatically(entries)
-	if err != nil || result.Skipped != 1 {
+	if err != nil || result.Review != 1 || result.Skipped != 0 {
 		t.Fatalf("missing bank: %+v %v", result, err)
 	}
 	account, err := d.GetOrCreateAccount("Demo", models.AccountTypeSavings, "demo", "demo", "", "", "", "", "", "", nil)
@@ -236,7 +236,7 @@ func TestSplitwiseExpenseRecoversAfterCsvThenBankThenCsv(t *testing.T) {
 		t.Fatal(err)
 	}
 	result, err = d.ImportSplitwiseAutomatically(entries)
-	if err != nil || result.Matched != 1 {
+	if err != nil || result.Matched != 0 || result.Duplicates != 1 {
 		t.Fatalf("reimport recovery: %+v %v", result, err)
 	}
 	spending, err := d.GetAnalyticsOverview()

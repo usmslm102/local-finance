@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"local-finance/internal/models"
+	"local-finance/internal/parser"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"testing"
 )
 
@@ -48,7 +50,7 @@ func TestSplitwiseAutomaticUploadPreviewAndProtection(t *testing.T) {
 	if w := upload("/api/splitwise/import", data); w.Code != 200 {
 		t.Fatalf("import: %d %s", w.Code, w.Body)
 	}
-	if w := upload("/api/splitwise/import", data); w.Code != 200 || !bytes.Contains(w.Body.Bytes(), []byte(`"duplicates":1`)) {
+	if w := upload("/api/splitwise/import", data); w.Code != 200 || !bytes.Contains(w.Body.Bytes(), []byte(`"duplicates":4`)) {
 		t.Fatalf("duplicate: %d %s", w.Code, w.Body)
 	}
 	wMembers := httptest.NewRecorder()
@@ -97,7 +99,7 @@ func TestSplitwiseAutomaticUploadPreviewAndProtection(t *testing.T) {
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, localTestRequest("GET", "/api/splitwise", nil))
 	var list []models.SplitwiseEntry
-	if err := json.Unmarshal(w.Body.Bytes(), &list); w.Code != 200 || err != nil || len(list) != 1 {
+	if err := json.Unmarshal(w.Body.Bytes(), &list); w.Code != 200 || err != nil || len(list) != 4 {
 		t.Fatalf("list: %d %v", w.Code, err)
 	}
 	if w := upload("/api/splitwise/import", []byte("broken")); w.Code != 400 {
@@ -124,5 +126,62 @@ func TestSplitwiseAutomaticUploadPreviewAndProtection(t *testing.T) {
 	router.ServeHTTP(w, localTestRequest("GET", "/api/splitwise", nil))
 	if w.Code != 401 {
 		t.Fatalf("Splitwise data accessible while locked: %d", w.Code)
+	}
+}
+
+func TestSplitwiseReviewAPIRequiresExplicitAmountApproval(t *testing.T) {
+	_, router, d, cleanup := setupTestRouter(t)
+	defer cleanup()
+	account, err := d.GetOrCreateAccount("Fictional bank", models.AccountTypeSavings, "", "XX7744", "", "", "", "", "", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bank := &models.Transaction{AccountID: account.ID, TxHash: "review-api", TxDate: "2026-08-27", RawNarration: "Fictional retailer", Amount: 260, TxType: models.TxTypeDebit}
+	if _, err := d.UpsertTransaction(bank); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := parser.ParseSplitwise(bytes.NewBufferString("Date,Description,Category,Cost,Currency,Sanjay Example,Asha Example\n2026-08-27,Fictional purchase,General,200,INR,120,-120\n"), "API example", "Sanjay")
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := d.ImportSplitwiseAutomatically(entries)
+	if err != nil || result.Review != 1 {
+		t.Fatalf("import: %+v %v", result, err)
+	}
+	path := "/api/splitwise/" + entries[0].ID
+	for _, review := range []bool{false, true} {
+		suffix := ""
+		if review {
+			suffix = "&review=true"
+		}
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, localTestRequest("GET", path+"/candidates?share_cents="+strconv.FormatInt(entries[0].Share, 10)+suffix, nil))
+		var candidates []models.Transaction
+		if err := json.Unmarshal(w.Body.Bytes(), &candidates); err != nil || w.Code != 200 {
+			t.Fatalf("candidates: %d %s", w.Code, w.Body)
+		}
+		if review && (len(candidates) != 1 || candidates[0].ID != bank.ID) || !review && len(candidates) != 0 {
+			t.Fatalf("review opt-in=%v: %+v", review, candidates)
+		}
+	}
+	confirmation := models.SplitwiseConfirmation{Share: entries[0].Share, TransactionID: bank.ID}
+	for _, approve := range []bool{false, true} {
+		confirmation.AllowAmountDifference = approve
+		data, _ := json.Marshal(confirmation)
+		req := localTestRequest("POST", path+"/confirm", bytes.NewReader(data))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		want := 400
+		if approve {
+			want = 204
+		}
+		if w.Code != want {
+			t.Fatalf("approve=%v: %d %s", approve, w.Code, w.Body)
+		}
+	}
+	original, _ := d.GetTransaction(bank.ID)
+	if original.Amount != 260 || original.PersonalExpenseAmount == nil || *original.PersonalExpenseAmount != 80 {
+		t.Fatalf("approved ledger: %+v", original)
 	}
 }

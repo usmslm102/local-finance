@@ -43,6 +43,7 @@ type SplitwiseImportResult struct {
 	Skipped      int `json:"skipped"`
 	Uninvolved   int `json:"uninvolved"`
 	Transfers    int `json:"transfers"`
+	Review       int `json:"review"`
 }
 
 type SplitwiseSettlementCandidate struct {
@@ -63,14 +64,17 @@ type SplitwiseMapping struct {
 }
 
 type SplitwiseConfirmation struct {
-	Share         int64  `json:"share_cents"`
-	TransactionID string `json:"transaction_id"`
-	Ignore        bool   `json:"ignore"`
-	CategoryID    string `json:"category_id"`
+	Share                 int64  `json:"share_cents"`
+	TransactionID         string `json:"transaction_id"`
+	Ignore                bool   `json:"ignore"`
+	CategoryID            string `json:"category_id"`
+	AllowAmountDifference bool   `json:"allow_amount_difference"`
+	ExpectedStatus        string `json:"expected_status"`
 }
 
 type SplitwiseMatchOptions struct {
-	Share         int64
-	Search        string
-	PaymentMember *SplitwiseMember
+	Share              int64
+	Search             string
+	PaymentMember      *SplitwiseMember
+	IncludeNearMatches bool
 }

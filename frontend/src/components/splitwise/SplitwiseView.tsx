@@ -4,6 +4,7 @@ import { splitwiseRequest } from '@/lib/api'
 import type { SplitwiseEntry } from '@/types/splitwise'
 import type { Transaction } from '@/types'
 import { SplitwiseImporter } from '@/components/import/SplitwiseImporter'
+import { SplitwiseReview } from './SplitwiseReview'
 import { SplitwiseSettlements } from '@/components/import/SplitwiseSettlements'
 import { Upload, SlidersHorizontal } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
@@ -21,8 +22,12 @@ function personalShare(entry: SplitwiseEntry) {
   return entry.kind === 'PAYMENT' ? 0 : entry.share_cents / 100
 }
 
-function EntryBadge({ entry }: { entry: SplitwiseEntry }) {
-  return <Badge variant="secondary">{entry.kind === 'PAYMENT' ? 'Self transfer · CSV payment matched' : 'Split expense'}</Badge>
+function EntryBadge({ entry, bank }: { entry: SplitwiseEntry; bank?: Transaction }) {
+  const paid = (entry.net_cents + entry.share_cents) / 100
+  const difference = bank ? Math.abs(Math.round(bank.amount * 100) - Math.round(paid * 100)) / 100 : 0
+  return <div className="space-y-1"><Badge variant="secondary">{entry.kind === 'PAYMENT' ? 'Self transfer · CSV payment matched' : difference > 5 ? 'Split expense · reviewed difference' : 'Split expense'}</Badge>
+    {entry.kind === 'EXPENSE' && bank && difference > 5 && <p className="text-xs text-muted-foreground">Splitwise paid <PrivacyAmount amount={paid} /> · Difference <PrivacyAmount amount={difference} /></p>}
+  </div>
 }
 
 function BankMovement({ bank }: { bank?: Transaction }) {
@@ -64,13 +69,13 @@ export function SplitwiseView() {
       <Input aria-label="Search Splitwise mappings" placeholder="Search description, group or bank narration" value={search} onChange={e => { setSearch(e.target.value); setPage(0) }} />
       <div className="flex gap-1">{[['ALL','All'],['EXPENSE','Expenses'],['PAYMENT','Payments']].map(([value,label]) => <Button key={value} size="sm" variant={kind === value ? 'secondary' : 'ghost'} aria-pressed={kind === value} onClick={() => { setKind(value); setPage(0) }}>{label}</Button>)}</div>
       <div className="md:hidden space-y-3">{visible.map(({entry:e,bank}) => <div key={e.id} className="border rounded-lg p-4 space-y-3">
-        <div><p className="font-medium break-words">{e.description}</p><p className="text-xs text-muted-foreground mt-1">{e.date} · {e.group}</p></div><EntryBadge entry={e} />
+        <div><p className="font-medium break-words">{e.description}</p><p className="text-xs text-muted-foreground mt-1">{e.date} · {e.group}</p></div><EntryBadge entry={e} bank={bank} />
         <div className="border-t pt-3"><p className="text-xs text-muted-foreground mb-1">Bank movement</p><BankMovement bank={bank} /></div>
         <div className="flex justify-between items-center gap-2 border-t pt-3"><div><p className="text-xs text-muted-foreground">Your expense</p><PrivacyAmount amount={personalShare(e)} /></div><Button variant="outline" size="sm" disabled={busy} aria-label={`Remove ${e.description}`} onClick={() => { void remove(e) }}>Remove</Button></div>
       </div>)}</div>
       <div className="hidden md:block"><Table><TableHeader><TableRow><TableHead>Splitwise entry</TableHead><TableHead>Your expense</TableHead><TableHead>Matched bank transaction</TableHead><TableHead>Action</TableHead></TableRow></TableHeader>
         <TableBody>{visible.map(({ entry: e, bank }) => <TableRow key={e.id}>
-          <TableCell className="max-w-[280px] whitespace-normal"><p className="font-medium">{e.description}</p><p className="text-xs text-muted-foreground">{e.date} · {e.group}</p><EntryBadge entry={e} /></TableCell>
+          <TableCell className="max-w-[280px] whitespace-normal"><p className="font-medium">{e.description}</p><p className="text-xs text-muted-foreground">{e.date} · {e.group}</p><EntryBadge entry={e} bank={bank} /></TableCell>
           <TableCell><PrivacyAmount amount={personalShare(e)} /></TableCell>
           <TableCell className="max-w-[360px] whitespace-normal"><BankMovement bank={bank} /></TableCell>
           <TableCell><Button variant="outline" size="sm" disabled={busy} onClick={() => { void remove(e) }}>Remove</Button></TableCell>
@@ -80,8 +85,9 @@ export function SplitwiseView() {
       {!mappings.isPending && !mappings.error && !rows.length && <p className="text-sm text-muted-foreground">No applied entries found.</p>}
       <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-4"><span className="text-xs text-muted-foreground">{rows.length ? `${currentPage*25+1}–${Math.min((currentPage+1)*25,rows.length)} of ${rows.length}` : '0 entries'}</span><div className="flex gap-2"><Button size="sm" variant="outline" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>Previous</Button><Button size="sm" variant="outline" disabled={(currentPage + 1) * 25 >= rows.length} onClick={() => setPage(currentPage + 1)}>Next</Button></div></div>
     </CardContent></Card>
+    <SplitwiseReview />
     <SplitwiseSettlements />
-    <Dialog open={importOpen} onOpenChange={setImportOpen}><DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto"><DialogHeader><DialogTitle>Import Splitwise</DialogTitle><DialogDescription>Import bank statements first, then match your group history automatically.</DialogDescription></DialogHeader><SplitwiseImporter showMemberRules={false} onImported={result => { setImportOpen(false); setPage(0); setMessage(`Imported: ${result.matched} bank matches, ${result.paid_by_others} paid-by-other expenses and ${result.transfers} matched payments. Skipped ${result.skipped} unmatched and ${result.uninvolved} uninvolved entries.`) }} /></DialogContent></Dialog>
+    <Dialog open={importOpen} onOpenChange={setImportOpen}><DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto"><DialogHeader><DialogTitle>Import Splitwise</DialogTitle><DialogDescription>Import bank statements first, then match your group history automatically.</DialogDescription></DialogHeader><SplitwiseImporter showMemberRules={false} onImported={result => { setImportOpen(false); setPage(0); setMessage(`Imported: ${result.matched} bank matches, ${result.paid_by_others} paid-by-other expenses and ${result.transfers} matched payments. ${result.review} expenses need review. Skipped ${result.skipped} unmatched payments and ${result.uninvolved} uninvolved entries.`) }} /></DialogContent></Dialog>
     <Dialog open={rulesOpen} onOpenChange={setRulesOpen}><DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto"><DialogHeader><DialogTitle>Payment matching rules</DialogTitle><DialogDescription>Add a suggested rule in one step, or edit a member’s bank pattern. These rules also appear in Settings.</DialogDescription></DialogHeader><SplitwiseSettlements /></DialogContent></Dialog>
   </div>
 }
