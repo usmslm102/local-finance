@@ -45,8 +45,8 @@ svg { display: block; }
 .site-header nav { display: flex; align-items: center; gap: clamp(20px, 3vw, 40px); font-size: 14px; }
 .site-header nav > a { color: rgba(255,255,255,.72); transition: color .2s ease; }
 .site-header nav > a:hover { color: white; }
-.nav-github { display: inline-flex; align-items: center; gap: 7px; color: white !important; }
-.nav-github svg, .button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+.nav-download { display: inline-flex; align-items: center; min-height: 44px; color: white !important; }
+.button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; }
 
 .hero {
   position: relative; min-height: 100svh; padding: calc(var(--header-h) + 74px) clamp(24px, 7vw, 108px) 70px;
@@ -182,7 +182,7 @@ footer > a:last-child { justify-self: end; border-bottom: 1px solid var(--ink); 
   .site-header { padding-inline: 20px; }
   .site-header .brand span { display: none; }
   .site-header nav { gap: 19px; }
-  .site-header nav > a:not(.nav-github) { display: none; }
+  .site-header nav > a:not(.nav-download) { display: none; }
   .hero { min-height: auto; padding: 118px 20px 70px; gap: 58px; }
   .brand-lockup { display: flex; align-items: center; gap: 12px; margin-bottom: 34px; font: 600 18px/1 'Local Sans', sans-serif; }
   .hero h1 { font-size: clamp(52px, 17vw, 76px); }
@@ -328,3 +328,27 @@ footer > a:last-child { justify-self: end; border-bottom: 1px solid var(--ink); 
 .optional-ai-example .ai-example-label { margin-bottom: 16px; }
 .optional-ai-example .ai-question { margin-left: 0; padding: 16px 20px; font-size: 18px; background: #14281d; }
 .optional-ai-example > p:last-child { margin: 16px 0 0; color: #aebbb5; font-size: 13px; line-height: 1.6; }
+
+/* Direct downloads use stable asset names from the release workflow. */
+.downloads { padding: clamp(80px, 10vw, 140px) clamp(24px, 7vw, 108px); max-width: 1566px; margin: auto; }
+.downloads .section-heading { margin-bottom: 48px; }
+.downloads .section-heading p { color: var(--muted); }
+.download-platforms { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px; }
+.download-platforms article { min-width: 0; padding-top: 24px; border-top: 1px solid var(--line); }
+.download-platforms h3 { margin: 0 0 12px; font-size: 24px; font-weight: 600; letter-spacing: -.02em; }
+.download-platforms p { margin: 0 0 24px; color: var(--muted); font-size: 14px; line-height: 1.65; }
+.download-platforms .button { max-width: 100%; text-align: center; padding-block: 12px; }
+.download-platforms .download-help { margin: 20px 0 0; font-size: 16px; }
+.download-alternative { display: inline-flex; align-items: center; min-height: 44px; margin-top: 12px; font-size: 14px; }
+.download-alternative, .download-notes a { color: #176c45; text-decoration: underline; text-underline-offset: 4px; }
+.download-alternative:hover, .download-notes a:hover { color: var(--ink); }
+.download-notes { margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--line); }
+.download-notes p { max-width: 75ch; margin: 0; color: var(--muted); font-size: 14px; line-height: 1.7; }
+.download-notes p + p { margin-top: 12px; }
+@media (max-width: 980px) {
+  .download-platforms { grid-template-columns: 1fr; gap: 32px; }
+}
+@media (max-width: 720px) {
+  .downloads { padding: 80px 20px; }
+  .downloads .section-heading { margin-bottom: 32px; }
+}
