@@ -1,96 +1,97 @@
 import React from 'react'
-import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts'
-import { CategorySpend } from '@/types'
+import { PieChart, Pie, Cell } from 'recharts'
+import type { CategorySpend } from '@/types'
 import { formatINR } from '@/lib/utils'
-import { PieChart as PieIcon } from 'lucide-react'
+import { usePrivacy } from '@/components/privacy-provider'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty'
 
-interface SpendingChartProps {
-  data: CategorySpend[]
-}
-
-const PALETTE = [
-  '#f43f5e', '#10b981', '#f59e0b', '#3b82f6',
-  '#6366f1', '#ec4899', '#14b8a6', '#8b5cf6',
-  '#f97316', '#06b6d4', '#84cc16', '#64748b',
-]
-
-export const SpendingChart: React.FC<SpendingChartProps> = ({ data }) => {
-  if (!data || data.length === 0) {
-    return (
-      <Card className="flex h-80 flex-col items-center justify-center text-center p-6 border-border/80 bg-card">
-        <PieIcon className="mb-2 h-8 w-8 text-muted-foreground/50" />
-        <CardTitle className="text-sm font-semibold text-foreground">No spend data available</CardTitle>
-        <CardDescription className="text-xs text-muted-foreground mt-1">
-          Import a bank or credit card statement to view category breakdown.
-        </CardDescription>
-      </Card>
-    )
-  }
-
-  const chartData = data.map((item, index) => ({
-    name: item.category_name,
-    value: item.total_amount,
-    percentage: item.percentage,
-    color: item.color_hex || PALETTE[index % PALETTE.length],
-  }))
-
+export const SpendingChart: React.FC<{ data: CategorySpend[] }> = ({ data }) => {
+  const { isPrivacyMode } = usePrivacy()
+  const chartData = (data ?? [])
+    .filter((item) => item.total_amount > 0)
+    .map((item, index) => ({
+      name: item.category_name,
+      value: item.total_amount,
+      percentage: item.percentage,
+      color: item.color_hex || `var(--chart-${(index % 5) + 1})`,
+    }))
   return (
-    <Card className="border-border/80 bg-card shadow-xs">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base font-semibold">Expense by Category</CardTitle>
-        <CardDescription className="text-xs">Distribution of categorized spending across accounts</CardDescription>
+    <Card>
+      <CardHeader>
+        <CardTitle>Spending by category</CardTitle>
+        <CardDescription>All recorded spending categories across your accounts</CardDescription>
       </CardHeader>
-      <CardContent className="pt-2">
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
-          <div className="h-60 md:col-span-6">
-            <ResponsiveContainer width="100%" height="100%">
+      <CardContent>
+        {!chartData.length ? (
+          <Empty className="h-60">
+            <EmptyHeader>
+              <EmptyTitle>No spending yet</EmptyTitle>
+              <EmptyDescription>
+                Import a statement to see your category breakdown.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        ) : (
+          <div className="grid items-center gap-4 sm:grid-cols-2">
+            <ChartContainer
+              className="h-60 w-full aspect-auto"
+              config={{ value: { label: 'Spent' } }}
+            >
               <PieChart>
                 <Pie
                   data={chartData}
                   dataKey="value"
                   nameKey="name"
-                  cx="50%"
-                  cy="50%"
                   innerRadius={55}
                   outerRadius={85}
                   paddingAngle={2}
+                  isAnimationActive={false}
                 >
-                  {chartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} stroke="var(--card)" strokeWidth={2} />
+                  {chartData.map((item) => (
+                    <Cell key={item.name} fill={item.color} stroke="var(--card)" strokeWidth={2} />
                   ))}
                 </Pie>
-                <Tooltip
-                  formatter={(value: any) => [formatINR(Number(value)), 'Spent']}
-                  contentStyle={{
-                    backgroundColor: 'var(--popover)',
-                    borderColor: 'var(--border)',
-                    borderRadius: 'var(--radius)',
-                    color: 'var(--popover-foreground)',
-                    fontSize: '12px',
-                  }}
-                  itemStyle={{ color: 'var(--foreground)' }}
+                <ChartTooltip
+                  content={
+                    <ChartTooltipContent
+                      nameKey="name"
+                      formatter={(value, name) => (
+                        <div className="flex w-full justify-between gap-3">
+                          <span>{name}</span>
+                          <span className="tabular-nums">
+                            {formatINR(Number(value), isPrivacyMode)}
+                          </span>
+                        </div>
+                      )}
+                    />
+                  }
                 />
               </PieChart>
-            </ResponsiveContainer>
+            </ChartContainer>
+            <ul
+              className="flex max-h-60 min-w-0 flex-col gap-2 overflow-y-auto"
+              aria-label="Spending category breakdown"
+            >
+              {chartData.map((item) => (
+                <li key={item.name} className="flex items-start justify-between gap-2 text-xs">
+                  <span className="flex min-w-0 items-start gap-2">
+                    <span
+                      className="mt-1 size-2 shrink-0 rounded-full"
+                      style={{ backgroundColor: item.color }}
+                    />
+                    <span className="break-words">{item.name}</span>
+                  </span>
+                  <span className="flex shrink-0 flex-col items-end tabular-nums">
+                    <span>{formatINR(item.value, isPrivacyMode)}</span>
+                    <span className="text-muted-foreground">{item.percentage.toFixed(0)}%</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
           </div>
-
-          {/* Legend list */}
-          <div className="space-y-2 md:col-span-6 max-h-60 overflow-y-auto pr-1">
-            {chartData.slice(0, 8).map((item) => (
-              <div key={item.name} className="flex items-center justify-between text-xs py-1 border-b border-border/40 last:border-0">
-                <div className="flex items-center gap-2 truncate pr-2">
-                  <span className="h-2.5 w-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
-                  <span className="truncate font-medium text-foreground">{item.name}</span>
-                </div>
-                <div className="flex items-center gap-2 text-right flex-shrink-0 font-mono">
-                  <span className="font-semibold text-foreground tabular-nums">{formatINR(item.value)}</span>
-                  <span className="text-muted-foreground w-9 tabular-nums">({item.percentage.toFixed(0)}%)</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        )}
       </CardContent>
     </Card>
   )

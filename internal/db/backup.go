@@ -193,6 +193,15 @@ func (d *DB) validateRestoreQueries() error {
 	if _, err := d.GetAnalyticsOverview(); err != nil {
 		return fmt.Errorf("personal spending projection: %w", err)
 	}
+	goals, err := d.ListSavingsGoals()
+	if err != nil {
+		return err
+	}
+	for i := range goals {
+		if err := validateGoal(&goals[i]); err != nil {
+			return fmt.Errorf("invalid savings goal: %w", err)
+		}
+	}
 	if _, _, err := d.GetSecuritySettings(); err != nil {
 		return fmt.Errorf("security settings: %w", err)
 	}

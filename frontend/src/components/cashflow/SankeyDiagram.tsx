@@ -1,26 +1,13 @@
-import React, { useState, useMemo } from 'react'
-import { SankeyData, SankeyNode } from '@/types'
-import { formatINR } from '@/lib/utils'
-import {
-  Briefcase,
-  RotateCcw,
-  TrendingUp,
-  ArrowDownLeft,
-  Landmark,
-  CreditCard,
-  PiggyBank,
-  AlertTriangle,
-  HelpCircle,
-  Utensils,
-  ShoppingBag,
-  ShoppingCart,
-  Receipt,
-  Car,
-  Film,
-  HeartPulse,
-  Percent,
-  Wallet,
-} from 'lucide-react'
+import React, { useId, useMemo, useState, useRef, useEffect } from 'react'
+import type { SankeyData, SankeyNode } from '@/types'
+import { cn, formatINR } from '@/lib/utils'
+import { FLOW_LAYERS, flowPath, layoutCashFlow, type FlowNode } from '@/lib/sankey-layout'
+import { usePrivacy } from '@/components/privacy-provider'
+import { Button } from '@/components/ui/button'
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription } from '@/components/ui/empty'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { PiggyBank, List, GitBranch, ChevronDown } from 'lucide-react'
 
 interface SankeyDiagramProps {
   data: SankeyData
@@ -28,432 +15,255 @@ interface SankeyDiagramProps {
   selectedNodeId?: string | null
 }
 
-const getIconComponent = (iconName?: string, type?: string) => {
-  switch (iconName) {
-    case 'Briefcase': return Briefcase
-    case 'RotateCcw': return RotateCcw
-    case 'TrendingUp': return TrendingUp
-    case 'ArrowDownLeft': return ArrowDownLeft
-    case 'Landmark': return Landmark
-    case 'CreditCard': return CreditCard
-    case 'PiggyBank': return PiggyBank
-    case 'AlertTriangle': return AlertTriangle
-    case 'Utensils': return Utensils
-    case 'ShoppingBag': return ShoppingBag
-    case 'ShoppingCart': return ShoppingCart
-    case 'Receipt': return Receipt
-    case 'Car': return Car
-    case 'Film': return Film
-    case 'HeartPulse': return HeartPulse
-    case 'Percent': return Percent
-    case 'Wallet': return Wallet
-    default:
-      if (type === 'INCOME_SOURCE') return Briefcase
-      if (type === 'ACCOUNT') return Landmark
-      if (type === 'CHANNEL') return CreditCard
-      if (type === 'SURPLUS') return PiggyBank
-      if (type === 'DEFICIT') return AlertTriangle
-      return HelpCircle
-  }
-}
-
-interface LayoutNode extends SankeyNode {
-  x: number
-  y: number
-  width: number
-  height: number
-  layer: number
-}
-
-interface LayoutLink {
-  source: LayoutNode
-  target: LayoutNode
-  value: number
-  sourceY: number
-  sourceHeight: number
-  targetY: number
-  targetHeight: number
-  color: string
-}
-
 export const SankeyDiagram: React.FC<SankeyDiagramProps> = ({
   data,
   onNodeClick,
   selectedNodeId,
 }) => {
-  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null)
-  const [hoveredLink, setHoveredLink] = useState<{
-    sourceName: string
-    targetName: string
-    value: number
-    pct: number
-    x: number
-    y: number
-  } | null>(null)
-
-  const { layoutNodes, layoutLinks, layers, width, height } = useMemo(() => {
-    const defaultWidth = 1040
-    const nodeWidth = 175
-    const minNodeHeight = 38
-    const nodeGap = 12
-    const paddingTop = 28
-    const paddingBottom = 20
-
-    if (!data || !data.nodes || data.nodes.length === 0) {
-      return { layoutNodes: [], layoutLinks: [], layers: [], width: defaultWidth, height: 420 }
+  const gradientId = useId().replace(/:/g, '')
+  const [expanded, setExpanded] = useState(false)
+  const [view, setView] = useState('diagram')
+  const diagramRef = useRef<HTMLDivElement>(null)
+  const [diagramWidth, setDiagramWidth] = useState(1120)
+  useEffect(() => {
+    const element = diagramRef.current
+    if (!element) return
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry.contentRect.width > 0) setDiagramWidth(entry.contentRect.width)
+    })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [data.nodes.length])
+  const [hovered, setHovered] = useState<string | null>(null)
+  const { isPrivacyMode } = usePrivacy()
+  const money = (amount: number) => (isPrivacyMode ? '₹••••••' : formatINR(amount, isPrivacyMode))
+  const layout = useMemo(
+    () => layoutCashFlow(data, expanded, diagramWidth),
+    [data, expanded, diagramWidth]
+  )
+  const compact = useMemo(
+    () => (expanded ? layoutCashFlow(data) : layout),
+    [data, expanded, layout]
+  )
+  const focusNode = hovered || selectedNodeId
+  const connected = new Set(focusNode ? [focusNode] : [])
+  layout.links.forEach((link) => {
+    if (link.source.id === focusNode || link.target.id === focusNode) {
+      connected.add(link.source.id)
+      connected.add(link.target.id)
     }
-
-    // Group nodes by layer
-    const rawLayers: SankeyNode[][] = [[], [], [], []]
-    const nodeMap = new Map<string, SankeyNode>()
-
-    data.nodes.forEach((n) => {
-      nodeMap.set(n.id, n)
-      const layerIdx = Math.min(Math.max(n.layer, 0), 3)
-      rawLayers[layerIdx].push(n)
-    })
-
-    // Filter out empty intermediate layers and calculate X positions
-    const activeLayerIndices = rawLayers
-      .map((arr, idx) => (arr.length > 0 ? idx : -1))
-      .filter((idx) => idx !== -1)
-
-    const totalActiveLayers = activeLayerIndices.length
-    const colSpacing =
-      totalActiveLayers > 1
-        ? (defaultWidth - nodeWidth * totalActiveLayers) / (totalActiveLayers - 1)
-        : 0
-
-    // Find max layer total for proportional height scaling
-    const maxLayerSum = Math.max(
-      ...rawLayers.map((nodes) => nodes.reduce((sum, n) => sum + n.total_value, 0)),
-      1
-    )
-
-    // Estimate total canvas height needed
-    const maxNodesInAnyLayer = Math.max(...rawLayers.map((l) => l.length), 1)
-    const dynamicHeight = Math.max(
-      460,
-      maxNodesInAnyLayer * (minNodeHeight + nodeGap) + paddingTop + paddingBottom + 40
-    )
-    const availableHeight = dynamicHeight - paddingTop - paddingBottom
-
-    const computedNodes: LayoutNode[] = []
-    const layoutNodeMap = new Map<string, LayoutNode>()
-
-    activeLayerIndices.forEach((layerIdx, colIdx) => {
-      const nodesInLayer = rawLayers[layerIdx]
-      const layerTotal = nodesInLayer.reduce((s, n) => s + n.total_value, 0)
-      const x = colIdx * (nodeWidth + colSpacing)
-
-      // Calculate total gaps
-      const totalGaps = (nodesInLayer.length - 1) * nodeGap
-      const spaceForNodes = Math.max(availableHeight - totalGaps, nodesInLayer.length * minNodeHeight)
-
-      // Calculate heights
-      let currentY = paddingTop
-      nodesInLayer.forEach((n) => {
-        const proportionalHeight =
-          layerTotal > 0
-            ? Math.round((n.total_value / maxLayerSum) * spaceForNodes)
-            : minNodeHeight
-        const nodeH = Math.max(minNodeHeight, proportionalHeight)
-
-        const lNode: LayoutNode = {
-          ...n,
-          x,
-          y: currentY,
-          width: nodeWidth,
-          height: nodeH,
-          layer: layerIdx,
-        }
-        computedNodes.push(lNode)
-        layoutNodeMap.set(n.id, lNode)
-        currentY += nodeH + nodeGap
-      })
-    })
-
-    // Track offsets for incoming and outgoing links per node
-    const sourceOffsets = new Map<string, number>()
-    const targetOffsets = new Map<string, number>()
-
-    computedNodes.forEach((n) => {
-      sourceOffsets.set(n.id, 0)
-      targetOffsets.set(n.id, 0)
-    })
-
-    const computedLinks: LayoutLink[] = []
-
-    data.links.forEach((link) => {
-      const src = layoutNodeMap.get(link.source)
-      const tgt = layoutNodeMap.get(link.target)
-      if (!src || !tgt || link.value <= 0) return
-
-      const srcCurrentOffset = sourceOffsets.get(src.id) || 0
-      const tgtCurrentOffset = targetOffsets.get(tgt.id) || 0
-
-      const srcRatio = src.total_value > 0 ? link.value / src.total_value : 1
-      const tgtRatio = tgt.total_value > 0 ? link.value / tgt.total_value : 1
-
-      const srcLinkHeight = Math.max(2, src.height * srcRatio)
-      const tgtLinkHeight = Math.max(2, tgt.height * tgtRatio)
-
-      const linkObj: LayoutLink = {
-        source: src,
-        target: tgt,
-        value: link.value,
-        sourceY: src.y + srcCurrentOffset,
-        sourceHeight: srcLinkHeight,
-        targetY: tgt.y + tgtCurrentOffset,
-        targetHeight: tgtLinkHeight,
-        color: link.color_hex || src.color_hex,
-      }
-
-      computedLinks.push(linkObj)
-
-      sourceOffsets.set(src.id, srcCurrentOffset + srcLinkHeight)
-      targetOffsets.set(tgt.id, tgtCurrentOffset + tgtLinkHeight)
-    })
-
-    const layerHeaders = [
-      { label: 'Income Sources', layer: 0 },
-      { label: 'Holding Accounts', layer: 1 },
-      { label: 'Payment Channels', layer: 2 },
-      { label: 'Categories & Surplus', layer: 3 },
-    ].filter((h) => activeLayerIndices.includes(h.layer))
-
-    return {
-      layoutNodes: computedNodes,
-      layoutLinks: computedLinks,
-      layers: layerHeaders,
-      width: defaultWidth,
-      height: dynamicHeight,
-    }
-  }, [data])
-
-  // Helper to determine if a link or node is highlighted
-  const isNodeConnected = (nodeId: string) => {
-    if (!hoveredNodeId) return false
-    if (nodeId === hoveredNodeId) return true
-    return layoutLinks.some(
-      (l) =>
-        (l.source.id === hoveredNodeId && l.target.id === nodeId) ||
-        (l.target.id === hoveredNodeId && l.source.id === nodeId)
-    )
+  })
+  const canInspect = (node: FlowNode) => !!node.members || !!onNodeClick
+  const inspect = (node: FlowNode) => {
+    if (node.members) setExpanded(true)
+    else if (canInspect(node)) onNodeClick?.(node)
   }
 
-  const isLinkHighlighted = (link: LayoutLink) => {
-    if (!hoveredNodeId) return false
-    return link.source.id === hoveredNodeId || link.target.id === hoveredNodeId
-  }
-
-  const generatePath = (link: LayoutLink) => {
-    const x0 = link.source.x + link.source.width
-    const y0 = link.sourceY
-    const h0 = link.sourceHeight
-    const x1 = link.target.x
-    const y1 = link.targetY
-    const h1 = link.targetHeight
-
-    const dx = x1 - x0
-    const cpx1 = x0 + dx * 0.45
-    const cpx2 = x1 - dx * 0.45
-
-    return `
-      M ${x0} ${y0}
-      C ${cpx1} ${y0}, ${cpx2} ${y1}, ${x1} ${y1}
-      L ${x1} ${y1 + h1}
-      C ${cpx2} ${y1 + h1}, ${cpx1} ${y0 + h0}, ${x0} ${y0 + h0}
-      Z
-    `
-  }
-
-  if (layoutNodes.length === 0) {
+  if (!layout.nodes.length)
     return (
-      <div className="flex h-64 flex-col items-center justify-center rounded-xl border border-dashed p-8 text-center text-muted-foreground">
-        <PiggyBank className="h-8 w-8 text-muted-foreground/50 mb-2" />
-        <p className="text-sm font-medium">No cash flow transaction data in this period</p>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          Upload bank statements or select a different month to generate the Sankey diagram
-        </p>
-      </div>
+      <Empty className="border py-12">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <PiggyBank />
+          </EmptyMedia>
+          <EmptyTitle>No cash flow in this period</EmptyTitle>
+          <EmptyDescription>
+            Import a statement or choose another month to see where your money goes.
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
     )
-  }
 
   return (
-    <div className="relative w-full overflow-x-auto select-none">
-      {/* Floating Tooltip */}
-      {hoveredLink && (
-        <div
-          className="pointer-events-none absolute z-50 rounded-lg border bg-popover/95 backdrop-blur-md px-3 py-2 text-xs shadow-xl text-popover-foreground transition-all duration-75"
-          style={{
-            left: `${Math.min(Math.max(hoveredLink.x - 70, 10), width - 180)}px`,
-            top: `${hoveredLink.y - 45}px`,
-          }}
-        >
-          <div className="flex items-center gap-1.5 font-semibold">
-            <span>{hoveredLink.sourceName}</span>
-            <span className="text-muted-foreground">→</span>
-            <span>{hoveredLink.targetName}</span>
-          </div>
-          <div className="flex items-center gap-2 mt-1 text-muted-foreground">
-            <span className="font-bold text-foreground">{formatINR(hoveredLink.value)}</span>
-            <span>•</span>
-            <span>{hoveredLink.pct.toFixed(1)}% of flow</span>
-          </div>
-        </div>
-      )}
-
-      {/* Layer Labels Header */}
-      <div className="flex justify-between px-2 mb-2 min-w-[1040px]">
-        {layers.map((l) => (
-          <div
-            key={l.layer}
-            className="w-[175px] text-[11px] font-bold uppercase tracking-wider text-muted-foreground/75 text-center"
+    <div className="flex min-w-0 flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-xs text-muted-foreground">
+          {compact.groupedCount > 0
+            ? 'Largest flows shown first. Smaller flows are grouped without changing totals.'
+            : 'Select a source, account, card, or category to inspect its transactions.'}
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          {compact.groupedCount > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setExpanded(!expanded)}
+              aria-expanded={expanded}
+            >
+              <ChevronDown data-icon="inline-start" />
+              {expanded ? 'Compact view' : 'Show every flow'}
+            </Button>
+          )}
+          <ToggleGroup
+            value={[view]}
+            onValueChange={(values) => {
+              if (values[0]) setView(values[0])
+            }}
+            aria-label="Cash flow presentation"
+            className="hidden md:flex"
+            variant="outline"
+            size="sm"
           >
-            {l.label}
-          </div>
-        ))}
+            <ToggleGroupItem value="diagram">
+              <GitBranch data-icon="inline-start" />
+              Diagram
+            </ToggleGroupItem>
+            <ToggleGroupItem value="list">
+              <List data-icon="inline-start" />
+              List
+            </ToggleGroupItem>
+          </ToggleGroup>
+        </div>
       </div>
 
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        className="w-full h-auto min-w-[1040px] overflow-visible"
-        style={{ height }}
+      <div
+        ref={diagramRef}
+        className={cn(
+          'overflow-auto rounded-lg border p-3',
+          view === 'list' ? 'hidden' : 'hidden md:block'
+        )}
+        style={{ maxHeight: 680 }}
+        tabIndex={0}
+        role="region"
+        aria-label="Cash flow diagram. Scroll to explore all flows."
       >
-        <defs>
-          {layoutLinks.map((link, idx) => {
-            const gradId = `grad-${link.source.id}-${link.target.id}-${idx}`
-            return (
-              <linearGradient
-                key={gradId}
-                id={gradId}
-                gradientUnits="userSpaceOnUse"
-                x1={link.source.x + link.source.width}
-                y1="0"
-                x2={link.target.x}
-                y2="0"
-              >
-                <stop offset="0%" stopColor={link.source.color_hex} stopOpacity="0.45" />
-                <stop offset="100%" stopColor={link.target.color_hex} stopOpacity="0.45" />
-              </linearGradient>
-            )
-          })}
-        </defs>
-
-        {/* 1. Sankey Links / Flow Ribbons */}
-        <g className="links-layer">
-          {layoutLinks.map((link, idx) => {
-            const gradId = `grad-${link.source.id}-${link.target.id}-${idx}`
-            const highlighted = isLinkHighlighted(link)
-            const dimmed = hoveredNodeId && !highlighted
-
-            return (
-              <path
-                key={`link-${idx}`}
-                d={generatePath(link)}
-                fill={`url(#${gradId})`}
-                className="transition-all duration-200 cursor-pointer"
-                style={{
-                  opacity: highlighted ? 0.9 : dimmed ? 0.12 : 0.65,
-                  stroke: highlighted ? link.color : 'none',
-                  strokeWidth: highlighted ? 1 : 0,
-                }}
-                onMouseEnter={(e) => {
-                  const rect = e.currentTarget.getBoundingClientRect()
-                  const parentRect = e.currentTarget.closest('svg')?.getBoundingClientRect()
-                  const relX = (rect.left + rect.right) / 2 - (parentRect?.left || 0)
-                  const relY = (rect.top + rect.bottom) / 2 - (parentRect?.top || 0)
-
-                  const totalRef = link.source.total_value || 1
-                  setHoveredLink({
-                    sourceName: link.source.name,
-                    targetName: link.target.name,
-                    value: link.value,
-                    pct: (link.value / totalRef) * 100,
-                    x: relX,
-                    y: relY,
-                  })
-                }}
-                onMouseLeave={() => setHoveredLink(null)}
-              />
-            )
-          })}
-        </g>
-
-        {/* 2. Sankey Nodes (HTML-in-SVG foreignObjects for pixel-perfect card styling) */}
-        <g className="nodes-layer">
-          {layoutNodes.map((node) => {
-            const Icon = getIconComponent(node.icon, node.type)
-            const isHovered = hoveredNodeId === node.id
-            const isConnected = isNodeConnected(node.id)
-            const isSelected = selectedNodeId === node.id
-            const isDimmed = hoveredNodeId && !isHovered && !isConnected
-
-            const isSurplus = node.type === 'SURPLUS'
-            const isDeficit = node.type === 'DEFICIT'
-
-            return (
+        <div style={{ width: layout.width }}>
+          <div className="relative mb-2 h-6">
+            {layout.activeLayers.map(({ layer }) => {
+              const node = layout.nodes.find((node) => node.layer === layer)!
+              return (
+                <h3
+                  key={layer}
+                  className="absolute text-center text-xs font-medium text-muted-foreground"
+                  style={{ left: node.x, width: node.width }}
+                >
+                  {FLOW_LAYERS[layer]}
+                </h3>
+              )
+            })}
+          </div>
+          <svg
+            width={layout.width}
+            height={layout.height}
+            viewBox={`0 0 ${layout.width} ${layout.height}`}
+            aria-label="Money flowing from income to accounts, spending and savings"
+          >
+            <defs>
+              {layout.links.map((link, index) => (
+                <linearGradient
+                  key={index}
+                  id={`${gradientId}-${index}`}
+                  gradientUnits="userSpaceOnUse"
+                  x1={link.source.x + link.source.width}
+                  y1={0}
+                  x2={link.target.x}
+                  y2={0}
+                >
+                  <stop offset="0%" stopColor={link.source.color_hex} />
+                  <stop offset="100%" stopColor={link.target.color_hex} />
+                </linearGradient>
+              ))}
+            </defs>
+            {layout.links.map((link, index) => (
+              <Tooltip key={index}>
+                <TooltipTrigger
+                  render={
+                    <path
+                      d={flowPath(link)}
+                      fill={`url(#${gradientId}-${index})`}
+                      className="transition-opacity"
+                      style={{
+                        opacity: focusNode
+                          ? link.source.id === focusNode || link.target.id === focusNode
+                            ? 0.7
+                            : 0.07
+                          : 0.25,
+                      }}
+                    />
+                  }
+                />
+                <TooltipContent>
+                  {link.source.name} → {link.target.name}: {money(link.value)}
+                </TooltipContent>
+              </Tooltip>
+            ))}
+            {layout.nodes.map((node) => (
               <foreignObject
                 key={node.id}
                 x={node.x}
                 y={node.y}
                 width={node.width}
                 height={node.height}
-                className="overflow-visible cursor-pointer"
-                onMouseEnter={() => setHoveredNodeId(node.id)}
-                onMouseLeave={() => setHoveredNodeId(null)}
-                onClick={() => onNodeClick && onNodeClick(node)}
               >
-                <div
-                  className={`group relative flex h-full w-full flex-col justify-between rounded-xl border p-2.5 transition-all duration-150 ${
-                    isSelected
-                      ? 'ring-2 ring-primary ring-offset-2 ring-offset-background bg-card shadow-lg'
-                      : isHovered
-                      ? 'scale-[1.02] shadow-md border-primary/60 bg-card/95'
-                      : isDimmed
-                      ? 'opacity-35 bg-card/40 border-border/40'
-                      : isSurplus
-                      ? 'bg-emerald-500/10 border-emerald-500/30 dark:bg-emerald-950/20'
-                      : isDeficit
-                      ? 'bg-amber-500/10 border-amber-500/30 dark:bg-amber-950/20'
-                      : 'bg-card/90 hover:bg-card border-border shadow-xs'
-                  }`}
-                  style={{
-                    borderLeftColor: node.color_hex,
-                    borderLeftWidth: '4px',
-                  }}
+                <Button
+                  variant="outline"
+                  onClick={() => inspect(node)}
+                  aria-label={`${node.name}, ${money(node.total_value)}${node.members ? '. Expand grouped flows' : canInspect(node) ? '. View transactions' : ''}`}
+                  aria-pressed={selectedNodeId === node.id}
+                  onMouseEnter={() => setHovered(node.id)}
+                  onMouseLeave={() => setHovered(null)}
+                  onFocus={() => setHovered(node.id)}
+                  onBlur={() => setHovered(null)}
+                  className={cn(
+                    'h-full w-full flex-col items-start justify-center gap-1 px-3 whitespace-normal text-left',
+                    focusNode && !connected.has(node.id) && 'opacity-40',
+                    selectedNodeId === node.id && 'ring-2 ring-ring'
+                  )}
                 >
-                  {/* Top: Icon + Name */}
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div
-                      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-white text-[10px] shadow-xs"
+                  <span className="flex w-full min-w-0 items-center gap-2">
+                    <span
+                      className="size-2 shrink-0 rounded-full"
                       style={{ backgroundColor: node.color_hex }}
-                    >
-                      <Icon className="h-3 w-3" />
-                    </div>
-                    <span className="text-[11px] font-semibold text-foreground truncate tracking-tight">
+                    />
+                    <span className="truncate" title={node.name}>
                       {node.name}
                     </span>
-                  </div>
-
-                  {/* Bottom: Amount & Percentage */}
-                  <div className="flex items-baseline justify-between gap-1 mt-0.5">
-                    <span className="text-xs font-bold text-foreground">
-                      {formatINR(node.total_value)}
+                  </span>
+                  <span className="flex w-full items-baseline justify-between gap-1">
+                    <span className="tabular-nums">{money(node.total_value)}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {node.tx_count ? `${node.tx_count} tx` : node.members ? 'Expand' : ''}
                     </span>
-                    {node.tx_count && node.tx_count > 0 && (
-                      <span className="text-[9px] font-medium text-muted-foreground">
-                        {node.tx_count} {node.tx_count === 1 ? 'tx' : 'txs'}
-                      </span>
-                    )}
-                  </div>
-                </div>
+                  </span>
+                </Button>
               </foreignObject>
-            )
-          })}
-        </g>
-      </svg>
+            ))}
+          </svg>
+        </div>
+      </div>
+
+      <div className={cn('flex flex-col gap-5', view === 'diagram' && 'md:hidden')}>
+        {layout.activeLayers.map(({ layer }) => (
+          <section key={layer} className="flex flex-col gap-2" aria-label={FLOW_LAYERS[layer]}>
+            <h3 className="text-sm font-medium">{FLOW_LAYERS[layer]}</h3>
+            {layout.nodes
+              .filter((node) => node.layer === layer)
+              .map((node) => (
+                <Button
+                  key={node.id}
+                  variant="outline"
+                  onClick={() => inspect(node)}
+                  className="h-auto min-h-11 w-full justify-between gap-3 whitespace-normal px-3 py-2 text-left"
+                  aria-pressed={selectedNodeId === node.id}
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span
+                      className="size-2 shrink-0 rounded-full"
+                      style={{ backgroundColor: node.color_hex }}
+                    />
+                    <span className="truncate">{node.name}</span>
+                  </span>
+                  <span className="shrink-0 tabular-nums">{money(node.total_value)}</span>
+                </Button>
+              ))}
+          </section>
+        ))}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Ribbon widths show relative flow. Account-to-card routing is an overview of recorded
+        spending, not proof of a specific bill payment. Savings and shortfalls are calculated
+        totals.
+      </p>
     </div>
   )
 }

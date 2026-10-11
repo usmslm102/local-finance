@@ -1,6 +1,8 @@
-import React, { useState } from 'react'
-import { Check, Copy } from 'lucide-react'
+import React, { useState, useEffect, useRef } from 'react'
+import { Check, Copy, AlertCircle } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 interface CopyButtonProps {
   value: string
@@ -12,47 +14,56 @@ interface CopyButtonProps {
 export const CopyButton: React.FC<CopyButtonProps> = ({
   value,
   label = 'Copy to clipboard',
-  className = '',
+  className,
   size = 'xs',
 }) => {
-  const [copied, setCopied] = useState(false)
-
-  const handleCopy = async (e: React.MouseEvent) => {
-    e.stopPropagation()
+  const [status, setStatus] = useState<'idle' | 'copied' | 'error'>('idle')
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current)
+    },
+    []
+  )
+  const handleCopy = async (event: React.MouseEvent) => {
+    event.stopPropagation()
+    if (timer.current) clearTimeout(timer.current)
     try {
       await navigator.clipboard.writeText(value)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
+      setStatus('copied')
     } catch {
-      // Fallback
-      setCopied(false)
+      setStatus('error')
     }
+    timer.current = setTimeout(() => setStatus('idle'), 2500)
   }
-
-  const iconSize = size === 'xs' ? 'h-3 w-3' : 'h-3.5 w-3.5'
-
+  const message =
+    status === 'copied'
+      ? 'Copied'
+      : status === 'error'
+        ? 'Copy failed. Check clipboard permissions and try again.'
+        : label
   return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <button
-            type="button"
-            onClick={handleCopy}
-            className={`inline-flex items-center justify-center h-5 w-5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-150 active:scale-90 cursor-pointer ${
-              copied ? 'text-emerald-500 hover:text-emerald-500 bg-emerald-500/10' : ''
-            } ${className}`}
-          >
-            {copied ? (
-              <Check className={`${iconSize} text-emerald-500 animate-in zoom-in-50 duration-150`} />
-            ) : (
-              <Copy className={`${iconSize} transition-transform`} />
-            )}
-          </button>
-        }
-      />
-      <TooltipContent side="top" className="text-[10px] py-1 px-2">
-        {copied ? 'Copied!' : label}
-      </TooltipContent>
-    </Tooltip>
+    <>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              type="button"
+              variant="ghost"
+              size={size === 'default' ? 'icon' : 'icon-sm'}
+              onClick={handleCopy}
+              aria-label={message}
+              className={cn('shrink-0', className)}
+            >
+              {status === 'copied' ? <Check /> : status === 'error' ? <AlertCircle /> : <Copy />}
+            </Button>
+          }
+        />
+        <TooltipContent>{message}</TooltipContent>
+      </Tooltip>
+      <span className="sr-only" role="status">
+        {status === 'idle' ? '' : message}
+      </span>
+    </>
   )
 }

@@ -154,46 +154,46 @@ func (r *CategorizationRule) MatchesException(narration, payee string) bool {
 }
 
 type Transaction struct {
-	SplitwiseDescription *string `json:"splitwise_description,omitempty"`
-	IsSplit              bool       `json:"is_split"`
-	SplitwiseEntryID     *string    `json:"splitwise_entry_id,omitempty"`
-	SplitwiseKind        *string    `json:"splitwise_kind,omitempty"`
-	PersonalExpenseAmount *float64  `json:"personal_expense_amount,omitempty"`
-	ID                 string      `json:"id"`
-	AccountID          string      `json:"account_id"`
-	AccountName        string      `json:"account_name,omitempty"`
-	StatementImportID  *string     `json:"statement_import_id,omitempty"`
-	TxHash             string      `json:"tx_hash"`
-	TxDate             string      `json:"tx_date"` // YYYY-MM-DD
-	ValueDate          *string     `json:"value_date,omitempty"`
-	RawNarration       string      `json:"raw_narration"`
-	CleanedPayee       string      `json:"cleaned_payee"`
-	PaymentMode        PaymentMode `json:"payment_mode"`
-	ReferenceNumber    string      `json:"reference_number"`
-	TxType             TxType      `json:"tx_type"` // DEBIT or CREDIT
-	Amount             float64     `json:"amount"`
-	RunningBalance     *float64    `json:"running_balance,omitempty"`
-	CategoryID         *string     `json:"category_id,omitempty"`
-	CategoryName       *string     `json:"category_name,omitempty"`
-	CategoryColor      *string     `json:"category_color,omitempty"`
-	CategoryIcon       *string     `json:"category_icon,omitempty"`
-	UPIVPA             *string     `json:"upi_vpa,omitempty"`
-	CardLast4          *string     `json:"card_last4,omitempty"`
-	MerchantCategory   *string     `json:"merchant_category,omitempty"`
-	CashbackAmount     float64     `json:"cashback_amount"`
-	RewardPointsEarned float64     `json:"reward_points_earned"`
-	IsTransfer          bool        `json:"is_transfer"`
-	IsExcluded          bool        `json:"is_excluded"`
-	TransferPeerID      *string     `json:"transfer_peer_id,omitempty"`
-	TransferMatchReason *string     `json:"transfer_match_reason,omitempty"`
-	NetAmount           *float64    `json:"net_amount,omitempty"`
-	OriginalCurrency    *string     `json:"original_currency,omitempty"`
-	OriginalAmount      *float64    `json:"original_amount,omitempty"`
-	IsRecurring         bool        `json:"is_recurring"`
-	IsManualCategory    bool        `json:"is_manual_category"`
-	Notes               string      `json:"notes"`
-	Tags                string      `json:"tags"`
-	CreatedAt           time.Time   `json:"created_at"`
+	SplitwiseDescription  *string     `json:"splitwise_description,omitempty"`
+	IsSplit               bool        `json:"is_split"`
+	SplitwiseEntryID      *string     `json:"splitwise_entry_id,omitempty"`
+	SplitwiseKind         *string     `json:"splitwise_kind,omitempty"`
+	PersonalExpenseAmount *float64    `json:"personal_expense_amount,omitempty"`
+	ID                    string      `json:"id"`
+	AccountID             string      `json:"account_id"`
+	AccountName           string      `json:"account_name,omitempty"`
+	StatementImportID     *string     `json:"statement_import_id,omitempty"`
+	TxHash                string      `json:"tx_hash"`
+	TxDate                string      `json:"tx_date"` // YYYY-MM-DD
+	ValueDate             *string     `json:"value_date,omitempty"`
+	RawNarration          string      `json:"raw_narration"`
+	CleanedPayee          string      `json:"cleaned_payee"`
+	PaymentMode           PaymentMode `json:"payment_mode"`
+	ReferenceNumber       string      `json:"reference_number"`
+	TxType                TxType      `json:"tx_type"` // DEBIT or CREDIT
+	Amount                float64     `json:"amount"`
+	RunningBalance        *float64    `json:"running_balance,omitempty"`
+	CategoryID            *string     `json:"category_id,omitempty"`
+	CategoryName          *string     `json:"category_name,omitempty"`
+	CategoryColor         *string     `json:"category_color,omitempty"`
+	CategoryIcon          *string     `json:"category_icon,omitempty"`
+	UPIVPA                *string     `json:"upi_vpa,omitempty"`
+	CardLast4             *string     `json:"card_last4,omitempty"`
+	MerchantCategory      *string     `json:"merchant_category,omitempty"`
+	CashbackAmount        float64     `json:"cashback_amount"`
+	RewardPointsEarned    float64     `json:"reward_points_earned"`
+	IsTransfer            bool        `json:"is_transfer"`
+	IsExcluded            bool        `json:"is_excluded"`
+	TransferPeerID        *string     `json:"transfer_peer_id,omitempty"`
+	TransferMatchReason   *string     `json:"transfer_match_reason,omitempty"`
+	NetAmount             *float64    `json:"net_amount,omitempty"`
+	OriginalCurrency      *string     `json:"original_currency,omitempty"`
+	OriginalAmount        *float64    `json:"original_amount,omitempty"`
+	IsRecurring           bool        `json:"is_recurring"`
+	IsManualCategory      bool        `json:"is_manual_category"`
+	Notes                 string      `json:"notes"`
+	Tags                  string      `json:"tags"`
+	CreatedAt             time.Time   `json:"created_at"`
 }
 
 type UpdateTransactionRequest struct {
@@ -208,8 +208,8 @@ type CreditCardBill struct {
 	AccountID            string    `json:"account_id"`
 	BankName             string    `json:"bank_name,omitempty"`
 	StatementImportID    *string   `json:"statement_import_id,omitempty"`
-	StatementDate        string    `json:"statement_date"`     // YYYY-MM-DD
-	PaymentDueDate       string    `json:"payment_due_date"`    // YYYY-MM-DD
+	StatementDate        string    `json:"statement_date"`   // YYYY-MM-DD
+	PaymentDueDate       string    `json:"payment_due_date"` // YYYY-MM-DD
 	TotalDueAmount       float64   `json:"total_due_amount"`
 	MinimumDueAmount     *float64  `json:"minimum_due_amount,omitempty"`
 	RewardPointsEarned   float64   `json:"reward_points_earned"`
@@ -349,8 +349,9 @@ type DatabaseInfo struct {
 }
 
 type FullExportData struct {
-	SplitwiseMembers []SplitwiseMember `json:"splitwise_members"`
-	Splitwise []SplitwiseEntry `json:"splitwise"`
+	SplitwiseMembers []SplitwiseMember    `json:"splitwise_members"`
+	Splitwise        []SplitwiseEntry     `json:"splitwise"`
+	Goals            []SavingsGoal        `json:"goals"`
 	Investments      []InvestmentSnapshot `json:"investments"`
 	ExportedAt       time.Time            `json:"exported_at"`
 	Version          string               `json:"version"`
@@ -405,11 +406,11 @@ type Subscription struct {
 }
 
 type SubscriptionsSummary struct {
-	TotalActive       int            `json:"total_active"`
-	MonthlyBurnRate   float64        `json:"monthly_burn_rate"`
-	AnnualProjected   float64        `json:"annual_projected"`
-	UpcomingIn30Days  int            `json:"upcoming_in_30_days"`
-	Subscriptions     []Subscription `json:"subscriptions"`
+	TotalActive      int            `json:"total_active"`
+	MonthlyBurnRate  float64        `json:"monthly_burn_rate"`
+	AnnualProjected  float64        `json:"annual_projected"`
+	UpcomingIn30Days int            `json:"upcoming_in_30_days"`
+	Subscriptions    []Subscription `json:"subscriptions"`
 }
 
 type UpsertSubscriptionRequest struct {
@@ -483,15 +484,15 @@ type CardRecommendation struct {
 }
 
 type CardPortfolioOverview struct {
-	Cards                     []CardDetails `json:"cards"`
-	BestCardToSwipeToday      *CardDetails  `json:"best_card_to_swipe_today,omitempty"`
-	TotalCreditLimit          float64       `json:"total_credit_limit"`
-	TotalOutstanding          float64       `json:"total_outstanding"`
-	OverallUtilizationRate    float64       `json:"overall_utilization_rate"`
-	TotalAnnualFeeLiability   float64       `json:"total_annual_fee_liability"`
-	TotalFeeSavingsProjected  float64       `json:"total_fee_savings_projected"`
-	TotalCashbackEarned       float64       `json:"total_cashback_earned"`
-	TotalRewardPoints         float64       `json:"total_reward_points"`
+	Cards                    []CardDetails `json:"cards"`
+	BestCardToSwipeToday     *CardDetails  `json:"best_card_to_swipe_today,omitempty"`
+	TotalCreditLimit         float64       `json:"total_credit_limit"`
+	TotalOutstanding         float64       `json:"total_outstanding"`
+	OverallUtilizationRate   float64       `json:"overall_utilization_rate"`
+	TotalAnnualFeeLiability  float64       `json:"total_annual_fee_liability"`
+	TotalFeeSavingsProjected float64       `json:"total_fee_savings_projected"`
+	TotalCashbackEarned      float64       `json:"total_cashback_earned"`
+	TotalRewardPoints        float64       `json:"total_reward_points"`
 }
 
 type UpdateCardMetadataRequest struct {
@@ -509,39 +510,39 @@ type UpdateCardMetadataRequest struct {
 }
 
 type CategoryBudget struct {
-	ID                         string  `json:"id"`
-	CategoryID                 string  `json:"category_id"`
-	CategoryName               string  `json:"category_name"`
-	CategoryColor              string  `json:"category_color"`
-	CategoryIcon               string  `json:"category_icon"`
-	MonthlyLimit               float64 `json:"monthly_limit"`
-	Month                      string  `json:"month"` // e.g. "2026-08"
-	ActualSpend                float64 `json:"actual_spend"`
-	SpentPercentage            float64 `json:"spent_percentage"`
-	RemainingAmount            float64 `json:"remaining_amount"`
-	Status                     string  `json:"status"` // "SAFE", "WARNING", "EXCEEDED"
-	DaysElapsedInMonth         int     `json:"days_elapsed_in_month"`
-	DaysRemainingInMonth       int     `json:"days_remaining_in_month"`
-	TotalDaysInMonth           int     `json:"total_days_in_month"`
-	DailyRecommendedAllowance  float64 `json:"daily_recommended_allowance"`
-	ProjectedMonthEndSpend     float64 `json:"projected_month_end_spend"`
-	PacingStatus               string  `json:"pacing_status"` // "ON_TRACK", "PACING_HIGH", "PACING_EXCEEDED"
+	ID                        string  `json:"id"`
+	CategoryID                string  `json:"category_id"`
+	CategoryName              string  `json:"category_name"`
+	CategoryColor             string  `json:"category_color"`
+	CategoryIcon              string  `json:"category_icon"`
+	MonthlyLimit              float64 `json:"monthly_limit"`
+	Month                     string  `json:"month"` // e.g. "2026-08"
+	ActualSpend               float64 `json:"actual_spend"`
+	SpentPercentage           float64 `json:"spent_percentage"`
+	RemainingAmount           float64 `json:"remaining_amount"`
+	Status                    string  `json:"status"` // "SAFE", "WARNING", "EXCEEDED"
+	DaysElapsedInMonth        int     `json:"days_elapsed_in_month"`
+	DaysRemainingInMonth      int     `json:"days_remaining_in_month"`
+	TotalDaysInMonth          int     `json:"total_days_in_month"`
+	DailyRecommendedAllowance float64 `json:"daily_recommended_allowance"`
+	ProjectedMonthEndSpend    float64 `json:"projected_month_end_spend"`
+	PacingStatus              string  `json:"pacing_status"` // "ON_TRACK", "PACING_HIGH", "PACING_EXCEEDED"
 }
 
 type BudgetSummary struct {
-	Month                              string           `json:"month"`
-	TotalBudget                        float64          `json:"total_budget"`
-	TotalSpent                         float64          `json:"total_spent"`
-	TotalRemaining                     float64          `json:"total_remaining"`
-	OverallSpentPercentage             float64          `json:"overall_spent_percentage"`
-	TotalDaysInMonth                   int              `json:"total_days_in_month"`
-	DaysElapsedInMonth                 int              `json:"days_elapsed_in_month"`
-	DaysRemainingInMonth               int              `json:"days_remaining_in_month"`
-	OverallDailyRecommendedAllowance   float64          `json:"overall_daily_recommended_allowance"`
-	CategoriesWithBudgets              int              `json:"categories_with_budgets"`
-	OverspentCategoriesCount           int              `json:"overspent_categories_count"`
-	WarningCategoriesCount             int              `json:"warning_categories_count"`
-	Budgets                            []CategoryBudget `json:"budgets"`
+	Month                            string           `json:"month"`
+	TotalBudget                      float64          `json:"total_budget"`
+	TotalSpent                       float64          `json:"total_spent"`
+	TotalRemaining                   float64          `json:"total_remaining"`
+	OverallSpentPercentage           float64          `json:"overall_spent_percentage"`
+	TotalDaysInMonth                 int              `json:"total_days_in_month"`
+	DaysElapsedInMonth               int              `json:"days_elapsed_in_month"`
+	DaysRemainingInMonth             int              `json:"days_remaining_in_month"`
+	OverallDailyRecommendedAllowance float64          `json:"overall_daily_recommended_allowance"`
+	CategoriesWithBudgets            int              `json:"categories_with_budgets"`
+	OverspentCategoriesCount         int              `json:"overspent_categories_count"`
+	WarningCategoriesCount           int              `json:"warning_categories_count"`
+	Budgets                          []CategoryBudget `json:"budgets"`
 }
 
 type UpsertCategoryBudgetRequest struct {

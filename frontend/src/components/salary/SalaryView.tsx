@@ -1,17 +1,20 @@
+import { ChartContainer } from '@/components/ui/chart'
+import { cn } from '@/lib/utils'
+import { usePrivacy } from '@/components/privacy-provider'
+import { buttonVariants } from '@/components/ui/button'
+import { PageLoading, QueryError } from '@/components/ui/query-state'
+import {
+  Table,
+  TableHeader,
+  TableRow,
+  TableHead,
+  TableBody,
+  TableCell,
+} from '@/components/ui/table'
 import React, { useState, useMemo, useEffect, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useSearch, useNavigate } from '@tanstack/react-router'
-import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-} from 'recharts'
+import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
 import { fetchSalaryInsights } from '@/lib/api'
 import { formatINR, formatDate } from '@/lib/utils'
 import { PrivacyAmount } from '@/components/ui/privacy-amount'
@@ -26,6 +29,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectGroup,
 } from '@/components/ui/select'
 import {
   TrendingUp,
@@ -67,16 +71,21 @@ function getPaginationItems(current: number, total: number): (number | 'ellipsis
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100, 0]
 
 export const SalaryView: React.FC = () => {
+  const { isPrivacyMode } = usePrivacy()
   const searchParams = (useSearch({ strict: false }) as SalarySearchParams) || {}
   const navigate = useNavigate()
 
   const activeTab = searchParams.tab || 'yearly'
-  const selectedCompany = searchParams.company && searchParams.company !== 'ALL' ? searchParams.company : ''
+  const selectedCompany =
+    searchParams.company && searchParams.company !== 'ALL' ? searchParams.company : ''
   const searchQuery = (searchParams.search || searchParams.q || '').trim()
   const page = searchParams.page && searchParams.page > 0 ? searchParams.page : 1
-  const pageSizeParam = searchParams.pageSize !== undefined ? searchParams.pageSize : searchParams.page_size
+  const pageSizeParam =
+    searchParams.pageSize !== undefined ? searchParams.pageSize : searchParams.page_size
   const pageSize =
-    pageSizeParam !== undefined && pageSizeParam !== null && PAGE_SIZE_OPTIONS.includes(Number(pageSizeParam))
+    pageSizeParam !== undefined &&
+    pageSizeParam !== null &&
+    PAGE_SIZE_OPTIONS.includes(Number(pageSizeParam))
       ? Number(pageSizeParam)
       : 25
 
@@ -87,7 +96,7 @@ export const SalaryView: React.FC = () => {
     setSearchInput(searchQuery)
   }, [searchQuery])
 
-  const { data, isLoading, refetch, isFetching } = useQuery({
+  const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ['salary-insights'],
     queryFn: fetchSalaryInsights,
   })
@@ -107,7 +116,8 @@ export const SalaryView: React.FC = () => {
       if (merged.company && merged.company !== 'ALL') cleaned.company = merged.company
       if (merged.search && merged.search.trim()) cleaned.search = merged.search.trim()
       if (merged.page && merged.page > 1) cleaned.page = merged.page
-      if (merged.pageSize !== undefined && merged.pageSize !== 25) cleaned.pageSize = merged.pageSize
+      if (merged.pageSize !== undefined && merged.pageSize !== 25)
+        cleaned.pageSize = merged.pageSize
 
       navigate({
         to: '/salary',
@@ -175,7 +185,10 @@ export const SalaryView: React.FC = () => {
     return filteredPaychecks.slice(start, start + pageSize)
   }, [filteredPaychecks, currentPage, pageSize])
 
-  const paginationPages = useMemo(() => getPaginationItems(currentPage, totalPages), [currentPage, totalPages])
+  const paginationPages = useMemo(
+    () => getPaginationItems(currentPage, totalPages),
+    [currentPage, totalPages]
+  )
 
   // Significant hikes list (growth >= 5%)
   const significantHikes = useMemo(() => {
@@ -189,23 +202,17 @@ export const SalaryView: React.FC = () => {
     return data.monthly_history.filter((m) => m.is_bonus)
   }, [data?.monthly_history])
 
-  if (isLoading) {
-    return (
-      <div className="flex h-96 flex-col items-center justify-center gap-3 text-muted-foreground text-sm">
-        <RefreshCw className="h-6 w-6 animate-spin text-primary" />
-        <p className="font-medium">Aggregating salary & career compensation insights...</p>
-      </div>
-    )
-  }
+  if (isLoading) return <PageLoading label="Loading salary insights" />
+  if (isError) return <QueryError message="Unable to load salary insights" onRetry={refetch} />
 
   // Empty state if no salary credits exist
   if (!data || data.total_paychecks === 0) {
     return (
-      <div className="p-4 sm:p-8 space-y-6 max-w-6xl mx-auto">
+      <div className="p-4 sm:p-8 flex flex-col gap-6 max-w-6xl mx-auto">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b pb-5">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-              <Briefcase className="h-6 w-6 text-primary" />
+              <Briefcase className="size-6 text-primary" />
               Salary & Career Growth Insights
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
@@ -214,26 +221,24 @@ export const SalaryView: React.FC = () => {
           </div>
         </div>
 
-        <Card className="flex flex-col items-center justify-center p-12 text-center border-dashed border-2 bg-card/60">
-          <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center text-primary mb-4">
-            <Briefcase className="h-7 w-7" />
+        <Card className="flex flex-col items-center justify-center p-12 text-center border-dashed border-2">
+          <div className="size-14 rounded-full bg-primary/10 flex items-center justify-center text-primary mb-4">
+            <Briefcase className="size-7" />
           </div>
           <h2 className="text-lg font-semibold text-foreground">No Salary Credits Detected Yet</h2>
           <p className="text-sm text-muted-foreground max-w-md mt-2 mb-6">
-            Transactions categorized under <strong>Salary</strong>, with payment mode <strong>SALARY</strong>, or matching employer payroll narrations will automatically populate your career timeline here.
+            Transactions categorized under <strong>Salary</strong>, with payment mode{' '}
+            <strong>SALARY</strong>, or matching employer payroll narrations will automatically
+            populate your career timeline here.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
-            <Link to="/import">
-              <Button>
-                <UploadCloud className="h-4 w-4 mr-2" />
-                Import Bank Statements
-              </Button>
+            <Link to="/import" className={buttonVariants({})}>
+              <UploadCloud className="size-4 mr-2" />
+              Import Bank Statements
             </Link>
-            <Link to="/transactions">
-              <Button variant="outline">
-                <ReceiptText className="h-4 w-4 mr-2" />
-                Manage Categories & Rules
-              </Button>
+            <Link to="/transactions" className={buttonVariants({ variant: 'outline' })}>
+              <ReceiptText className="size-4 mr-2" />
+              Manage Categories & Rules
             </Link>
           </div>
         </Card>
@@ -242,21 +247,22 @@ export const SalaryView: React.FC = () => {
   }
 
   return (
-    <div className="p-4 sm:p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-8 flex flex-col gap-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b pb-5">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-              <Briefcase className="h-7 w-7 text-emerald-500" />
+              <Briefcase className="size-7 text-success" />
               Salary & Income Insights
             </h1>
-            <Badge variant="outline" className="text-xs bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
+            <Badge variant="outline" className="text-success">
               100% Offline
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
-            Career compensation trajectory, appraisal milestones, and employer compensation breakdown.
+            Career compensation trajectory, appraisal milestones, and employer compensation
+            breakdown.
           </p>
         </div>
 
@@ -268,14 +274,23 @@ export const SalaryView: React.FC = () => {
             disabled={isFetching}
             className="h-9 gap-1.5"
           >
-            <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin text-primary' : ''}`} />
+            <RefreshCw
+              data-icon="inline-start"
+              className={cn('size-4', isFetching ? 'animate-spin text-primary' : '')}
+            />
             Refresh
           </Button>
-          <Link to="/transactions" search={{ category_id: 'cat_salary' }}>
-            <Button variant="secondary" size="sm" className="h-9 gap-1.5">
-              <ReceiptText className="h-4 w-4" />
-              Salary Ledger
-            </Button>
+          <Link
+            to="/transactions"
+            search={{ category_id: 'cat_salary' }}
+            className={buttonVariants({
+              variant: 'secondary',
+              size: 'sm',
+              className: 'h-9 gap-1.5',
+            })}
+          >
+            <ReceiptText className="size-4" />
+            Salary Ledger
           </Link>
         </div>
       </div>
@@ -283,13 +298,13 @@ export const SalaryView: React.FC = () => {
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Lifetime Earnings */}
-        <Card className="bg-card border-border/80 shadow-xs relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none" />
+        <Card className="relative overflow-hidden">
+          <div className="absolute top-0 right-0 size-24 bg-success/5 rounded-full blur-2xl pointer-events-none" />
           <CardHeader className="pb-2">
             <CardDescription className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center justify-between">
               <span>Lifetime Earnings</span>
-              <span className="p-1 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                <TrendingUp className="h-3.5 w-3.5" />
+              <span className="p-1 rounded-md bg-success/10 text-success">
+                <TrendingUp className="size-3.5" />
               </span>
             </CardDescription>
             <CardTitle className="text-xl sm:text-2xl font-bold text-foreground mt-1">
@@ -298,20 +313,20 @@ export const SalaryView: React.FC = () => {
           </CardHeader>
           <CardContent className="pt-0">
             <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+              <CheckCircle2 className="size-3.5 text-success shrink-0" />
               <span>{data.total_paychecks} paychecks recorded</span>
             </p>
           </CardContent>
         </Card>
 
         {/* Latest Monthly Salary */}
-        <Card className="bg-card border-border/80 shadow-xs relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 rounded-full blur-2xl pointer-events-none" />
+        <Card className="relative overflow-hidden">
+          <div className="absolute top-0 right-0 size-24 bg-info/5 rounded-full blur-2xl pointer-events-none" />
           <CardHeader className="pb-2">
             <CardDescription className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center justify-between">
               <span>Current Take-Home</span>
-              <span className="p-1 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400">
-                <Building2 className="h-3.5 w-3.5" />
+              <span className="p-1 rounded-md bg-info/10 text-info">
+                <Building2 className="size-3.5" />
               </span>
             </CardDescription>
             <CardTitle className="text-xl sm:text-2xl font-bold text-foreground mt-1">
@@ -329,16 +344,16 @@ export const SalaryView: React.FC = () => {
         </Card>
 
         {/* Career Pay Growth */}
-        <Card className="bg-card border-border/80 shadow-xs relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
+        <Card className="relative overflow-hidden">
+          <div className="absolute top-0 right-0 size-24 bg-info/5 rounded-full blur-2xl pointer-events-none" />
           <CardHeader className="pb-2">
             <CardDescription className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center justify-between">
               <span>Career Pay Growth</span>
-              <span className="p-1 rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
-                <ArrowUpRight className="h-3.5 w-3.5" />
+              <span className="p-1 rounded-md bg-info/10 text-info">
+                <ArrowUpRight className="size-3.5" />
               </span>
             </CardDescription>
-            <CardTitle className="text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1">
+            <CardTitle className="text-xl sm:text-2xl font-bold text-success mt-1 flex items-center gap-1">
               <span>+{data.overall_growth_pct.toFixed(0)}%</span>
             </CardTitle>
           </CardHeader>
@@ -353,16 +368,16 @@ export const SalaryView: React.FC = () => {
         </Card>
 
         {/* Peak Paycheck */}
-        <Card className="bg-card border-border/80 shadow-xs relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full blur-2xl pointer-events-none" />
+        <Card className="relative overflow-hidden">
+          <div className="absolute top-0 right-0 size-24 bg-warning/5 rounded-full blur-2xl pointer-events-none" />
           <CardHeader className="pb-2">
             <CardDescription className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center justify-between">
               <span>Peak Paycheck</span>
-              <span className="p-1 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400">
-                <Award className="h-3.5 w-3.5" />
+              <span className="p-1 rounded-md bg-warning/10 text-warning">
+                <Award className="size-3.5" />
               </span>
             </CardDescription>
-            <CardTitle className="text-xl sm:text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">
+            <CardTitle className="text-xl sm:text-2xl font-bold text-warning mt-1">
               <PrivacyAmount amount={data.peak_salary_amount} />
             </CardTitle>
           </CardHeader>
@@ -377,13 +392,13 @@ export const SalaryView: React.FC = () => {
         </Card>
 
         {/* Current FY Earned */}
-        <Card className="bg-card border-border/80 shadow-xs relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-purple-500/5 rounded-full blur-2xl pointer-events-none" />
+        <Card className="relative overflow-hidden">
+          <div className="absolute top-0 right-0 size-24 bg-info/5 rounded-full blur-2xl pointer-events-none" />
           <CardHeader className="pb-2">
             <CardDescription className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center justify-between">
               <span>Current FY Take-Home</span>
-              <span className="p-1 rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-400">
-                <Calendar className="h-3.5 w-3.5" />
+              <span className="p-1 rounded-md bg-info/10 text-info">
+                <Calendar className="size-3.5" />
               </span>
             </CardDescription>
             <CardTitle className="text-xl sm:text-2xl font-bold text-foreground mt-1">
@@ -392,7 +407,8 @@ export const SalaryView: React.FC = () => {
           </CardHeader>
           <CardContent className="pt-0">
             <p className="text-xs text-muted-foreground">
-              Career Avg: <PrivacyAmount amount={data.average_monthly} className="font-medium" />/mo
+              Career Avg: <PrivacyAmount amount={data.average_monthly} className="font-medium" />
+              /mo
             </p>
             <p className="text-[11px] text-muted-foreground/70 mt-0.5">
               Across active earning months
@@ -402,11 +418,11 @@ export const SalaryView: React.FC = () => {
       </div>
 
       {/* Visualizations Section */}
-      <Card className="border-border/80 bg-card shadow-xs">
+      <Card>
         <CardHeader className="pb-3 border-b flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-emerald-500" />
+              <TrendingUp className="size-4 text-success" />
               Salary Trajectory & Annual Progression
             </CardTitle>
             <CardDescription className="text-xs mt-0.5">
@@ -420,7 +436,7 @@ export const SalaryView: React.FC = () => {
               variant={activeTab === 'yearly' ? 'default' : 'ghost'}
               size="sm"
               onClick={() => updateFilters({ tab: undefined }, true)}
-              className="h-7 text-xs px-3 font-medium cursor-pointer"
+              className="h-7 px-3 cursor-pointer"
             >
               Annual Take-Home
             </Button>
@@ -428,7 +444,7 @@ export const SalaryView: React.FC = () => {
               variant={activeTab === 'monthly' ? 'default' : 'ghost'}
               size="sm"
               onClick={() => updateFilters({ tab: 'monthly' }, true)}
-              className="h-7 text-xs px-3 font-medium cursor-pointer"
+              className="h-7 px-3 cursor-pointer"
             >
               Monthly Trajectory
             </Button>
@@ -438,18 +454,26 @@ export const SalaryView: React.FC = () => {
         <CardContent className="pt-6">
           {activeTab === 'yearly' ? (
             <div className="h-72 w-full">
-              <ResponsiveContainer width="100%" height="100%">
+              <ChartContainer
+                className="h-full w-full aspect-auto"
+                config={{ total_earned: { label: 'Income', color: 'var(--success)' } }}
+              >
                 <BarChart
                   data={data.yearly_progress}
                   margin={{ top: 15, right: 15, left: -10, bottom: 0 }}
                 >
                   <defs>
                     <linearGradient id="salaryYearGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#10b981" stopOpacity={0.9} />
-                      <stop offset="100%" stopColor="#10b981" stopOpacity={0.4} />
+                      <stop offset="0%" stopColor="var(--success)" stopOpacity={0.9} />
+                      <stop offset="100%" stopColor="var(--success)" stopOpacity={0.4} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.6} vertical={false} />
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="var(--border)"
+                    opacity={0.6}
+                    vertical={false}
+                  />
                   <XAxis
                     dataKey="year"
                     stroke="var(--muted-foreground)"
@@ -462,15 +486,19 @@ export const SalaryView: React.FC = () => {
                     fontSize={11}
                     tickLine={false}
                     axisLine={false}
-                    tickFormatter={(v) => `₹${v >= 100000 ? `${(v / 100000).toFixed(1)}L` : `${(v / 1000).toFixed(0)}k`}`}
+                    tickFormatter={(v) =>
+                      isPrivacyMode
+                        ? '••••'
+                        : `₹${v >= 100000 ? `${(v / 100000).toFixed(1)}L` : `${(v / 1000).toFixed(0)}k`}`
+                    }
                   />
                   <Tooltip
-                    cursor={{ fill: 'rgba(16, 185, 129, 0.08)' }}
+                    cursor={{ fill: 'var(--muted)' }}
                     content={({ active, payload }) => {
                       if (!active || !payload || !payload.length) return null
                       const item = payload[0].payload
                       return (
-                        <div className="bg-popover border border-border text-popover-foreground rounded-lg p-3 shadow-lg text-xs space-y-1.5 min-w-[190px]">
+                        <div className="bg-popover border border-border text-popover-foreground rounded-lg p-3 shadow-lg text-xs flex flex-col gap-1.5 min-w-[190px]">
                           <div className="flex items-center justify-between border-b pb-1">
                             <span className="font-semibold text-sm">Year {item.year}</span>
                             {item.yoy_growth_pct ? (
@@ -478,25 +506,34 @@ export const SalaryView: React.FC = () => {
                                 variant="outline"
                                 className={
                                   item.yoy_growth_pct >= 0
-                                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
-                                    : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30'
+                                    ? 'bg-success/10 text-success border-success/30'
+                                    : 'bg-destructive/10 text-destructive border-destructive/30'
                                 }
                               >
-                                {item.yoy_growth_pct >= 0 ? `+${item.yoy_growth_pct.toFixed(1)}%` : `${item.yoy_growth_pct.toFixed(1)}%`} YoY
+                                {item.yoy_growth_pct >= 0
+                                  ? `+${item.yoy_growth_pct.toFixed(1)}%`
+                                  : `${item.yoy_growth_pct.toFixed(1)}%`}{' '}
+                                YoY
                               </Badge>
                             ) : null}
                           </div>
                           <div className="flex items-center justify-between text-muted-foreground">
                             <span>Total In-Hand:</span>
-                            <span className="font-bold text-foreground">{formatINR(item.total_earned)}</span>
+                            <span className="font-bold text-foreground">
+                              {formatINR(item.total_earned, isPrivacyMode)}
+                            </span>
                           </div>
                           <div className="flex items-center justify-between text-muted-foreground">
                             <span>Monthly Avg:</span>
-                            <span className="font-medium text-foreground">{formatINR(item.monthly_average)}</span>
+                            <span className="font-medium text-foreground">
+                              {formatINR(item.monthly_average, isPrivacyMode)}
+                            </span>
                           </div>
                           <div className="flex items-center justify-between text-muted-foreground">
                             <span>Paychecks:</span>
-                            <span className="font-medium text-foreground">{item.paycheck_count}</span>
+                            <span className="font-medium text-foreground">
+                              {item.paycheck_count}
+                            </span>
                           </div>
                         </div>
                       )
@@ -510,22 +547,30 @@ export const SalaryView: React.FC = () => {
                     maxBarSize={48}
                   />
                 </BarChart>
-              </ResponsiveContainer>
+              </ChartContainer>
             </div>
           ) : (
             <div className="h-72 w-full">
-              <ResponsiveContainer width="100%" height="100%">
+              <ChartContainer
+                className="h-full w-full aspect-auto"
+                config={{ total_earned: { label: 'Income', color: 'var(--success)' } }}
+              >
                 <AreaChart
                   data={data.monthly_history}
                   margin={{ top: 15, right: 15, left: -10, bottom: 0 }}
                 >
                   <defs>
                     <linearGradient id="salaryMonthlyGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#10b981" stopOpacity={0.4} />
-                      <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
+                      <stop offset="0%" stopColor="var(--success)" stopOpacity={0.4} />
+                      <stop offset="100%" stopColor="var(--success)" stopOpacity={0.02} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.6} vertical={false} />
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="var(--border)"
+                    opacity={0.6}
+                    vertical={false}
+                  />
                   <XAxis
                     dataKey="month"
                     stroke="var(--muted-foreground)"
@@ -542,33 +587,41 @@ export const SalaryView: React.FC = () => {
                     fontSize={11}
                     tickLine={false}
                     axisLine={false}
-                    tickFormatter={(v) => `₹${v >= 100000 ? `${(v / 100000).toFixed(1)}L` : `${(v / 1000).toFixed(0)}k`}`}
+                    tickFormatter={(v) =>
+                      isPrivacyMode
+                        ? '••••'
+                        : `₹${v >= 100000 ? `${(v / 100000).toFixed(1)}L` : `${(v / 1000).toFixed(0)}k`}`
+                    }
                   />
                   <Tooltip
                     content={({ active, payload }) => {
                       if (!active || !payload || !payload.length) return null
                       const item = payload[0].payload
                       return (
-                        <div className="bg-popover border border-border text-popover-foreground rounded-lg p-3 shadow-lg text-xs space-y-1.5 min-w-[190px]">
+                        <div className="bg-popover border border-border text-popover-foreground rounded-lg p-3 shadow-lg text-xs flex flex-col gap-1.5 min-w-[190px]">
                           <div className="flex items-center justify-between border-b pb-1">
                             <span className="font-semibold text-sm">{item.month}</span>
                             {item.is_hike && item.hike_pct ? (
-                              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
+                              <Badge variant="outline" className="text-success">
                                 +{item.hike_pct.toFixed(1)}% Hike
                               </Badge>
                             ) : item.is_bonus ? (
-                              <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30">
+                              <Badge variant="outline" className="text-warning">
                                 Bonus Included
                               </Badge>
                             ) : null}
                           </div>
                           <div className="flex items-center justify-between text-muted-foreground">
                             <span>Amount:</span>
-                            <span className="font-bold text-foreground">{formatINR(item.amount)}</span>
+                            <span className="font-bold text-foreground">
+                              {formatINR(item.amount, isPrivacyMode)}
+                            </span>
                           </div>
                           <div className="flex items-center justify-between text-muted-foreground">
                             <span>Employer:</span>
-                            <span className="font-medium text-foreground truncate max-w-[120px]">{item.employer}</span>
+                            <span className="font-medium text-foreground truncate max-w-[120px]">
+                              {item.employer}
+                            </span>
                           </div>
                         </div>
                       )
@@ -582,7 +635,7 @@ export const SalaryView: React.FC = () => {
                     fill="url(#salaryMonthlyGradient)"
                   />
                 </AreaChart>
-              </ResponsiveContainer>
+              </ChartContainer>
             </div>
           )}
         </CardContent>
@@ -592,17 +645,17 @@ export const SalaryView: React.FC = () => {
       {(significantHikes.length > 0 || bonuses.length > 0) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Pay Hikes Detected */}
-          <Card className="border-border/80 bg-card shadow-xs">
+          <Card>
             <CardHeader className="pb-3 border-b">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <Zap className="h-4 w-4 text-emerald-500" />
+                <Zap className="size-4 text-success" />
                 Detected Pay Hikes & Appraisals
               </CardTitle>
               <CardDescription className="text-xs">
                 Months where take-home increased by &ge; 5% compared to preceding month.
               </CardDescription>
             </CardHeader>
-            <CardContent className="pt-4 space-y-2.5 max-h-60 overflow-y-auto">
+            <CardContent className="pt-4 flex flex-col gap-2.5 max-h-60 overflow-y-auto">
               {significantHikes.length === 0 ? (
                 <p className="text-xs text-muted-foreground py-2">No pay spikes detected yet.</p>
               ) : (
@@ -612,8 +665,8 @@ export const SalaryView: React.FC = () => {
                     className="flex items-center justify-between p-2.5 rounded-lg border bg-muted/20 hover:bg-muted/40 transition-colors text-xs"
                   >
                     <div className="flex items-center gap-2.5">
-                      <div className="p-1.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                        <ArrowUpRight className="h-4 w-4" />
+                      <div className="p-1.5 rounded-md bg-success/10 text-success">
+                        <ArrowUpRight className="size-4" />
                       </div>
                       <div>
                         <p className="font-semibold text-foreground">{hike.month}</p>
@@ -623,9 +676,7 @@ export const SalaryView: React.FC = () => {
                       </div>
                     </div>
                     <div className="text-right">
-                      <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[11px]">
-                        +{hike.hike_pct?.toFixed(0)}% Hike
-                      </Badge>
+                      <Badge className="text-success">+{hike.hike_pct?.toFixed(0)}% Hike</Badge>
                       <p className="text-[11px] text-muted-foreground mt-0.5 font-medium">
                         <PrivacyAmount amount={hike.amount} />
                       </p>
@@ -637,19 +688,21 @@ export const SalaryView: React.FC = () => {
           </Card>
 
           {/* Bonus Paychecks */}
-          <Card className="border-border/80 bg-card shadow-xs">
+          <Card>
             <CardHeader className="pb-3 border-b">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <Gift className="h-4 w-4 text-amber-500" />
+                <Gift className="size-4 text-warning" />
                 Bonus / Variable Pay Outliers
               </CardTitle>
               <CardDescription className="text-xs">
                 Paychecks exceeding 1.8&times; your historical monthly average.
               </CardDescription>
             </CardHeader>
-            <CardContent className="pt-4 space-y-2.5 max-h-60 overflow-y-auto">
+            <CardContent className="pt-4 flex flex-col gap-2.5 max-h-60 overflow-y-auto">
               {bonuses.length === 0 ? (
-                <p className="text-xs text-muted-foreground py-2">No outlier bonus paychecks detected.</p>
+                <p className="text-xs text-muted-foreground py-2">
+                  No outlier bonus paychecks detected.
+                </p>
               ) : (
                 bonuses.map((bonus, idx) => (
                   <div
@@ -657,8 +710,8 @@ export const SalaryView: React.FC = () => {
                     className="flex items-center justify-between p-2.5 rounded-lg border bg-muted/20 hover:bg-muted/40 transition-colors text-xs"
                   >
                     <div className="flex items-center gap-2.5">
-                      <div className="p-1.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400">
-                        <Sparkles className="h-4 w-4" />
+                      <div className="p-1.5 rounded-md bg-warning/10 text-warning">
+                        <Sparkles className="size-4" />
                       </div>
                       <div>
                         <p className="font-semibold text-foreground">{bonus.month}</p>
@@ -668,9 +721,7 @@ export const SalaryView: React.FC = () => {
                       </div>
                     </div>
                     <div className="text-right">
-                      <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 text-[11px]">
-                        Outlier Paycheck
-                      </Badge>
+                      <Badge className="text-warning">Outlier Paycheck</Badge>
                       <p className="text-[11px] text-muted-foreground mt-0.5 font-medium">
                         <PrivacyAmount amount={bonus.amount} />
                       </p>
@@ -684,10 +735,10 @@ export const SalaryView: React.FC = () => {
       )}
 
       {/* Employers Breakdown */}
-      <Card className="border-border/80 bg-card shadow-xs">
+      <Card>
         <CardHeader className="pb-3 border-b">
           <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-blue-500" />
+            <Building2 className="size-4 text-info" />
             Employer & Client Breakdown
           </CardTitle>
           <CardDescription className="text-xs">
@@ -701,19 +752,44 @@ export const SalaryView: React.FC = () => {
               return (
                 <div
                   key={idx}
-                  onClick={() => updateFilters({ company: isSelected ? undefined : emp.employer_name, page: undefined }, false)}
-                  className={`p-4 rounded-xl border transition-all shadow-xs flex flex-col justify-between space-y-3 cursor-pointer ${
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={isSelected}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      updateFilters(
+                        { company: isSelected ? undefined : emp.employer_name, page: undefined },
+                        false
+                      )
+                    }
+                  }}
+                  onClick={() =>
+                    updateFilters(
+                      { company: isSelected ? undefined : emp.employer_name, page: undefined },
+                      false
+                    )
+                  }
+                  className={cn(
+                    'p-4 rounded-xl border transition-all shadow-xs flex flex-col justify-between flex flex-col gap-3 cursor-pointer',
                     isSelected
                       ? 'border-primary ring-2 ring-primary/20 bg-primary/5 shadow-sm'
                       : 'bg-card/60 hover:bg-muted/30 hover:border-border'
-                  }`}
-                  title={isSelected ? 'Click to clear filter' : `Click to filter paychecks by ${emp.employer_name}`}
+                  )}
+                  title={
+                    isSelected
+                      ? 'Click to clear filter'
+                      : `Click to filter paychecks by ${emp.employer_name}`
+                  }
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
                       <MerchantAvatar payee={emp.employer_name} size="md" />
                       <div className="min-w-0">
-                        <p className="font-semibold text-sm text-foreground truncate" title={emp.employer_name}>
+                        <p
+                          className="font-semibold text-sm text-foreground truncate"
+                          title={emp.employer_name}
+                        >
                           {emp.employer_name}
                         </p>
                         <p className="text-xs text-muted-foreground">
@@ -721,7 +797,7 @@ export const SalaryView: React.FC = () => {
                         </p>
                       </div>
                     </div>
-                    <Badge variant={isSelected ? 'default' : 'outline'} className="text-[10px] shrink-0 font-medium">
+                    <Badge variant={isSelected ? 'default' : 'outline'} className="shrink-0">
                       {isSelected ? 'Filtered' : `Rank #${idx + 1}`}
                     </Badge>
                   </div>
@@ -755,17 +831,15 @@ export const SalaryView: React.FC = () => {
       </Card>
 
       {/* Paycheck Ledger Table */}
-      <Card className="border-border/80 bg-card shadow-xs">
+      <Card>
         <CardHeader className="pb-3 border-b flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
               <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <ReceiptText className="h-4 w-4 text-primary" />
+                <ReceiptText className="size-4 text-primary" />
                 Paycheck Transaction History
               </CardTitle>
-              <Badge variant="secondary" className="text-xs font-mono">
-                {totalCount}
-              </Badge>
+              <Badge variant="secondary">{totalCount}</Badge>
             </div>
             <CardDescription className="text-xs mt-0.5">
               Showing {totalCount} {totalCount === 1 ? 'salary credit' : 'salary credits'}
@@ -780,22 +854,31 @@ export const SalaryView: React.FC = () => {
               <Select
                 value={selectedCompany || 'ALL'}
                 onValueChange={(val: string | null) =>
-                  updateFilters({ company: val && val !== 'ALL' ? val : undefined, page: undefined }, false)
+                  updateFilters(
+                    { company: val && val !== 'ALL' ? val : undefined, page: undefined },
+                    false
+                  )
                 }
               >
-                <SelectTrigger className="h-9 w-full sm:w-[170px] text-xs font-medium">
-                  <Building2 className="h-3.5 w-3.5 mr-1.5 text-muted-foreground shrink-0" />
+                <SelectTrigger aria-label="All Companies" className="h-9 w-full sm:w-[170px]">
+                  <Building2 className="size-3.5 mr-1.5 text-muted-foreground shrink-0" />
                   <SelectValue placeholder="All Companies" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL" className="text-xs">
-                    All Companies ({data.total_paychecks})
-                  </SelectItem>
-                  {data.employers.map((emp) => (
-                    <SelectItem key={emp.employer_name} value={emp.employer_name} className="text-xs">
-                      {emp.employer_name} ({emp.paycheck_count})
+                  <SelectGroup>
+                    <SelectItem value="ALL" className="text-xs">
+                      All Companies ({data.total_paychecks})
                     </SelectItem>
-                  ))}
+                    {data.employers.map((emp) => (
+                      <SelectItem
+                        key={emp.employer_name}
+                        value={emp.employer_name}
+                        className="text-xs"
+                      >
+                        {emp.employer_name} ({emp.paycheck_count})
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
             </div>
@@ -808,26 +891,29 @@ export const SalaryView: React.FC = () => {
               }}
               className="relative w-full sm:w-56"
             >
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
               <Input
+                aria-label="Filter payee, narration"
                 type="text"
                 placeholder="Filter payee, narration..."
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
-                className="pl-8 pr-7 h-9 text-xs"
+                className="pl-8 pr-7 h-9"
               />
               {searchInput && (
-                <button
+                <Button
+                  aria-label="Clear search"
+                  variant="ghost"
                   type="button"
                   onClick={() => {
                     setSearchInput('')
                     updateFilters({ search: undefined, page: undefined }, true)
                   }}
-                  className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground cursor-pointer"
+                  className="absolute right-2.5 top-2.5 cursor-pointer"
                   title="Clear search"
                 >
-                  <X className="h-4 w-4" />
-                </button>
+                  <X data-icon="inline-start" />
+                </Button>
               )}
             </form>
 
@@ -835,15 +921,17 @@ export const SalaryView: React.FC = () => {
             <div className="flex items-center gap-1.5 shrink-0">
               <span className="text-muted-foreground text-[11px] hidden sm:inline">Rows:</span>
               <Select value={String(pageSize)} onValueChange={handlePageSizeChange}>
-                <SelectTrigger className="h-9 w-[100px] text-xs font-mono">
+                <SelectTrigger aria-label="Salary table rows per page" className="h-9 w-[100px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent align="end">
-                  {PAGE_SIZE_OPTIONS.map((size) => (
-                    <SelectItem key={size} value={String(size)} className="font-mono text-xs">
-                      {size === 0 ? 'All' : `${size} / page`}
-                    </SelectItem>
-                  ))}
+                  <SelectGroup>
+                    {PAGE_SIZE_OPTIONS.map((size) => (
+                      <SelectItem key={size} value={String(size)} className="font-mono text-xs">
+                        {size === 0 ? 'All' : `${size} / page`}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
             </div>
@@ -854,27 +942,35 @@ export const SalaryView: React.FC = () => {
         {(selectedCompany || searchQuery) && (
           <div className="flex items-center gap-2 flex-wrap px-4 py-2 bg-muted/20 border-b text-xs">
             <span className="text-muted-foreground flex items-center gap-1 font-medium">
-              <Filter className="h-3 w-3" /> Filters:
+              <Filter className="size-3" /> Filters:
             </span>
             {selectedCompany && (
-              <Badge variant="secondary" className="gap-1 font-normal text-xs py-0.5">
+              <Badge variant="secondary" className="gap-1 py-0.5">
                 Company: <strong className="font-semibold">{selectedCompany}</strong>
-                <X
-                  className="h-3 w-3 cursor-pointer hover:text-destructive ml-0.5"
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="Remove filter"
                   onClick={() => updateFilters({ company: undefined, page: undefined }, false)}
-                />
+                >
+                  <X data-icon="inline-start" />
+                </Button>
               </Badge>
             )}
             {searchQuery && (
-              <Badge variant="secondary" className="gap-1 font-normal text-xs py-0.5">
+              <Badge variant="secondary" className="gap-1 py-0.5">
                 Search: <strong className="font-semibold">"{searchQuery}"</strong>
-                <X
-                  className="h-3 w-3 cursor-pointer hover:text-destructive ml-0.5"
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="Remove filter"
                   onClick={() => {
                     setSearchInput('')
                     updateFilters({ search: undefined, page: undefined }, true)
                   }}
-                />
+                >
+                  <X data-icon="inline-start" />
+                </Button>
               </Badge>
             )}
             <Button
@@ -884,7 +980,7 @@ export const SalaryView: React.FC = () => {
                 setSearchInput('')
                 updateFilters({ company: undefined, search: undefined, page: undefined }, true)
               }}
-              className="h-6 text-[11px] px-2 text-muted-foreground hover:text-foreground cursor-pointer"
+              className="h-6 px-2 cursor-pointer"
             >
               Reset Filters
             </Button>
@@ -893,30 +989,30 @@ export const SalaryView: React.FC = () => {
 
         <CardContent className="pt-0 p-0">
           <div className="overflow-x-auto">
-            <table className="w-full text-xs text-left">
-              <thead className="bg-muted/40 text-muted-foreground font-medium border-b">
-                <tr>
-                  <th className="py-2.5 px-4">Date</th>
-                  <th className="py-2.5 px-4">Employer / Narration</th>
-                  <th className="py-2.5 px-4">Account</th>
-                  <th className="py-2.5 px-4">Mode / Ref</th>
-                  <th className="py-2.5 px-4 text-right">Credit Amount</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/60">
+            <Table className="w-full text-xs text-left">
+              <TableHeader className="bg-muted/40 text-muted-foreground font-medium border-b">
+                <TableRow>
+                  <TableHead className="py-2.5 px-4">Date</TableHead>
+                  <TableHead className="py-2.5 px-4">Employer / Narration</TableHead>
+                  <TableHead className="py-2.5 px-4">Account</TableHead>
+                  <TableHead className="py-2.5 px-4">Mode / Ref</TableHead>
+                  <TableHead className="py-2.5 px-4 text-right">Credit Amount</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody className="divide-y divide-border/60">
                 {paginatedPaychecks.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="py-12 text-center text-muted-foreground">
+                  <TableRow>
+                    <TableCell colSpan={5} className="py-12 text-center text-muted-foreground">
                       No paycheck transactions match your filter criteria.
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ) : (
                   paginatedPaychecks.map((tx) => (
-                    <tr key={tx.id} className="hover:bg-muted/30 transition-colors">
-                      <td className="py-3 px-4 font-medium whitespace-nowrap text-foreground">
+                    <TableRow key={tx.id} className="hover:bg-muted/30 transition-colors">
+                      <TableCell className="py-3 px-4 font-medium whitespace-nowrap text-foreground">
                         {formatDate(tx.tx_date)}
-                      </td>
-                      <td className="py-3 px-4 max-w-xs sm:max-w-md">
+                      </TableCell>
+                      <TableCell className="py-3 px-4 max-w-xs sm:max-w-md">
                         <div className="flex items-center gap-2.5">
                           <MerchantAvatar payee={tx.cleaned_payee || tx.raw_narration} size="xs" />
                           <div className="min-w-0">
@@ -928,23 +1024,23 @@ export const SalaryView: React.FC = () => {
                             </p>
                           </div>
                         </div>
-                      </td>
-                      <td className="py-3 px-4 text-muted-foreground whitespace-nowrap">
+                      </TableCell>
+                      <TableCell className="py-3 px-4 text-muted-foreground whitespace-nowrap">
                         {tx.account_name || 'Bank Account'}
-                      </td>
-                      <td className="py-3 px-4 whitespace-nowrap">
-                        <Badge variant="outline" className="text-[10px] font-mono uppercase bg-muted/40">
+                      </TableCell>
+                      <TableCell className="py-3 px-4 whitespace-nowrap">
+                        <Badge variant="outline" className="uppercase">
                           {tx.payment_mode || 'SALARY'}
                         </Badge>
-                      </td>
-                      <td className="py-3 px-4 text-right font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap font-mono">
+                      </TableCell>
+                      <TableCell className="py-3 px-4 text-right font-bold text-success whitespace-nowrap font-mono">
                         + <PrivacyAmount amount={tx.amount} />
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))
                 )}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
 
           {/* Full Navigation Options (Matching /transactions) */}
@@ -952,25 +1048,33 @@ export const SalaryView: React.FC = () => {
             {/* Item Counter */}
             <div className="text-muted-foreground font-mono flex items-center gap-1.5">
               <span>Showing</span>
-              <span className="font-semibold text-foreground">{startItem}–{endItem}</span>
+              <span className="font-semibold text-foreground">
+                {startItem}–{endItem}
+              </span>
               <span>of</span>
               <span className="font-semibold text-foreground">{totalCount}</span>
               <span>paychecks</span>
-              {isFetching && <span className="inline-block h-2 w-2 rounded-full bg-primary animate-ping ml-1" title="Updating..." />}
+              {isFetching && (
+                <span
+                  className="inline-block size-2 rounded-full bg-primary animate-ping ml-1"
+                  title="Updating..."
+                />
+              )}
             </div>
 
             {/* Full Navigation Buttons: First, Prev, Dynamic Page Pills, Next, Last */}
             <div className="flex items-center gap-1.5 flex-wrap justify-center">
               {/* First Page Button */}
               <Button
+                aria-label="First Page"
                 variant="outline"
                 size="sm"
                 onClick={() => updateFilters({ page: undefined }, false)}
                 disabled={currentPage <= 1 || pageSize === 0}
-                className="h-8 w-8 p-0 cursor-pointer"
+                className="size-8 p-0 cursor-pointer"
                 title="First Page"
               >
-                <ChevronsLeft className="h-3.5 w-3.5" />
+                <ChevronsLeft data-icon="inline-start" />
                 <span className="sr-only">First Page</span>
               </Button>
 
@@ -978,11 +1082,16 @@ export const SalaryView: React.FC = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => updateFilters({ page: Math.max(1, currentPage - 1) > 1 ? currentPage - 1 : undefined }, false)}
+                onClick={() =>
+                  updateFilters(
+                    { page: Math.max(1, currentPage - 1) > 1 ? currentPage - 1 : undefined },
+                    false
+                  )
+                }
                 disabled={currentPage <= 1 || pageSize === 0}
-                className="h-8 gap-1 px-2.5 text-xs cursor-pointer"
+                className="h-8 gap-1 px-2.5 cursor-pointer"
               >
-                <ChevronLeft className="h-3.5 w-3.5" />
+                <ChevronLeft data-icon="inline-start" />
                 <span className="hidden sm:inline">Prev</span>
               </Button>
 
@@ -992,24 +1101,34 @@ export const SalaryView: React.FC = () => {
                   {paginationPages.map((item, idx) => {
                     if (item === 'ellipsis') {
                       return (
-                        <span key={`ellipsis-${idx}`} className="px-1.5 text-xs text-muted-foreground select-none">
+                        <span
+                          key={`ellipsis-${idx}`}
+                          className="px-1.5 text-xs text-muted-foreground select-none"
+                        >
                           …
                         </span>
                       )
                     }
                     const isCurrent = item === currentPage
                     return (
-                      <button
+                      <Button
+                        variant="ghost"
                         key={`page-${item}`}
-                        onClick={() => updateFilters({ page: (item as number) > 1 ? (item as number) : undefined }, false)}
-                        className={`h-8 min-w-[32px] px-2 rounded-md text-xs font-mono transition-all cursor-pointer ${
+                        onClick={() =>
+                          updateFilters(
+                            { page: (item as number) > 1 ? (item as number) : undefined },
+                            false
+                          )
+                        }
+                        className={cn(
+                          'h-8 min-w-[32px] px-2 rounded-md text-xs font-mono transition-all cursor-pointer',
                           isCurrent
                             ? 'bg-primary text-primary-foreground font-bold shadow-xs'
                             : 'bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground border border-transparent hover:border-border'
-                        }`}
+                        )}
                       >
                         {item}
-                      </button>
+                      </Button>
                     )
                   })}
                 </div>
@@ -1019,24 +1138,27 @@ export const SalaryView: React.FC = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => updateFilters({ page: Math.min(totalPages, currentPage + 1) }, false)}
+                onClick={() =>
+                  updateFilters({ page: Math.min(totalPages, currentPage + 1) }, false)
+                }
                 disabled={currentPage >= totalPages || pageSize === 0}
-                className="h-8 gap-1 px-2.5 text-xs cursor-pointer"
+                className="h-8 gap-1 px-2.5 cursor-pointer"
               >
                 <span className="hidden sm:inline">Next</span>
-                <ChevronRight className="h-3.5 w-3.5" />
+                <ChevronRight data-icon="inline-start" />
               </Button>
 
               {/* Last Page Button */}
               <Button
+                aria-label={`Last Page (${totalPages})`}
                 variant="outline"
                 size="sm"
                 onClick={() => updateFilters({ page: totalPages }, false)}
                 disabled={currentPage >= totalPages || pageSize === 0}
-                className="h-8 w-8 p-0 cursor-pointer"
+                className="size-8 p-0 cursor-pointer"
                 title={`Last Page (${totalPages})`}
               >
-                <ChevronsRight className="h-3.5 w-3.5" />
+                <ChevronsRight data-icon="inline-start" />
                 <span className="sr-only">Last Page</span>
               </Button>
             </div>
@@ -1046,15 +1168,17 @@ export const SalaryView: React.FC = () => {
               <div className="flex items-center gap-1.5">
                 <span className="text-muted-foreground text-[11px]">Rows:</span>
                 <Select value={String(pageSize)} onValueChange={handlePageSizeChange}>
-                  <SelectTrigger className="h-8 w-[95px] text-xs font-mono">
+                  <SelectTrigger aria-label="Income history rows per page" className="h-8 w-[95px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent align="end">
-                    {PAGE_SIZE_OPTIONS.map((size) => (
-                      <SelectItem key={size} value={String(size)} className="font-mono text-xs">
-                        {size === 0 ? 'All' : `${size} / page`}
-                      </SelectItem>
-                    ))}
+                    <SelectGroup>
+                      {PAGE_SIZE_OPTIONS.map((size) => (
+                        <SelectItem key={size} value={String(size)} className="font-mono text-xs">
+                          {size === 0 ? 'All' : `${size} / page`}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
               </div>
@@ -1063,15 +1187,21 @@ export const SalaryView: React.FC = () => {
                 <form onSubmit={handleJumpToPage} className="flex items-center gap-1">
                   <span className="text-muted-foreground text-[11px] hidden md:inline">Go to:</span>
                   <Input
+                    aria-label="Jump to income history page"
                     type="number"
                     min={1}
                     max={totalPages}
                     placeholder={String(currentPage)}
                     value={jumpPageInput}
                     onChange={(e) => setJumpPageInput(e.target.value)}
-                    className="h-8 w-16 text-xs font-mono text-center"
+                    className="h-8 w-16 text-center"
                   />
-                  <Button type="submit" variant="secondary" size="sm" className="h-8 px-2.5 text-xs cursor-pointer">
+                  <Button
+                    type="submit"
+                    variant="secondary"
+                    size="sm"
+                    className="h-8 px-2.5 cursor-pointer"
+                  >
                     Go
                   </Button>
                 </form>

@@ -105,6 +105,10 @@ func (d *DB) ResetDatabase() error {
 	if _, err := tx.Exec(`DELETE FROM splitwise_groups`); err != nil {
 		return err
 	}
+	if _, err := tx.Exec(`DELETE FROM savings_goals`); err != nil {
+		return err
+	}
+
 	if _, err := tx.Exec(`DELETE FROM investment_snapshots`); err != nil {
 		return err
 	}
@@ -319,6 +323,7 @@ func (d *DB) RecalculateAccountBalance(accountID string) error {
 
 type TransactionFilter struct {
 	StatementOnly bool
+	ReviewNeeded  bool
 	ID            string
 	AccountID     string
 	CategoryID    string
@@ -344,6 +349,9 @@ func (d *DB) ListTransactions(f TransactionFilter) ([]models.Transaction, int, e
 	if f.AccountID != "" {
 		where = append(where, "t.account_id = ?")
 		args = append(args, f.AccountID)
+	}
+	if f.ReviewNeeded {
+		where = append(where, "COALESCE(t.category_id, '') IN ('', 'cat_others') AND "+financialActivityFilter("t"))
 	}
 	if f.CategoryID != "" {
 		where = append(where, "t.category_id = ?")
@@ -1135,17 +1143,19 @@ func (d *DB) GetAnalyticsOverview() (*models.AnalyticsOverview, error) {
 		}
 	}
 
-	// 4. Monthly Trends (Excluding internal transfers)
+	// 4. Latest 12 recorded months, returned chronologically for charts.
 	trendRows, err := d.conn.Query(`
-		SELECT 
+		SELECT month, income, expense FROM (
+		SELECT
 			strftime('%Y-%m', tx_date) as month,
 			SUM(CASE WHEN ` + incomeFilter("") + ` THEN amount ELSE 0 END) as income,
 			SUM(CASE WHEN ` + spendingFilter("") + ` THEN amount ELSE 0 END) as expense
 		FROM personal_transactions
 		WHERE ` + financialFlowFilter("") + `
 		GROUP BY month
-		ORDER BY month ASC
+		ORDER BY month DESC
 		LIMIT 12
+		) ORDER BY month ASC
 	`)
 	if err == nil {
 		defer trendRows.Close()
@@ -1282,6 +1292,10 @@ func (d *DB) ExportAllDataJSON() (*models.FullExportData, error) {
 	if err != nil {
 		return nil, err
 	}
+	goals, err := d.listSavingsGoals()
+	if err != nil {
+		return nil, err
+	}
 	investments, err := d.listInvestmentSnapshots()
 	if err != nil {
 		return nil, err
@@ -1315,6 +1329,7 @@ func (d *DB) ExportAllDataJSON() (*models.FullExportData, error) {
 	return &models.FullExportData{
 		Splitwise:        splitwise,
 		SplitwiseMembers: members,
+		Goals:            goals,
 		Investments:      investments,
 		ExportedAt:       time.Now(),
 		Version:          "1.0",

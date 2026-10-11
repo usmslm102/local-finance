@@ -193,3 +193,8 @@ local_finance.db.bak
 *.xlsx
 *.xls
 !samples/investments/*
+
+# Keep shared design/workflow specifications; ignore local skill artifacts.
+/.impeccable/*
+!/.impeccable/design.json
+!/.impeccable/config.json

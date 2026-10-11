@@ -24,7 +24,11 @@ export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
     isFirstMount.current = false
     prevValueRef.current = value
 
-    if (startValue === endValue) {
+    if (
+      startValue === endValue ||
+      duration <= 0 ||
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ) {
       setDisplayValue(endValue)
       return
     }
@@ -34,7 +38,7 @@ export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
     const animate = (currentTime: number) => {
       const elapsed = currentTime - startTime
       const progress = Math.min(elapsed / duration, 1)
-      
+
       // Smooth ease-out cubic curve
       const easeOut = 1 - Math.pow(1 - progress, 3)
       const current = startValue + (endValue - startValue) * easeOut
@@ -59,9 +63,5 @@ export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
 
   const formatted = formatFn ? formatFn(displayValue) : displayValue.toFixed(2)
 
-  return (
-    <span className={`font-mono tabular-nums tracking-tight ${className}`}>
-      {formatted}
-    </span>
-  )
+  return <span className={`font-mono tabular-nums tracking-tight ${className}`}>{formatted}</span>
 }

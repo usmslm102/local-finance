@@ -1,3 +1,8 @@
+import { cn } from '@/lib/utils'
+import { PageLoading, QueryError } from '@/components/ui/query-state'
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { usePrivacy } from '@/components/privacy-provider'
 import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -9,10 +14,7 @@ import {
 } from '../../lib/api'
 import { formatINR } from '../../lib/utils'
 import type { TransferPair } from '../../types'
-import {
-  Card,
-  CardContent,
-} from '../ui/card'
+import { Card, CardContent } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { MerchantAvatar } from '../ui/merchant-avatar'
@@ -32,11 +34,17 @@ import {
 } from 'lucide-react'
 
 export const ReconcileView: React.FC = () => {
+  const { isPrivacyMode } = usePrivacy()
   const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = useState<'CANDIDATES' | 'PAIRED' | 'WALLET'>('CANDIDATES')
   const [notification, setNotification] = useState<string | null>(null)
 
-  const { data: summary, isLoading, isError } = useQuery({
+  const {
+    data: summary,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ['reconciliation-summary'],
     queryFn: fetchReconciliationSummary,
   })
@@ -81,28 +89,22 @@ export const ReconcileView: React.FC = () => {
     },
   })
 
-  if (isLoading) {
-    return (
-      <div className="flex h-64 items-center justify-center text-muted-foreground text-sm">
-        Analyzing transactions for internal transfers and reconciliations...
-      </div>
-    )
-  }
-
-  if (isError || !summary) {
-    return (
-      <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-8 text-center text-destructive">
-        Failed to load transfer reconciliation data.
-      </div>
-    )
-  }
+  if (isLoading) return <PageLoading label="Loading transfer reconciliation" />
+  if (isError || !summary)
+    return <QueryError message="Unable to load transfer reconciliation" onRetry={refetch} />
 
   const candidates = summary.candidates || []
   const pairs = summary.pairs || []
   const walletTransactions = summary.wallet_transactions || []
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto pb-12">
+    <Tabs
+      value={activeTab}
+      onValueChange={(value) => {
+        if (value === 'CANDIDATES' || value === 'PAIRED' || value === 'WALLET') setActiveTab(value)
+      }}
+      className="gap-6 max-w-7xl mx-auto pb-12"
+    >
       {/* Header Section */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
@@ -110,13 +112,14 @@ export const ReconcileView: React.FC = () => {
             <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
               Transfer Reconciler
             </h1>
-            <Badge variant="secondary" className="gap-1 font-semibold text-xs py-0.5">
-              <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+            <Badge variant="secondary" className="gap-1 py-0.5">
+              <ShieldCheck className="size-3.5 text-success" />
               Double-Count Protection
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            Pair credit card bill payments from your bank with card credits, and exclude wallet load transfers to keep expense analytics accurate.
+            Pair credit card bill payments from your bank with card credits, and exclude wallet load
+            transfers to keep expense analytics accurate.
           </p>
         </div>
 
@@ -124,36 +127,47 @@ export const ReconcileView: React.FC = () => {
           <Button
             onClick={() => scanMutation.mutate()}
             disabled={scanMutation.isPending}
-            className="gap-2 font-semibold shadow-xs"
+            className="gap-2"
           >
-            <RefreshCw className={`h-4 w-4 ${scanMutation.isPending ? 'animate-spin' : ''}`} />
+            <RefreshCw
+              data-icon="inline-start"
+              className={cn('size-4', scanMutation.isPending ? 'animate-spin' : '')}
+            />
             <span>{scanMutation.isPending ? 'Scanning Ledger...' : 'Scan & Auto-Pair'}</span>
           </Button>
         </div>
       </div>
 
+      {[scanMutation, linkMutation, unlinkMutation, toggleExcludeMutation].some(
+        (mutation) => mutation.isError
+      ) && (
+        <Alert variant="destructive">
+          <AlertTitle>Reconciliation action failed</AlertTitle>
+          <AlertDescription>Please try the action again.</AlertDescription>
+        </Alert>
+      )}
       {/* Notification Toast Banner */}
       {notification && (
-        <div className="flex items-center gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-600 dark:text-emerald-400 animate-in fade-in slide-in-from-top-2">
-          <CheckCircle2 className="h-5 w-5 shrink-0" />
+        <div className="flex items-center gap-3 rounded-lg border border-success/30 bg-success/10 p-4 text-sm text-success animate-in fade-in slide-in-from-top-2">
+          <CheckCircle2 className="size-5 shrink-0" />
           <span className="font-medium">{notification}</span>
         </div>
       )}
 
       {/* KPI Ribbon */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-border shadow-xs bg-card/60 backdrop-blur-xs">
+        <Card className="backdrop-blur-xs">
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Double-Count Prevented
               </p>
-              <div className="rounded-md bg-emerald-500/10 p-2 text-emerald-500">
-                <ShieldCheck className="h-4 w-4" />
+              <div className="rounded-md bg-success/10 p-2 text-success">
+                <ShieldCheck className="size-4" />
               </div>
             </div>
             <p className="mt-2 text-2xl font-bold tracking-tight text-foreground">
-              {formatINR(summary.double_count_prevented_amount || 0)}
+              {formatINR(summary.double_count_prevented_amount || 0, isPrivacyMode)}
             </p>
             <p className="mt-1 text-[11px] text-muted-foreground">
               Across {summary.total_paired_transfers || 0} linked internal transfers
@@ -161,14 +175,14 @@ export const ReconcileView: React.FC = () => {
           </CardContent>
         </Card>
 
-        <Card className="border-border shadow-xs bg-card/60 backdrop-blur-xs">
+        <Card className="backdrop-blur-xs">
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Pending Pair Candidates
               </p>
-              <div className="rounded-md bg-amber-500/10 p-2 text-amber-500">
-                <Sparkles className="h-4 w-4" />
+              <div className="rounded-md bg-warning/10 p-2 text-warning">
+                <Sparkles className="size-4" />
               </div>
             </div>
             <p className="mt-2 text-2xl font-bold tracking-tight text-foreground">
@@ -180,37 +194,35 @@ export const ReconcileView: React.FC = () => {
           </CardContent>
         </Card>
 
-        <Card className="border-border shadow-xs bg-card/60 backdrop-blur-xs">
+        <Card className="backdrop-blur-xs">
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Linked CC Payments
               </p>
-              <div className="rounded-md bg-blue-500/10 p-2 text-blue-500">
-                <ArrowLeftRight className="h-4 w-4" />
+              <div className="rounded-md bg-info/10 p-2 text-info">
+                <ArrowLeftRight className="size-4" />
               </div>
             </div>
             <p className="mt-2 text-2xl font-bold tracking-tight text-foreground">
               {summary.total_paired_transfers || 0}
             </p>
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              Marked with is_transfer = 1
-            </p>
+            <p className="mt-1 text-[11px] text-muted-foreground">Marked with is_transfer = 1</p>
           </CardContent>
         </Card>
 
-        <Card className="border-border shadow-xs bg-card/60 backdrop-blur-xs">
+        <Card className="backdrop-blur-xs">
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Excluded Wallet Loads
               </p>
-              <div className="rounded-md bg-purple-500/10 p-2 text-purple-500">
-                <Wallet className="h-4 w-4" />
+              <div className="rounded-md bg-info/10 p-2 text-info">
+                <Wallet className="size-4" />
               </div>
             </div>
             <p className="mt-2 text-2xl font-bold tracking-tight text-foreground">
-              {formatINR(summary.wallet_excluded_amount || 0)}
+              {formatINR(summary.wallet_excluded_amount || 0, isPrivacyMode)}
             </p>
             <p className="mt-1 text-[11px] text-muted-foreground">
               {summary.wallet_excluded_count || 0} UPI Lite & wallet top-up transactions
@@ -220,60 +232,34 @@ export const ReconcileView: React.FC = () => {
       </div>
 
       {/* Tabs Navigation */}
-      <div className="flex border-b border-border overflow-x-auto">
-        <button
-          onClick={() => setActiveTab('CANDIDATES')}
-          className={`flex items-center gap-2 border-b-2 px-4 sm:px-5 py-3 text-xs font-semibold transition-colors shrink-0 ${
-            activeTab === 'CANDIDATES'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
+      <div>
+        <TabsList
+          className="w-full flex-wrap h-auto"
+          variant="line"
+          aria-label="Transfer reconciliation"
         >
-          <Sparkles className="h-4 w-4" />
-          <span>Candidate Matches to Pair</span>
-          {(summary.pending_candidates_count || 0) > 0 && (
-            <Badge variant="default" className="ml-1 px-1.5 py-0 text-[10px] font-bold">
-              {summary.pending_candidates_count}
-            </Badge>
-          )}
-        </button>
-
-        <button
-          onClick={() => setActiveTab('PAIRED')}
-          className={`flex items-center gap-2 border-b-2 px-4 sm:px-5 py-3 text-xs font-semibold transition-colors shrink-0 ${
-            activeTab === 'PAIRED'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <ArrowLeftRight className="h-4 w-4" />
-          <span>Linked Internal Transfers ({summary.total_paired_transfers || 0})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('WALLET')}
-          className={`flex items-center gap-2 border-b-2 px-4 sm:px-5 py-3 text-xs font-semibold transition-colors shrink-0 ${
-            activeTab === 'WALLET'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Ban className="h-4 w-4" />
-          <span>Excluded Wallet Loads ({summary.wallet_excluded_count || 0})</span>
-        </button>
+          <TabsTrigger value="CANDIDATES">
+            Candidates ({summary.pending_candidates_count || 0})
+          </TabsTrigger>
+          <TabsTrigger value="PAIRED">Linked ({summary.total_paired_transfers || 0})</TabsTrigger>
+          <TabsTrigger value="WALLET">Wallet ({summary.wallet_excluded_count || 0})</TabsTrigger>
+        </TabsList>
       </div>
 
       {/* Tab 1: Candidates to Pair */}
-      {activeTab === 'CANDIDATES' && (
-        <div className="space-y-4">
+      <TabsContent value="CANDIDATES">
+        <div className="flex flex-col gap-4">
           {candidates.length === 0 ? (
-            <Card className="border-border bg-card/40 p-12 text-center">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500 mb-3">
-                <CheckCircle2 className="h-6 w-6" />
+            <Card className="p-12 text-center">
+              <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-success/10 text-success mb-3">
+                <CheckCircle2 className="size-6" />
               </div>
-              <h3 className="text-base font-semibold text-foreground">All Set! No Unlinked Bill Payments</h3>
+              <h3 className="text-base font-semibold text-foreground">
+                All Set! No Unlinked Bill Payments
+              </h3>
               <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
-                All identified bank debits and credit card bill payment credits have been matched and reconciled.
+                All identified bank debits and credit card bill payment credits have been matched
+                and reconciled.
               </p>
             </Card>
           ) : (
@@ -295,19 +281,20 @@ export const ReconcileView: React.FC = () => {
             </div>
           )}
         </div>
-      )}
+      </TabsContent>
 
       {/* Tab 2: Linked Transfers */}
-      {activeTab === 'PAIRED' && (
-        <div className="space-y-4">
+      <TabsContent value="PAIRED">
+        <div className="flex flex-col gap-4">
           {pairs.length === 0 ? (
-            <Card className="border-border bg-card/40 p-12 text-center">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground mb-3">
-                <HelpCircle className="h-6 w-6" />
+            <Card className="p-12 text-center">
+              <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground mb-3">
+                <HelpCircle className="size-6" />
               </div>
               <h3 className="text-base font-semibold text-foreground">No Linked Transfers Yet</h3>
               <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
-                Click &quot;Scan &amp; Auto-Pair&quot; above to automatically detect credit card bill payment transactions.
+                Click &quot;Scan &amp; Auto-Pair&quot; above to automatically detect credit card
+                bill payment transactions.
               </p>
             </Card>
           ) : (
@@ -323,19 +310,22 @@ export const ReconcileView: React.FC = () => {
             </div>
           )}
         </div>
-      )}
+      </TabsContent>
 
       {/* Tab 3: Wallet Loads */}
-      {activeTab === 'WALLET' && (
-        <div className="space-y-4">
+      <TabsContent value="WALLET">
+        <div className="flex flex-col gap-4">
           {walletTransactions.length === 0 ? (
-            <Card className="border-border bg-card/40 p-12 text-center">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground mb-3">
-                <Wallet className="h-6 w-6" />
+            <Card className="p-12 text-center">
+              <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground mb-3">
+                <Wallet className="size-6" />
               </div>
-              <h3 className="text-base font-semibold text-foreground">No Wallet Load Transactions Found</h3>
+              <h3 className="text-base font-semibold text-foreground">
+                No Wallet Load Transactions Found
+              </h3>
               <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
-                Transactions from UPI Lite or Paytm Wallet top-ups will appear here to prevent double counting.
+                Transactions from UPI Lite or Paytm Wallet top-ups will appear here to prevent
+                double counting.
               </p>
             </Card>
           ) : (
@@ -347,19 +337,17 @@ export const ReconcileView: React.FC = () => {
                     className="flex flex-wrap items-center justify-between p-4 hover:bg-muted/30 transition-colors gap-3"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-500/10 text-purple-500">
-                        <Wallet className="h-4 w-4" />
+                      <div className="flex size-9 items-center justify-center rounded-lg bg-info/10 text-info">
+                        <Wallet className="size-4" />
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="font-semibold text-sm text-foreground">
                             {tx.cleaned_payee || tx.raw_narration}
                           </span>
-                          <Badge variant="outline" className="text-[10px] font-mono">
-                            {tx.tx_date}
-                          </Badge>
+                          <Badge variant="outline">{tx.tx_date}</Badge>
                           {tx.is_excluded && (
-                            <Badge variant="secondary" className="text-[10px] text-amber-500 bg-amber-500/10 font-semibold">
+                            <Badge variant="secondary" className="text-warning">
                               Excluded from Spend
                             </Badge>
                           )}
@@ -372,16 +360,16 @@ export const ReconcileView: React.FC = () => {
 
                     <div className="flex items-center gap-4">
                       <span className="text-sm font-bold text-foreground">
-                        {formatINR(tx.amount)}
+                        {formatINR(tx.amount, isPrivacyMode)}
                       </span>
                       <Button
                         size="sm"
                         variant={tx.is_excluded ? 'outline' : 'secondary'}
                         onClick={() => toggleExcludeMutation.mutate(tx.id)}
                         disabled={toggleExcludeMutation.isPending}
-                        className="text-xs gap-1.5"
+                        className="gap-1.5"
                       >
-                        <Ban className="h-3.5 w-3.5" />
+                        <Ban data-icon="inline-start" />
                         <span>{tx.is_excluded ? 'Include in Expenses' : 'Exclude'}</span>
                       </Button>
                     </div>
@@ -391,8 +379,8 @@ export const ReconcileView: React.FC = () => {
             </div>
           )}
         </div>
-      )}
-    </div>
+      </TabsContent>
+    </Tabs>
   )
 }
 
@@ -402,22 +390,24 @@ const CandidatePairCard: React.FC<{
   onLink: () => void
   isLinking: boolean
 }> = ({ pair, onLink, isLinking }) => {
+  const { isPrivacyMode } = usePrivacy()
   const confidencePercent = Math.round(pair.match_confidence * 100)
 
   return (
-    <Card className="border-border shadow-xs bg-card/80 overflow-hidden">
+    <Card className="overflow-hidden">
       <div className="p-5">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3 mb-4">
           <div className="flex items-center gap-2">
             <Badge
               variant="outline"
-              className={`text-xs font-semibold px-2 py-0.5 ${
+              className={cn(
+                'text-xs font-semibold px-2 py-0.5',
                 confidencePercent >= 90
-                  ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                  : 'border-amber-500/50 bg-amber-500/10 text-amber-600 dark:text-amber-400'
-              }`}
+                  ? 'border-success/50 bg-success/10 text-success '
+                  : 'border-warning/50 bg-warning/10 text-warning '
+              )}
             >
-              <Sparkles className="h-3 w-3 mr-1 inline" />
+              <Sparkles className="size-3 mr-1 inline" />
               {confidencePercent}% Match Confidence
             </Badge>
             <span className="text-xs text-muted-foreground font-medium">
@@ -427,68 +417,77 @@ const CandidatePairCard: React.FC<{
             </span>
           </div>
 
-          <Button
-            size="sm"
-            onClick={onLink}
-            disabled={isLinking}
-            className="gap-2 font-semibold text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
-          >
-            <Check className="h-3.5 w-3.5" />
+          <Button size="sm" onClick={onLink} disabled={isLinking} className="gap-2">
+            <Check data-icon="inline-start" />
             <span>Confirm &amp; Link Transfer</span>
           </Button>
         </div>
 
         <div className="relative grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
           {/* Debit Bank Side */}
-          <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-4 space-y-2.5 transition-all group-hover:border-rose-500/40">
+          <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-4 flex flex-col gap-2.5 transition-all group-hover:border-destructive/40">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-rose-500 flex items-center gap-1.5">
-                <Landmark className="h-3.5 w-3.5" /> Savings Bank Outflow
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-destructive flex items-center gap-1.5">
+                <Landmark className="size-3.5" /> Savings Bank Outflow
               </span>
-              <span className="text-xs font-mono text-muted-foreground">{pair.debit_tx.tx_date}</span>
+              <span className="text-xs font-mono text-muted-foreground">
+                {pair.debit_tx.tx_date}
+              </span>
             </div>
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2.5 min-w-0">
-                <MerchantAvatar payee={pair.debit_tx.cleaned_payee || pair.debit_tx.raw_narration} size="sm" />
+                <MerchantAvatar
+                  payee={pair.debit_tx.cleaned_payee || pair.debit_tx.raw_narration}
+                  size="sm"
+                />
                 <div className="min-w-0">
                   <p className="font-semibold text-sm text-foreground truncate">
                     {pair.debit_tx.cleaned_payee || pair.debit_tx.raw_narration}
                   </p>
-                  <p className="text-xs text-muted-foreground mt-0.5 truncate">{pair.debit_tx.account_name}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                    {pair.debit_tx.account_name}
+                  </p>
                 </div>
               </div>
-              <p className="text-base font-bold font-mono text-rose-500 shrink-0 tabular-nums">
-                - {formatINR(pair.debit_tx.amount)}
+              <p className="text-base font-bold font-mono text-destructive shrink-0 tabular-nums">
+                - {formatINR(pair.debit_tx.amount, isPrivacyMode)}
               </p>
             </div>
-            <p className="text-[11px] font-mono text-muted-foreground/80 truncate pt-1 border-t border-rose-500/10">
+            <p className="text-[11px] font-mono text-muted-foreground/80 truncate pt-1 border-t border-destructive/10">
               {pair.debit_tx.raw_narration}
             </p>
           </div>
 
           {/* Credit Card Side */}
-          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-2.5 transition-all group-hover:border-emerald-500/40">
+          <div className="rounded-xl border border-success/20 bg-success/5 p-4 flex flex-col gap-2.5 transition-all group-hover:border-success/40">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-500 flex items-center gap-1.5">
-                <CreditCard className="h-3.5 w-3.5" /> Credit Card Bill Credit
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-success flex items-center gap-1.5">
+                <CreditCard className="size-3.5" /> Credit Card Bill Credit
               </span>
-              <span className="text-xs font-mono text-muted-foreground">{pair.credit_tx.tx_date}</span>
+              <span className="text-xs font-mono text-muted-foreground">
+                {pair.credit_tx.tx_date}
+              </span>
             </div>
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2.5 min-w-0">
-                <MerchantAvatar payee={pair.credit_tx.cleaned_payee || pair.credit_tx.raw_narration} size="sm" />
+                <MerchantAvatar
+                  payee={pair.credit_tx.cleaned_payee || pair.credit_tx.raw_narration}
+                  size="sm"
+                />
                 <div className="min-w-0">
                   <p className="font-semibold text-sm text-foreground truncate">
                     {pair.credit_tx.cleaned_payee || pair.credit_tx.raw_narration}
                   </p>
-                  <p className="text-xs text-muted-foreground mt-0.5 truncate">{pair.credit_tx.account_name}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                    {pair.credit_tx.account_name}
+                  </p>
                 </div>
               </div>
-              <p className="text-base font-bold font-mono text-emerald-500 shrink-0 tabular-nums">
-                + {formatINR(pair.credit_tx.amount)}
+              <p className="text-base font-bold font-mono text-success shrink-0 tabular-nums">
+                + {formatINR(pair.credit_tx.amount, isPrivacyMode)}
               </p>
             </div>
-            <p className="text-[11px] font-mono text-muted-foreground/80 truncate pt-1 border-t border-emerald-500/10">
+            <p className="text-[11px] font-mono text-muted-foreground/80 truncate pt-1 border-t border-success/10">
               {pair.credit_tx.raw_narration}
             </p>
           </div>
@@ -504,20 +503,21 @@ const PairedTransferCard: React.FC<{
   onUnlink: () => void
   isUnlinking: boolean
 }> = ({ pair, onUnlink, isUnlinking }) => {
+  const { isPrivacyMode } = usePrivacy()
   return (
-    <Card className="border-border shadow-xs bg-card/60">
+    <Card>
       <div className="p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <ArrowLeftRight className="h-4 w-4" />
+            <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <ArrowLeftRight className="size-4" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-semibold text-sm text-foreground">
                   {pair.debit_tx.account_name} ➔ {pair.credit_tx.account_name}
                 </span>
-                <Badge variant="outline" className="text-[10px] text-emerald-500 border-emerald-500/30">
+                <Badge variant="outline" className="text-success">
                   Linked Transfer
                 </Badge>
               </div>
@@ -529,16 +529,16 @@ const PairedTransferCard: React.FC<{
 
           <div className="flex items-center gap-4">
             <span className="text-base font-bold text-foreground">
-              {formatINR(pair.debit_tx.amount)}
+              {formatINR(pair.debit_tx.amount, isPrivacyMode)}
             </span>
             <Button
               size="sm"
               variant="outline"
               onClick={onUnlink}
               disabled={isUnlinking}
-              className="text-xs gap-1.5 text-muted-foreground hover:text-destructive"
+              className="gap-1.5 hover:text-destructive"
             >
-              <Unlink className="h-3.5 w-3.5" />
+              <Unlink data-icon="inline-start" />
               <span>Unlink</span>
             </Button>
           </div>

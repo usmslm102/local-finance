@@ -101,3 +101,45 @@ func TestSplitwiseStatementDeletionRemovesDependentMappings(t *testing.T) {
 		}
 	}
 }
+
+func TestSplitwiseDataHealthReviewMatchesTransactionFilter(t *testing.T) {
+	d := safetyDB(t)
+	a, err := d.GetOrCreateAccount("Demo bank", models.AccountTypeSavings, "demo", "demo", "", "", "", "", "", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range []struct {
+		hash, narration string
+		amount          float64
+	}{{"taxi", "Demo vendor", 100}, {"payment", "Asha Example", 25}} {
+		category := "cat_others"
+		tx := &models.Transaction{AccountID: a.ID, TxHash: item.hash, TxDate: "2026-09-01", RawNarration: item.narration, CleanedPayee: item.narration, Amount: item.amount, TxType: models.TxTypeDebit, CategoryID: &category}
+		if _, err := d.UpsertTransaction(tx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := d.CreateRule(&models.CategorizationRule{MatchField: "raw_narration", MatchType: "EXACT", MatchPattern: "Fictional taxi", TargetCategoryID: "cat_travel", TxType: "DEBIT", IsActive: true}); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := parser.ParseSplitwise(strings.NewReader("Date,Description,Category,Cost,Currency,Sanjay Example,Asha Example\n2026-09-01,Fictional taxi,Travel,100,INR,50,-50\n2026-09-01,Sanjay paid Asha,Payment,25,INR,25,-25\n"), "Example", "Sanjay")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := d.ImportSplitwiseAutomatically(entries); err != nil {
+		t.Fatal(err)
+	}
+	health, err := d.GetDataHealthAccounts()
+	if err != nil || len(health) != 1 {
+		t.Fatalf("data health: %+v %v", health, err)
+	}
+	_, count, err := d.ListTransactions(TransactionFilter{AccountID: a.ID, ReviewNeeded: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 || health[0].ReviewCount != count {
+		t.Fatalf("data health review count %d differs from visible rows %d", health[0].ReviewCount, count)
+	}
+	if health[0].TransactionCount != 2 {
+		t.Fatalf("lost original bank activity count: %+v", health[0])
+	}
+}

@@ -44,7 +44,7 @@ Splitwise is a separate ledger rather than a bank parser. Parsing validates the 
 
 `personal_transactions` projects confirmed personal spending for analytics, budgets, monthly evidence, merchants, cash-flow intelligence and Wrapped. `ledger_transactions` projects original bank cash amounts alongside accountless Splitwise expenses for the regular Transactions UI. Original bank hashes, amounts, balances, notes and tags remain in `transactions`. Bank CSV exports and bank records in JSON exports retain the original statement ledger. Card rewards and fee-waiver progress continue to use gross bank spending.
 
-JSON exports and SQLite backups include the Splitwise ledger and member settings. Reset clears both. Embedded migration 18 creates the complete Splitwise schema, member configuration and accounting projections. Downgrading it removes Splitwise data and settings without removing bank transactions.
+JSON exports and SQLite backups include the Splitwise ledger and member settings. Reset clears both. Embedded migration 19 creates the complete Splitwise schema, member configuration and accounting projections. Downgrading it removes Splitwise data and settings without removing bank transactions.
 
 CSV exports lack stable expense IDs. Edited rows, renamed groups/members, and subsets of identical repeated expenses cannot be correlated reliably across exports. Remove an older applied entry before importing a changed replacement. The automatic share interpretation cannot recover multiple payer amounts absent from the source.
 

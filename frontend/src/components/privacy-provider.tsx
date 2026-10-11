@@ -52,21 +52,26 @@ export const PrivacyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setIsPrivacyMode(val)
   }, [])
 
-  const maskValue = useCallback((value: string | number): string => {
-    if (!isPrivacyMode) return String(value)
-    return '••••••'
-  }, [isPrivacyMode])
+  const maskValue = useCallback(
+    (value: string | number): string => {
+      if (!isPrivacyMode) return String(value)
+      return '••••••'
+    },
+    [isPrivacyMode]
+  )
 
   // Global Keyboard Shortcuts: 'P' or '⌘.' / 'Ctrl+.'
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ignore if user is currently typing in an input, textarea, or contentEditable
+      if (e.repeat || e.isComposing) return
       const target = e.target as HTMLElement
       const isInput =
         target.tagName === 'INPUT' ||
         target.tagName === 'TEXTAREA' ||
         target.tagName === 'SELECT' ||
-        target.isContentEditable
+        target.isContentEditable ||
+        !!target.closest('[role="combobox"], [role="listbox"], [role="dialog"]')
 
       // ⌘. or Ctrl+. works even inside inputs for quick panic toggle
       if ((e.metaKey || e.ctrlKey) && e.key === '.') {

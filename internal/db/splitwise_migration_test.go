@@ -32,7 +32,7 @@ func TestSplitwiseConsolidatedMigrationRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	var version int
-	if err := d.conn.QueryRow(`SELECT MAX(version_id) FROM goose_db_version WHERE is_applied=1`).Scan(&version); err != nil || version != 18 {
+	if err := d.conn.QueryRow(`SELECT MAX(version_id) FROM goose_db_version WHERE is_applied=1`).Scan(&version); err != nil || version != 19 {
 		t.Fatalf("migration version: %d %v", version, err)
 	}
 	migrationFS, err := fs.Sub(embedMigrations, "migrations")

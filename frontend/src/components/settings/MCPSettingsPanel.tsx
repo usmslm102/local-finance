@@ -1,14 +1,9 @@
+import { Field, FieldLabel } from '@/components/ui/field'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertCircle, ShieldCheck } from 'lucide-react'
 import { fetchMCPSettings, rotateMCPToken, updateMCPSettings } from '@/lib/api'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -37,8 +32,17 @@ export function MCPSettingsPanel() {
   const [showRotate, setShowRotate] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const save = useMutation({
-    mutationFn: ({ enabled, port, allowCategorizationWrites, allowStatementWrites }: { enabled: boolean; port: number; allowCategorizationWrites?: boolean; allowStatementWrites?: boolean }) =>
-      updateMCPSettings(enabled, port, allowCategorizationWrites, allowStatementWrites),
+    mutationFn: ({
+      enabled,
+      port,
+      allowCategorizationWrites,
+      allowStatementWrites,
+    }: {
+      enabled: boolean
+      port: number
+      allowCategorizationWrites?: boolean
+      allowStatementWrites?: boolean
+    }) => updateMCPSettings(enabled, port, allowCategorizationWrites, allowStatementWrites),
     onSuccess: (settings) => {
       client.setQueryData(['mcp-settings'], settings)
       setPortDraft(null)
@@ -51,7 +55,8 @@ export function MCPSettingsPanel() {
       setToken(result.token)
       client.setQueryData(['mcp-settings'], result.settings)
       setShowRotate(false)
-      if (firstSetup && !result.settings.enabled) save.mutate({ enabled: true, port: result.settings.port })
+      if (firstSetup && !result.settings.enabled)
+        save.mutate({ enabled: true, port: result.settings.port })
     },
   })
   const settings = query.data
@@ -79,7 +84,7 @@ export function MCPSettingsPanel() {
     )
   const endpoint = settings.endpoint
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -87,41 +92,38 @@ export function MCPSettingsPanel() {
             <Badge variant="outline">
               {settings.listening
                 ? settings.allow_statement_writes
-                  ? "Listening · statement and investment writes"
+                  ? 'Listening · statement and investment writes'
                   : settings.allow_categorization_writes
-                  ? 'Listening · category and rule writes'
-                  : 'Listening · read-only'
+                    ? 'Listening · category and rule writes'
+                    : 'Listening · read-only'
                 : settings.enabled
                   ? 'Unavailable'
                   : 'Disabled'}
             </Badge>
           </div>
           <CardDescription>
-            Connect your AI tool in a few steps: enable access, choose a client,
-            then copy and run its setup command.
+            Connect your AI tool in a few steps: enable access, choose a client, then copy and run
+            its setup command.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-5">
+        <CardContent className="flex flex-col gap-5">
           <Alert>
             <ShieldCheck />
             <AlertTitle>Choose what you share</AlertTitle>
             <AlertDescription>
-              Connected AI tools can read your financial data and may send it
-              to their model provider. Access stays available while the app is
-              locked. Disable MCP to stop access.
+              Connected AI tools can read your financial data and may send it to their model
+              provider. Access stays available while the app is locked. Disable MCP to stop access.
             </AlertDescription>
           </Alert>
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             <p className="text-sm">
-              One shared token grants finance reads to all connected AI tools,
-              plus any write permissions enabled in advanced settings.
+              One shared token grants finance reads to all connected AI tools, plus any write
+              permissions enabled in advanced settings.
             </p>
             <Button
-              variant={settings.has_token ? "outline" : "default"}
+              variant={settings.has_token ? 'outline' : 'default'}
               disabled={busy}
-              onClick={() =>
-                settings.has_token ? setShowRotate(true) : rotate.mutate()
-              }
+              onClick={() => (settings.has_token ? setShowRotate(true) : rotate.mutate())}
             >
               {rotate.isPending
                 ? 'Creating…'
@@ -129,7 +131,11 @@ export function MCPSettingsPanel() {
                   ? 'Rotate access token'
                   : 'Create token & enable MCP'}
             </Button>
-            {token && <p role="status" className="text-sm text-muted-foreground">Token ready. It’s included in the setup commands below.</p>}
+            {token && (
+              <p role="status" className="text-sm text-muted-foreground">
+                Token ready. It’s included in the setup commands below.
+              </p>
+            )}
           </div>
           <div className="flex items-center justify-between gap-4">
             <div>
@@ -144,71 +150,94 @@ export function MCPSettingsPanel() {
               id="mcp-enabled"
               checked={settings.enabled}
               disabled={busy || (!settings.has_token && !settings.enabled)}
-              onCheckedChange={(enabled) =>
-                save.mutate({ enabled, port: settings.port })
-              }
+              onCheckedChange={(enabled) => save.mutate({ enabled, port: settings.port })}
             />
           </div>
-          <Button variant="ghost" size="sm" onClick={() => setShowAdvanced(!showAdvanced)} aria-expanded={showAdvanced} aria-controls="mcp-advanced">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            aria-expanded={showAdvanced}
+            aria-controls="mcp-advanced"
+          >
             {showAdvanced ? 'Hide advanced settings' : 'Advanced settings & permissions'}
           </Button>
-          {showAdvanced && <div id="mcp-advanced" className="space-y-5">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <Label htmlFor="mcp-categorization-writes">Allow category and rule writes</Label>
-              <p className="text-sm text-muted-foreground">
-                All clients sharing your token can create or update custom categories
-                and categorization rules. Rule saves automatically recategorize the
-                whole ledger; manually assigned categories, tags and notes are preserved.
+          {showAdvanced && (
+            <div id="mcp-advanced" className="flex flex-col gap-5">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <Label htmlFor="mcp-categorization-writes">Allow category and rule writes</Label>
+                  <p className="text-sm text-muted-foreground">
+                    All clients sharing your token can create or update custom categories and
+                    categorization rules. Rule saves automatically recategorize the whole ledger;
+                    manually assigned categories, tags and notes are preserved.
+                  </p>
+                </div>
+                <Switch
+                  id="mcp-categorization-writes"
+                  checked={settings.allow_categorization_writes}
+                  disabled={busy}
+                  onCheckedChange={(allowCategorizationWrites) =>
+                    save.mutate({
+                      enabled: settings.enabled,
+                      port: settings.port,
+                      allowCategorizationWrites,
+                    })
+                  }
+                />
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <Label htmlFor="mcp-statement-writes">
+                    Allow statement and investment uploads
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    All clients sharing your token can import bank CSVs and investment workbooks by
+                    local path and permanently delete specific uploads and their transactions,
+                    including manual edits.
+                  </p>
+                </div>
+                <Switch
+                  id="mcp-statement-writes"
+                  checked={settings.allow_statement_writes}
+                  disabled={busy}
+                  onCheckedChange={(allowStatementWrites) =>
+                    save.mutate({
+                      enabled: settings.enabled,
+                      port: settings.port,
+                      allowStatementWrites,
+                    })
+                  }
+                />
+              </div>
+              <div className="flex items-end gap-3 flex-wrap">
+                <Field className="flex flex-col gap-2">
+                  <FieldLabel htmlFor="mcp-port">Local MCP port</FieldLabel>
+                  <Input
+                    id="mcp-port"
+                    type="number"
+                    min={1024}
+                    max={65535}
+                    value={portDraft ?? String(settings.port)}
+                    onChange={(event) => setPortDraft(event.target.value)}
+                    className="w-36"
+                    aria-describedby="mcp-port-help"
+                  />
+                </Field>
+                <Button
+                  variant="outline"
+                  disabled={busy || !validPort}
+                  onClick={() => save.mutate({ enabled: settings.enabled, port })}
+                >
+                  {save.isPending ? 'Saving…' : 'Save / retry listener'}
+                </Button>
+              </div>
+              <p id="mcp-port-help" className="text-sm text-muted-foreground">
+                Use a port from 1024 to 65535. Changing it requires updating your AI tool
+                configuration.
               </p>
             </div>
-            <Switch
-              id="mcp-categorization-writes"
-              checked={settings.allow_categorization_writes}
-              disabled={busy}
-              onCheckedChange={(allowCategorizationWrites) =>
-                save.mutate({ enabled: settings.enabled, port: settings.port, allowCategorizationWrites })
-              }
-            />
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <Label htmlFor="mcp-statement-writes">Allow statement and investment uploads</Label>
-              <p className="text-sm text-muted-foreground">
-                All clients sharing your token can import bank CSVs and investment workbooks by local path and
-                permanently delete specific uploads and their transactions, including manual edits.
-              </p>
-            </div>
-            <Switch id="mcp-statement-writes" checked={settings.allow_statement_writes} disabled={busy}
-              onCheckedChange={(allowStatementWrites) => save.mutate({ enabled: settings.enabled, port: settings.port, allowStatementWrites })} />
-          </div>
-          <div className="flex items-end gap-3 flex-wrap">
-            <div className="space-y-2">
-              <Label htmlFor="mcp-port">Local MCP port</Label>
-              <Input
-                id="mcp-port"
-                type="number"
-                min={1024}
-                max={65535}
-                value={portDraft ?? String(settings.port)}
-                onChange={(event) => setPortDraft(event.target.value)}
-                className="w-36"
-                aria-describedby="mcp-port-help"
-              />
-            </div>
-            <Button
-              variant="outline"
-              disabled={busy || !validPort}
-              onClick={() => save.mutate({ enabled: settings.enabled, port })}
-            >
-              {save.isPending ? 'Saving…' : 'Save / retry listener'}
-            </Button>
-          </div>
-          <p id="mcp-port-help" className="text-sm text-muted-foreground">
-            Use a port from 1024 to 65535. Changing it requires updating your AI
-            tool configuration.
-          </p>
-          </div>}
+          )}
           {settings.error && (
             <Alert variant="destructive">
               <AlertCircle />
@@ -218,9 +247,7 @@ export function MCPSettingsPanel() {
           )}
           {(save.error || rotate.error || query.error) && (
             <p role="alert" className="text-sm text-destructive">
-              {save.error?.message ||
-                rotate.error?.message ||
-                query.error?.message}
+              {save.error?.message || rotate.error?.message || query.error?.message}
             </p>
           )}
         </CardContent>
@@ -229,12 +256,17 @@ export function MCPSettingsPanel() {
         <CardHeader>
           <CardTitle className="text-base">Connect your AI tool</CardTitle>
           <CardDescription>
-            Choose your client, copy one command, and run it on this computer.
-            No configuration editing or separate token copying needed.
+            Choose your client, copy one command, and run it on this computer. No configuration
+            editing or separate token copying needed.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <MCPConnectionSetup endpoint={endpoint} token={token} setToken={setToken} listening={settings.listening} />
+          <MCPConnectionSetup
+            endpoint={endpoint}
+            token={token}
+            setToken={setToken}
+            listening={settings.listening}
+          />
         </CardContent>
       </Card>
       <Dialog open={showRotate} onOpenChange={setShowRotate}>
@@ -242,8 +274,8 @@ export function MCPSettingsPanel() {
           <DialogHeader>
             <DialogTitle>Replace the shared token?</DialogTitle>
             <DialogDescription>
-              Every existing AI connection will lose access immediately. Save
-              the new token and update each client configuration.
+              Every existing AI connection will lose access immediately. Save the new token and
+              update each client configuration.
             </DialogDescription>
           </DialogHeader>
           {rotate.error && (
