@@ -47,7 +47,7 @@ export function SplitwiseMemberRuleRow({ member }: { member: SplitwiseMember }) 
     <TableCell>Self transfer</TableCell>
     <TableCell><Badge variant="secondary">Active · Payment required</Badge></TableCell>
     <TableCell className="text-right"><Button variant="outline" size="sm" onClick={() => setOpen(true)}>Edit member rule</Button>
-      <Dialog open={open} onOpenChange={setOpen}><DialogContent><DialogHeader><DialogTitle>Splitwise member rule</DialogTitle><DialogDescription>Matches the other member of an imported Splitwise Payment to a bank payee. Amount, direction and the preceding 15-day window must also match. Names alone never create transfers.</DialogDescription></DialogHeader>
+      <Dialog open={open} onOpenChange={setOpen}><DialogContent className="max-h-[90vh] overflow-y-auto"><DialogHeader><DialogTitle>Splitwise member rule</DialogTitle><DialogDescription>Matches the other member of an imported Splitwise Payment to a bank payee. Amount, direction and the preceding 15-day window must also match. Names alone never create transfers.</DialogDescription></DialogHeader>
         <MemberPattern member={member} />
       </DialogContent></Dialog>
     </TableCell>
@@ -63,7 +63,7 @@ function MemberSummary({ member }: { member: SplitwiseMember }) {
     {!member.pattern && member.suggested_pattern && <div className="space-y-2"><p className="text-xs text-muted-foreground">Suggested from a matched bank payment</p><code className="block text-xs break-all">{member.suggested_pattern}</code><Button size="sm" disabled={mutation.isPending} onClick={() => mutation.mutate({ ...member, pattern: member.suggested_pattern })}>{mutation.isPending ? 'Adding…' : 'Add suggested rule'}</Button></div>}
     {mutation.error && <Alert><AlertDescription>{mutation.error.message}</AlertDescription></Alert>}
     <Button variant="ghost" size="sm" onClick={() => setOpen(true)}>{member.pattern ? 'Edit rule' : 'Set a custom regex'}</Button>
-    <Dialog open={open} onOpenChange={setOpen}><DialogContent><DialogHeader><DialogTitle>Payment matching · {member.name}</DialogTitle><DialogDescription>Identify this member in bank payee, narration or UPI fields. A matching Splitwise Payment, amount and direction are required.</DialogDescription></DialogHeader><MemberPattern member={member} /></DialogContent></Dialog>
+    <Dialog open={open} onOpenChange={setOpen}><DialogContent className="max-h-[90vh] overflow-y-auto"><DialogHeader><DialogTitle>Payment matching · {member.name}</DialogTitle><DialogDescription>Identify this member in bank payee, narration or UPI fields. A matching Splitwise Payment, amount and direction are required.</DialogDescription></DialogHeader><MemberPattern member={member} /></DialogContent></Dialog>
   </div>
 }
 

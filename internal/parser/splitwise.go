@@ -3,6 +3,7 @@ package parser
 import (
 	"crypto/sha256"
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"io"
 	"sort"
@@ -17,11 +18,14 @@ const MaxSplitwiseFileSize int64 = 10 << 20
 
 // ParseSplitwise reads group-export net balances, not bank transactions.
 // Exact member names win; a first name is accepted only when unambiguous.
-// Shares are suggestions until explicitly confirmed because the export omits paid amounts.
+// Net balances determine personal shares; bank-backed movements require matching evidence.
 func ParseSplitwise(r io.Reader, group, person string) ([]models.SplitwiseEntry, error) {
 	group, person = strings.TrimSpace(group), strings.TrimSpace(person)
 	if group == "" || person == "" {
 		return nil, fmt.Errorf("group and member name are required")
+	}
+	if len(group) > 200 || len(person) > 200 {
+		return nil, fmt.Errorf("group and member names are limited to 200 bytes")
 	}
 	data, err := io.ReadAll(io.LimitReader(r, MaxSplitwiseFileSize+1))
 	if err != nil {
@@ -34,6 +38,21 @@ func ParseSplitwise(r io.Reader, group, person string) ([]models.SplitwiseEntry,
 	header, err := reader.Read()
 	if err != nil || len(header) < 6 {
 		return nil, fmt.Errorf("invalid Splitwise CSV header")
+	}
+	if len(header)-5 > 100 {
+		return nil, fmt.Errorf("Splitwise exports are limited to 100 members")
+	}
+	seenNames := map[string]bool{}
+	for _, name := range header[5:] {
+		name = strings.TrimSpace(name)
+		key := strings.ToLower(name)
+		if name == "" || len(name) > 200 {
+			return nil, fmt.Errorf("member names must contain 1 to 200 bytes")
+		}
+		if seenNames[key] {
+			return nil, fmt.Errorf("member names must be unique, ignoring case")
+		}
+		seenNames[key] = true
 	}
 	for i, name := range []string{"Date", "Description", "Category", "Cost", "Currency"} {
 		if strings.TrimSpace(header[i]) != name {
@@ -67,10 +86,13 @@ func ParseSplitwise(r io.Reader, group, person string) ([]models.SplitwiseEntry,
 	members := make([]string, 0, len(header)-5)
 	for _, name := range header[5:] {
 		name = strings.TrimSpace(name)
-		if name == "" {
-			return nil, fmt.Errorf("member names cannot be empty")
-		}
 		members = append(members, name)
+	}
+	// Preview responses repeat membership per row. Bound serialized expansion as
+	// well as upload bytes, including JSON escaping of untrusted header names.
+	membershipJSON, err := json.Marshal(members)
+	if err != nil {
+		return nil, err
 	}
 	result := []models.SplitwiseEntry{}
 	occurrences := map[string]int{}
@@ -82,8 +104,17 @@ func ParseSplitwise(r io.Reader, group, person string) ([]models.SplitwiseEntry,
 		if err != nil {
 			return nil, fmt.Errorf("row %d: %w", row, err)
 		}
+		if len(record[1]) > 2000 || len(record[2]) > 200 {
+			return nil, fmt.Errorf("row %d: description or category exceeds its length limit", row)
+		}
 		if strings.EqualFold(strings.TrimSpace(record[1]), "Total balance") && strings.TrimSpace(record[3]) == "" {
 			continue
+		}
+		if len(result) >= 50000 {
+			return nil, fmt.Errorf("Splitwise exports are limited to 50000 transactions")
+		}
+		if (len(result)+1)*len(membershipJSON) > 16<<20 {
+			return nil, fmt.Errorf("Splitwise export exceeds the 16 MB expanded membership limit")
 		}
 		date := strings.TrimSpace(record[0])
 		if _, err := time.Parse(time.DateOnly, date); err != nil {

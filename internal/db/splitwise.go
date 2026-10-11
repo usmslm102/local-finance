@@ -53,21 +53,18 @@ func (d *DB) ImportSplitwise(entries []models.SplitwiseEntry) (int, error) {
 
 func importSplitwise(tx statementConnection, entries []models.SplitwiseEntry) (int, error) {
 	inserted := 0
+	groups := map[string]models.SplitwiseEntry{}
 	for _, e := range entries {
+		var err error
+		e, err = canonicalSplitwiseGroup(tx, e, groups)
+		if err != nil {
+			return 0, err
+		}
 		var exists bool
 		if err := tx.QueryRow(`SELECT EXISTS(SELECT 1 FROM splitwise_entries WHERE id=?)`, e.ID).Scan(&exists); err != nil {
 			return 0, err
 		}
-		members, err := json.Marshal(e.Members)
-		if err != nil {
-			return 0, err
-		}
-		if len(e.Members) > 0 {
-			if _, err := tx.Exec(`INSERT INTO splitwise_groups(group_name,person,member_names) VALUES(?,?,?) ON CONFLICT(group_name) DO UPDATE SET person=excluded.person,member_names=excluded.member_names`, e.Group, e.Person, string(members)); err != nil {
-				return 0, err
-			}
-		}
-		result, err := tx.Exec(`INSERT INTO splitwise_entries(id,group_name,person,tx_date,description,category,cost_cents,net_cents,share_cents,kind,status,member_names,counterparty) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET member_names=excluded.member_names,counterparty=excluded.counterparty`, e.ID, e.Group, e.Person, e.Date, e.Description, e.Category, e.Cost, e.Net, e.Share, e.Kind, e.Status, string(members), e.Counterparty)
+		result, err := tx.Exec(`INSERT INTO splitwise_entries(id,group_name,person,tx_date,description,category,cost_cents,net_cents,share_cents,kind,status,member_names,counterparty) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET member_names=excluded.member_names,counterparty=excluded.counterparty`, e.ID, e.Group, e.Person, e.Date, e.Description, e.Category, e.Cost, e.Net, e.Share, e.Kind, e.Status, "[]", e.Counterparty)
 		if err != nil {
 			return 0, err
 		}
@@ -83,6 +80,71 @@ func importSplitwise(tx statementConnection, entries []models.SplitwiseEntry) (i
 	return inserted, nil
 }
 
+// canonicalSplitwiseGroup keeps display names and rule keys stable across case-only exports.
+// Membership is stored once per group instead of copying the CSV header into every row.
+func canonicalSplitwiseGroup(conn statementConnection, e models.SplitwiseEntry, cache map[string]models.SplitwiseEntry) (models.SplitwiseEntry, error) {
+	key := strings.ToLower(e.Group)
+	group, ok := cache[key]
+	if !ok {
+		group = e
+		rows, err := conn.Query(`SELECT group_name,person,member_names FROM splitwise_groups ORDER BY rowid`)
+		if err != nil {
+			return e, err
+		}
+		for rows.Next() {
+			var stored models.SplitwiseEntry
+			var raw string
+			if err := rows.Scan(&stored.Group, &stored.Person, &raw); err != nil {
+				rows.Close()
+				return e, err
+			}
+			// SQLite lower() is ASCII-only; use the parser's Unicode identity here.
+			if strings.ToLower(stored.Group) != key {
+				continue
+			}
+			if err := json.Unmarshal([]byte(raw), &stored.Members); err != nil {
+				rows.Close()
+				return e, err
+			}
+			group = stored
+			break
+		}
+		err = rows.Err()
+		rows.Close()
+		if err != nil {
+			return e, err
+		}
+	}
+	if !strings.EqualFold(group.Person, e.Person) {
+		return e, fmt.Errorf("group already belongs to another selected member; use a different group name")
+	}
+	e.Group, e.Person = group.Group, group.Person
+	members := append([]string(nil), e.Members...)
+	for i, name := range members {
+		for _, old := range group.Members {
+			if strings.EqualFold(name, old) {
+				members[i] = old
+				break
+			}
+		}
+		if strings.EqualFold(e.Counterparty, name) {
+			e.Counterparty = members[i]
+		}
+	}
+	e.Members = members
+	if !ok && len(members) > 0 {
+		metadata, err := json.Marshal(members)
+		if err != nil {
+			return e, err
+		}
+		if _, err := conn.Exec(`INSERT INTO splitwise_groups(group_name,person,member_names) VALUES(?,?,?) ON CONFLICT(group_name) DO UPDATE SET member_names=excluded.member_names`, e.Group, e.Person, string(metadata)); err != nil {
+			return e, err
+		}
+	}
+	cache[key] = e
+	return e, nil
+}
+
 func (d *DB) ListSplitwise() ([]models.SplitwiseEntry, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -94,7 +156,7 @@ func (d *DB) listSplitwise() ([]models.SplitwiseEntry, error) {
 }
 
 func listSplitwise(conn statementConnection) ([]models.SplitwiseEntry, error) {
-	rows, err := conn.Query(`SELECT id,group_name,person,tx_date,description,category,cost_cents,net_cents,share_cents,kind,status,transaction_id,category_id,member_names,notes,tags,is_manual_category,removed_transaction_id,counterparty FROM splitwise_entries ORDER BY tx_date DESC,id`)
+	rows, err := conn.Query(`SELECT id,group_name,person,tx_date,description,category,cost_cents,net_cents,share_cents,kind,status,transaction_id,category_id,COALESCE((SELECT g.member_names FROM splitwise_groups g WHERE g.group_name=splitwise_entries.group_name),member_names),notes,tags,is_manual_category,removed_transaction_id,counterparty FROM splitwise_entries ORDER BY tx_date DESC,id`)
 	if err != nil {
 		return nil, err
 	}
@@ -142,6 +204,9 @@ func (d *DB) ConfirmSplitwise(id string, req models.SplitwiseConfirmation) error
 		if err != nil {
 			return err
 		}
+		if kind == "PAYMENT" && paid == 0 {
+			return fmt.Errorf("a CSV Payment involving your member and a bank movement are required")
+		}
 		if paid > 0 && req.TransactionID == "" {
 			return fmt.Errorf("select the matching statement transaction for the amount you paid or received")
 		}
@@ -149,6 +214,22 @@ func (d *DB) ConfirmSplitwise(id string, req models.SplitwiseConfirmation) error
 			return fmt.Errorf("no statement link is needed when you paid nothing")
 		}
 		if req.TransactionID != "" {
+			if kind == "PAYMENT" {
+				candidates, err := splitwiseCandidates(tx, id, models.SplitwiseMatchOptions{Share: req.Share})
+				if err != nil {
+					return err
+				}
+				matched := false
+				for _, candidate := range candidates {
+					if candidate.ID == req.TransactionID {
+						matched = true
+						break
+					}
+				}
+				if !matched {
+					return fmt.Errorf("a matching CSV Payment participant and bank amount, direction and date are required")
+				}
+			}
 			var amount float64
 			var txType string
 			var eligible bool
@@ -210,13 +291,16 @@ func (d *DB) ResetSplitwise(id string) error {
 func (d *DB) SplitwiseCandidates(id string, options models.SplitwiseMatchOptions) ([]models.Transaction, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
+	// Public callers cannot substitute another participant's matching evidence.
+	options.PaymentMember = nil
 	return splitwiseCandidates(d.conn, id, options)
 }
 
 func splitwiseCandidates(conn statementConnection, id string, options models.SplitwiseMatchOptions) ([]models.Transaction, error) {
 	var cost, net int64
 	var kind, date string
-	err := conn.QueryRow(`SELECT cost_cents,net_cents,kind,tx_date FROM splitwise_entries WHERE id=?`, id).Scan(&cost, &net, &kind, &date)
+	entry := models.SplitwiseEntry{ID: id}
+	err := conn.QueryRow(`SELECT cost_cents,net_cents,kind,tx_date,group_name,person,description,counterparty FROM splitwise_entries WHERE id=?`, id).Scan(&cost, &net, &kind, &date, &entry.Group, &entry.Person, &entry.Description, &entry.Counterparty)
 	if err == sql.ErrNoRows {
 		return nil, ErrSplitwiseNotFound
 	}
@@ -231,7 +315,27 @@ func splitwiseCandidates(conn statementConnection, id string, options models.Spl
 	if paid == 0 {
 		return items, nil
 	}
+	if kind == "PAYMENT" && options.PaymentMember == nil {
+		members, err := listSplitwiseMembers(conn)
+		if err != nil {
+			return nil, err
+		}
+		member, err := paymentMember(entry, members)
+		if err != nil {
+			return nil, err
+		}
+		options.PaymentMember = &member
+	}
 	search := "%" + strings.TrimSpace(options.Search) + "%"
+	if kind == "PAYMENT" {
+		// Member evidence and ambiguity use the full amount/date/direction set.
+		// A UI search must never manufacture a sole-candidate fallback.
+		search = "%"
+	}
+	matchesSearch := func(t models.Transaction) bool {
+		query := strings.ToLower(strings.TrimSpace(options.Search))
+		return kind != "PAYMENT" || query == "" || strings.Contains(strings.ToLower(t.RawNarration), query) || strings.Contains(strings.ToLower(t.CleanedPayee), query)
+	}
 	rows, err := conn.Query(`SELECT t.id,t.tx_date,t.raw_narration,t.amount,t.tx_type,COALESCE(NULLIF(a.nickname,''),a.bank_name),t.is_transfer,COALESCE(t.cleaned_payee,''),t.upi_vpa FROM transactions t JOIN accounts a ON a.id=t.account_id WHERE a.currency='INR' AND t.tx_type=? AND t.amount>0 AND ABS(ROUND(t.amount*100)-?)<=? AND t.tx_date BETWEEN date(?,'-15 days') AND ? AND COALESCE(t.transfer_peer_id,'')='' AND t.is_excluded=0 AND (t.raw_narration LIKE ? OR t.cleaned_payee LIKE ?) AND NOT EXISTS(SELECT 1 FROM splitwise_entries s WHERE (s.transaction_id=t.id AND s.id!=?) OR (s.status='IGNORED' AND s.removed_transaction_id=t.id)) ORDER BY CASE WHEN ROUND(t.amount*100)=? THEN 0 ELSE 1 END,ABS(julianday(t.tx_date)-julianday(?)),ABS(ROUND(t.amount*100)-?),t.id`, direction, paid, splitwiseAmountTolerance, date, date, search, search, id, paid, date, paid)
 	if err != nil {
 		return nil, err
@@ -249,6 +353,9 @@ func splitwiseCandidates(conn statementConnection, id string, options models.Spl
 		if options.PaymentMember != nil && !matchesSplitwiseMember(t, *options.PaymentMember) {
 			continue
 		}
+		if !matchesSearch(t) {
+			continue
+		}
 		items = append(items, t)
 		if len(items) == 50 {
 			break
@@ -256,7 +363,7 @@ func splitwiseCandidates(conn statementConnection, id string, options models.Spl
 	}
 	// A single amount/date/direction candidate can establish the first link before
 	// the member's bank alias is known. Ambiguous payments require a name or regex.
-	if len(items) == 0 && candidateCount == 1 && options.PaymentMember != nil && options.PaymentMember.Pattern == "" && len(options.PaymentMember.Aliases) == 0 {
+	if len(items) == 0 && candidateCount == 1 && options.PaymentMember != nil && options.PaymentMember.Pattern == "" && len(options.PaymentMember.Aliases) == 0 && matchesSearch(soleCandidate) {
 		items = append(items, soleCandidate)
 	}
 	return items, rows.Err()
