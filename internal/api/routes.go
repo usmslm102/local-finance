@@ -85,6 +85,7 @@ func SetupRouter(database *db.DB, svc *service.TransactionService, staticFS fs.F
 		apiGroup.POST("/statements/preview", h.PreviewStatement)
 		apiGroup.POST("/statements/preview-batch", h.PreviewBatchStatements)
 		apiGroup.GET("/statements", h.ListStatementImports)
+		apiGroup.GET("/statements/:id/pdf", h.GetStatementPDF)
 		apiGroup.GET("/categories", h.ListCategories)
 		apiGroup.POST("/categories", h.CreateCategory)
 		apiGroup.DELETE("/categories/:id", h.DeleteCategory)

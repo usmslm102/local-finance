@@ -47,6 +47,10 @@ func (d *DB) DeleteStatementImport(id string) (*StatementDeletion, error) {
  WHERE transaction_id IN (SELECT id FROM transactions WHERE statement_import_id = ?)`, id); err != nil {
 			return err
 		}
+		if _, err := w.conn.Exec(`DELETE FROM statement_import_transactions
+ WHERE statement_import_id = ? OR transaction_id IN (SELECT id FROM transactions WHERE statement_import_id = ?)`, id, id); err != nil {
+			return err
+		}
 		deleted, err = w.conn.Exec(`DELETE FROM transactions WHERE statement_import_id = ?`, id)
 		if err != nil {
 			return err

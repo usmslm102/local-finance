@@ -73,6 +73,10 @@ Synthetic ICICI and Union Bank savings PDFs in `samples/savings/` exercise parse
 
 Sample statements are embedded in the application binary. The sample buttons on **Import Statements** work offline without a separate `samples/` directory.
 
+New bank and credit-card PDF imports retain the original PDF in your local database. Use **Preview PDF** in Statement Audit History to review or download the source file. Password protection is preserved; the viewer may ask for the PDF password. Older imports show **PDF not saved** and can be re-imported to enable preview without duplicating transactions. CSV and Excel imports do not have a PDF preview.
+
+Use **View imported records** to open the Transactions Ledger filtered to one import, with a **Preview PDF** action for comparison. These are the saved records, including your current categories, tags and notes. New imports keep their record links across overlapping re-imports without duplicating transactions. For older imports, only the latest recorded association can be recovered; re-import the source if links are missing. Deleting an import retains the existing behavior of removing transactions currently owned by that import.
+
 ### Investment Statements and Samples
 
 Import portfolio holdings through **Import Statements → Investments**. Attach a supported workbook, review its preview, and import it. The **Investments** page shows dated holdings, provider fields, and original worksheets.
@@ -515,10 +519,11 @@ The server listens on `127.0.0.1` and accepts trusted local browser origins. Loc
 | :--- | :--- | :--- |
 | `/api/health` | `GET` | Server health check and version info |
 | `/api/accounts` | `GET` | List all discovered bank accounts and credit cards with current balances |
-| `/api/transactions` | `GET` | List transactions with filters (`account_id`, `category_id`, `tx_type`, `search`, `start_date`, `end_date`, `page`, `page_size`, `review_needed=true`) |
+| `/api/transactions` | `GET` | List transactions with filters (`statement_import_id`, `account_id`, `category_id`, `tx_type`, `search`, `start_date`, `end_date`, `page`, `page_size`, `review_needed=true`) |
 | `/api/statements/upload` | `POST` | Ingest statement file (multipart `file`, optional `password`, `account_id`, `parser_id`) |
 | `/api/statements/preview` | `POST` | Dry-run statement parse without saving to DB (shows detected metadata and transactions) |
 | `/api/statements` | `GET` | List history of uploaded statements with checksums and date ranges |
+| `/api/statements/:id/pdf` | `GET` | Read the original saved PDF for an import; returns 404 if its source PDF is unavailable |
 | `/api/categories` | `GET` | List spending categories with icons and color tokens |
 | `/api/rules` | `GET` | List active auto-categorization keyword & regex rules |
 | `/api/analytics/overview`| `GET` | Get total income, total expense, net savings, category breakdown, and monthly cash flow |

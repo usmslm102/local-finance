@@ -32,7 +32,7 @@ func TestSplitwiseConsolidatedMigrationRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	var version int
-	if err := d.conn.QueryRow(`SELECT MAX(version_id) FROM goose_db_version WHERE is_applied=1`).Scan(&version); err != nil || version != 19 {
+	if err := d.conn.QueryRow(`SELECT MAX(version_id) FROM goose_db_version WHERE is_applied=1`).Scan(&version); err != nil || version != 21 {
 		t.Fatalf("migration version: %d %v", version, err)
 	}
 	migrationFS, err := fs.Sub(embedMigrations, "migrations")
@@ -43,7 +43,7 @@ func TestSplitwiseConsolidatedMigrationRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := provider.Down(context.Background()); err != nil {
+	if _, err := provider.DownTo(context.Background(), 18); err != nil {
 		t.Fatal(err)
 	}
 	var remaining int

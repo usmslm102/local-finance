@@ -86,6 +86,7 @@ type StatementImport struct {
 	TotalDebits       *float64  `json:"total_debits,omitempty"`
 	TotalCredits      *float64  `json:"total_credits,omitempty"`
 	ImportedAt        time.Time `json:"imported_at"`
+	HasSourcePDF      bool      `json:"has_source_pdf"`
 }
 
 type Category struct {

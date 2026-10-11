@@ -94,18 +94,19 @@ func (h *Handler) ListTransactions(c *gin.Context) {
 	}
 
 	filter := db.TransactionFilter{
-		AccountID:    c.Query("account_id"),
-		CategoryID:   c.Query("category_id"),
-		ReviewNeeded: c.Query("review_needed") == "true",
-		TxType:       c.Query("tx_type"),
-		Search:       c.Query("search"),
-		StartDate:    c.Query("start_date"),
-		EndDate:      c.Query("end_date"),
-		IsTransfer:   isTransferPtr,
-		MinAmount:    amountBounds["min_amount"],
-		MaxAmount:    amountBounds["max_amount"],
-		Limit:        pageSize,
-		Offset:       (page - 1) * pageSize,
+		StatementImportID: c.Query("statement_import_id"),
+		AccountID:         c.Query("account_id"),
+		CategoryID:        c.Query("category_id"),
+		ReviewNeeded:      c.Query("review_needed") == "true",
+		TxType:            c.Query("tx_type"),
+		Search:            c.Query("search"),
+		StartDate:         c.Query("start_date"),
+		EndDate:           c.Query("end_date"),
+		IsTransfer:        isTransferPtr,
+		MinAmount:         amountBounds["min_amount"],
+		MaxAmount:         amountBounds["max_amount"],
+		Limit:             pageSize,
+		Offset:            (page - 1) * pageSize,
 	}
 
 	transactions, total, err := h.db.ListTransactions(filter)

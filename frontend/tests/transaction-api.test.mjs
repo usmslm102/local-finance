@@ -35,6 +35,20 @@ test('transaction requests and complete calendar datasets', async (t) => {
     await fetchTransactions({ min_amount: '0', max_amount: '200', account_id: 'account-1', page: 1 })
   })
 
+  await t.test('retains import scope through every page of a complete dataset', async () => {
+    const pages = []
+    fetch.mock.mockImplementation(async (url) => {
+      const params = new URL(url, 'http://localhost').searchParams
+      assert.equal(params.get('statement_import_id'), 'import /&1')
+      const page = Number(params.get('page'))
+      pages.push(page)
+      return Response.json({ items: [{ id: page }], total: 2, total_pages: 2, page_size: 1 })
+    })
+    const result = await fetchAllTransactions({ statement_import_id: 'import /&1' })
+    assert.deepEqual(pages, [1, 2])
+    assert.deepEqual(result.map((row) => row.id), [1, 2])
+  })
+
   await t.test('loads rows beyond the first 5,000 with the same month filters', async () => {
     const requestedPages = []
     fetch.mock.mockImplementation(async (url) => {

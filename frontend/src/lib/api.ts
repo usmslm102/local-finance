@@ -178,6 +178,7 @@ export async function fetchCreditCardBills(accountId?: string): Promise<import('
 }
 
 export interface TransactionParams {
+  statement_import_id?: string
   min_amount?: string
   max_amount?: string
   account_id?: string
@@ -194,6 +195,7 @@ export interface TransactionParams {
 export async function fetchTransactions(params: TransactionParams = {}): Promise<TransactionListResponse> {
   const query = new URLSearchParams()
   if (params.min_amount) query.append('min_amount', params.min_amount)
+  if (params.statement_import_id) query.append('statement_import_id', params.statement_import_id)
   if (params.max_amount) query.append('max_amount', params.max_amount)
   if (params.account_id) query.append('account_id', params.account_id)
   if (params.category_id) query.append('category_id', params.category_id)
@@ -265,6 +267,15 @@ export async function fetchStatements(): Promise<StatementImport[]> {
   const res = await fetchWithAuth(`${BASE_URL}/statements`)
   if (!res.ok) throw new Error('Failed to fetch statement history')
   return res.json()
+}
+
+export async function fetchStatementPDF(id: string, signal?: AbortSignal): Promise<Blob> {
+  const res = await fetchWithAuth(`${BASE_URL}/statements/${encodeURIComponent(id)}/pdf`, { signal })
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ error: 'Unable to load the statement PDF. Please try again.' }))
+    throw new Error(error.error)
+  }
+  return res.blob()
 }
 
 export async function fetchParsers(): Promise<ParserInfo[]> {

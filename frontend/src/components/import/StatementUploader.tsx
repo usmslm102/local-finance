@@ -14,7 +14,8 @@ import {
   loadSampleFile,
   SampleStatementItem,
 } from '@/lib/api'
-import { ImportResult, StatementPreviewResult, PreviewTransactionItem } from '@/types'
+import { ImportResult, StatementImport, StatementPreviewResult, PreviewTransactionItem } from '@/types'
+import { StatementPDFPreview } from './StatementPDFPreview'
 import { formatDate, formatINR } from '@/lib/utils'
 import {
   UploadCloud,
@@ -86,6 +87,7 @@ export const StatementUploader: React.FC = () => {
   const [parserId, setParserId] = useState('AUTO')
   const [accountId, setAccountId] = useState('AUTO')
   const [activePreviewFile, setActivePreviewFile] = useState<QueuedFile | null>(null)
+  const [activeStatementPDF, setActiveStatementPDF] = useState<StatementImport | null>(null)
   const [previewSearch, setPreviewSearch] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const [isBatchImporting, setIsBatchImporting] = useState(false)
@@ -833,7 +835,7 @@ export const StatementUploader: React.FC = () => {
                 <History className="size-4 text-primary" /> Statement Audit History
               </CardTitle>
               <CardDescription className="text-xs">
-                Log of all uploaded statement files, checksums, and totals
+                Compare saved transactions with their original statements.
               </CardDescription>
             </div>
             <Badge variant="secondary">{statementsHistory?.length || 0} Imported</Badge>
@@ -870,6 +872,21 @@ export const StatementUploader: React.FC = () => {
                             {s.filename}
                           </TooltipContent>
                         </Tooltip>
+                        <div className="mt-2 flex flex-wrap items-center gap-2 whitespace-normal">
+                          <Link data-slot="button" to="/transactions" search={{ statement_import_id: s.id }} className={buttonVariants({ variant: 'outline', size: 'sm' })} aria-label={`View imported records: ${s.filename}`}>
+                            <FileText data-icon="inline-start" />View imported records
+                          </Link>
+                          {s.has_source_pdf ? (
+                            <Button variant="outline" size="sm" aria-label={`Preview PDF: ${s.filename}`} onClick={() => setActiveStatementPDF(s)}>
+                              <Eye data-icon="inline-start" />Preview PDF
+                            </Button>
+                          ) : /pdf/i.test(s.statement_format) || /\.pdf$/i.test(s.filename) ? (
+                            <Tooltip>
+                              <TooltipTrigger render={<span tabIndex={0} />} className="text-muted-foreground">PDF not saved</TooltipTrigger>
+                              <TooltipContent>Import this PDF again to save it for preview.</TooltipContent>
+                            </Tooltip>
+                          ) : null}
+                        </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {s.bank_name || 'Bank Account'}
@@ -905,6 +922,8 @@ export const StatementUploader: React.FC = () => {
           </div>
         </CardContent>
       </Card>
+
+      {activeStatementPDF && <StatementPDFPreview key={activeStatementPDF.id} statement={activeStatementPDF} onClose={() => setActiveStatementPDF(null)} />}
 
       {/* FULL PARSED DATA PREVIEW DIALOG MODAL */}
       <Dialog

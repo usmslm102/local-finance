@@ -279,6 +279,24 @@ func (d *statementStore) CreateStatementImport(s *models.StatementImport) error 
 	return err
 }
 
+// SaveStatementPDF retains the original bytes in the same transaction as the import.
+func (d *statementStore) SaveStatementPDF(id string, data []byte) error {
+	_, err := d.conn.Exec(`UPDATE statement_imports SET source_pdf = ? WHERE id = ?`, data, id)
+	return err
+}
+
+func (d *DB) GetStatementPDF(id string) (filename string, data []byte, err error) {
+	err = d.conn.QueryRow(`SELECT filename, source_pdf FROM statement_imports WHERE id = ? AND source_pdf IS NOT NULL`, id).Scan(&filename, &data)
+	return
+}
+
+// LinkStatementTransaction preserves membership even when a later upload
+// becomes the transaction's latest import. It does not change deletion ownership.
+func (d *statementStore) LinkStatementTransaction(statementID, transactionID string) error {
+	_, err := d.conn.Exec(`INSERT OR IGNORE INTO statement_import_transactions (statement_import_id, transaction_id) VALUES (?, ?)`, statementID, transactionID)
+	return err
+}
+
 func (d *statementStore) UpsertTransaction(tx *models.Transaction) (bool, error) {
 	var existingID string
 	var existingCatID sql.NullString

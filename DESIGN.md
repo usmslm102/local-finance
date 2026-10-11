@@ -270,6 +270,8 @@ Badges are compact rounded labels, with filled, outline, secondary, and destruct
 
 Charts use the shared container, tooltip, and legend primitives. Planning comparisons use semantic series, compact INR axes, a zero reference where meaningful, and precise right-aligned tabular figures in the companion table. Financial privacy mode replaces revealing chart content with a neutral explanatory region and masks sensitive values; editable financial fields are disabled in the corresponding discreet view.
 
+Import history places “View imported records” and the available “Preview PDF” action together beneath each filename, using outline controls that wrap on narrow screens. The URL-scoped transaction ledger keeps the source filename and an explanation of current ledger edits in a neutral alert, with wrapping actions for PDF preview, import history, and removing the import filter. The PDF dialog also links to imported records; navigation links styled as buttons retain `data-slot="button"` so the shared 44px coarse-pointer target rule applies.
+
 ### Dialogs and Feedback
 
 Dialog title, description, close action, and viewport-fitting scroll behavior are supplied by the Base UI-backed primitives. Feedback uses existing alert, empty, loading, and retry patterns. Keep the action required to proceed close to the explanation. Overlay state changes are brief; reduced-motion preferences remove spatial animation while preserving state feedback.

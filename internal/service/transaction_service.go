@@ -180,6 +180,11 @@ func (s *TransactionService) ImportStatement(filename string, r io.Reader, manua
 		if err := writer.CreateStatementImport(stmtImport); err != nil {
 			return fmt.Errorf("failed to record statement: %w", err)
 		}
+		if isPDF && bytes.HasPrefix(fileBytes, []byte("%PDF")) {
+			if err := writer.SaveStatementPDF(stmtImportID, fileBytes); err != nil {
+				return fmt.Errorf("failed to save statement PDF: %w", err)
+			}
+		}
 
 		// 6. Record Credit Card Bill if dates present
 		stmtDate := meta.StatementDate
@@ -265,6 +270,9 @@ func (s *TransactionService) ImportStatement(filename string, r io.Reader, manua
 			isNew, err := writer.UpsertTransaction(tx)
 			if err != nil {
 				return fmt.Errorf("failed to save transaction: %w", err)
+			}
+			if err := writer.LinkStatementTransaction(stmtImportID, tx.ID); err != nil {
+				return fmt.Errorf("failed to link imported transaction: %w", err)
 			}
 			if isNew {
 				insertedCount++

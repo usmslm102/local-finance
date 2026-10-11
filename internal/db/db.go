@@ -123,6 +123,9 @@ func (d *DB) ResetDatabase() error {
 	if _, err := tx.Exec(`DELETE FROM credit_card_bills`); err != nil {
 		return err
 	}
+	if _, err := tx.Exec(`DELETE FROM statement_import_transactions`); err != nil {
+		return err
+	}
 	if _, err := tx.Exec(`DELETE FROM transactions`); err != nil {
 		return err
 	}
@@ -275,7 +278,7 @@ func (d *DB) ListStatementImports() ([]models.StatementImport, error) {
 	rows, err := d.conn.Query(`
 		SELECT s.id, s.account_id, a.bank_name || ' (' || a.account_type || ')' as bank_name,
 		       s.filename, s.file_hash, s.statement_format, s.parser_used, s.start_date, s.end_date, s.total_transactions,
-		       s.opening_balance, s.closing_balance, s.total_debits, s.total_credits, s.imported_at
+		       s.opening_balance, s.closing_balance, s.total_debits, s.total_credits, s.imported_at, s.source_pdf IS NOT NULL
 		FROM statement_imports s
 		JOIN accounts a ON s.account_id = a.id
 		ORDER BY s.imported_at DESC
@@ -290,7 +293,7 @@ func (d *DB) ListStatementImports() ([]models.StatementImport, error) {
 		var s models.StatementImport
 		var openBal, closeBal, totDeb, totCred sql.NullFloat64
 		if err := rows.Scan(&s.ID, &s.AccountID, &s.BankName, &s.Filename, &s.FileHash, &s.StatementFormat, &s.ParserUsed,
-			&s.StartDate, &s.EndDate, &s.TotalTransactions, &openBal, &closeBal, &totDeb, &totCred, &s.ImportedAt); err != nil {
+			&s.StartDate, &s.EndDate, &s.TotalTransactions, &openBal, &closeBal, &totDeb, &totCred, &s.ImportedAt, &s.HasSourcePDF); err != nil {
 			return nil, err
 		}
 		if openBal.Valid {
@@ -326,20 +329,21 @@ func (d *DB) RecalculateAccountBalance(accountID string) error {
 }
 
 type TransactionFilter struct {
-	StatementOnly bool
-	ReviewNeeded  bool
-	ID            string
-	AccountID     string
-	CategoryID    string
-	TxType        string
-	Search        string
-	StartDate     string
-	EndDate       string
-	IsTransfer    *bool
-	MinAmount     *float64
-	MaxAmount     *float64
-	Limit         int
-	Offset        int
+	StatementImportID string
+	StatementOnly     bool
+	ReviewNeeded      bool
+	ID                string
+	AccountID         string
+	CategoryID        string
+	TxType            string
+	Search            string
+	StartDate         string
+	EndDate           string
+	IsTransfer        *bool
+	MinAmount         *float64
+	MaxAmount         *float64
+	Limit             int
+	Offset            int
 }
 
 func (d *DB) ListTransactions(f TransactionFilter) ([]models.Transaction, int, error) {
@@ -349,6 +353,10 @@ func (d *DB) ListTransactions(f TransactionFilter) ([]models.Transaction, int, e
 	if f.ID != "" {
 		where = append(where, "t.id = ?")
 		args = append(args, f.ID)
+	}
+	if f.StatementImportID != "" {
+		where = append(where, `t.id IN (SELECT transaction_id FROM statement_import_transactions WHERE statement_import_id = ?)`)
+		args = append(args, f.StatementImportID)
 	}
 	if f.AccountID != "" {
 		where = append(where, "t.account_id = ?")
@@ -396,7 +404,7 @@ func (d *DB) ListTransactions(f TransactionFilter) ([]models.Transaction, int, e
 	// Count total
 	var total int
 	source := "ledger_transactions"
-	if f.StatementOnly {
+	if f.StatementOnly || f.StatementImportID != "" {
 		source = "transactions"
 	}
 	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s t WHERE %s", source, whereClause)

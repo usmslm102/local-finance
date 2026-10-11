@@ -23,7 +23,7 @@ import {
   useReactTable,
 } from '@tanstack/react-table'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useSearch, useNavigate } from '@tanstack/react-router'
+import { Link, useSearch, useNavigate } from '@tanstack/react-router'
 import {
   CATEGORY_TRANSFERS_ID,
   type Transaction,
@@ -35,6 +35,7 @@ import {
   fetchAccounts,
   fetchCategories,
   fetchTransactions,
+  fetchStatements,
   createRule,
   reapplyRules,
   updateTransaction,
@@ -65,6 +66,7 @@ import {
   Wallet,
   Save,
   RefreshCw,
+  Eye,
 } from 'lucide-react'
 import {
   Table,
@@ -75,7 +77,9 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
+import { StatementPDFPreview } from '@/components/import/StatementPDFPreview'
 import { Badge } from '@/components/ui/badge'
 import {
   Select,
@@ -191,6 +195,10 @@ export const TransactionTable: React.FC = () => {
         })()
 
   const search = (searchParams.search || searchParams.q || '').trim()
+  const statementImportID = searchParams.statement_import_id || ''
+  const [showSourcePDF, setShowSourcePDF] = useState(false)
+  const statementHistory = useQuery({ queryKey: ['statements'], queryFn: fetchStatements, enabled: !!statementImportID })
+  const activeStatement = statementHistory.data?.find((statement) => statement.id === statementImportID)
   const accountId = searchParams.account || searchParams.account_id || 'ALL'
   const categoryId = searchParams.category || searchParams.category_id || 'ALL'
   const txType = (searchParams.type || searchParams.tx_type || 'ALL').toUpperCase()
@@ -226,6 +234,7 @@ export const TransactionTable: React.FC = () => {
   const updateFilters = useCallback(
     (newParams: Partial<TransactionsSearchParams>, replace: boolean = true) => {
       const current: TransactionsSearchParams = {
+        statement_import_id: statementImportID || undefined,
         page: page > 1 ? page : undefined,
         pageSize: pageSize !== 50 ? pageSize : undefined,
         search: search || undefined,
@@ -242,6 +251,7 @@ export const TransactionTable: React.FC = () => {
       const merged = { ...current, ...newParams }
 
       const cleaned: Record<string, string | number | undefined> = {}
+      if (merged.statement_import_id) cleaned.statement_import_id = merged.statement_import_id
       if (merged.page && merged.page > 1) cleaned.page = merged.page
       if (merged.pageSize && merged.pageSize !== 50) cleaned.pageSize = merged.pageSize
       if (merged.search && merged.search.trim()) cleaned.search = merged.search.trim()
@@ -263,6 +273,7 @@ export const TransactionTable: React.FC = () => {
     },
     [
       page,
+      statementImportID,
       pageSize,
       search,
       accountId,
@@ -406,6 +417,7 @@ export const TransactionTable: React.FC = () => {
   const { data, isLoading, isFetching, isError, refetch } = useQuery({
     queryKey: [
       'transactions',
+      statementImportID,
       page,
       pageSize,
       search,
@@ -419,6 +431,7 @@ export const TransactionTable: React.FC = () => {
     ],
     queryFn: () =>
       fetchTransactions({
+        statement_import_id: statementImportID || undefined,
         page,
         page_size: pageSize,
         search: search || undefined,
@@ -454,6 +467,7 @@ export const TransactionTable: React.FC = () => {
   }
 
   const isFiltered =
+    statementImportID !== '' ||
     search !== '' ||
     accountId !== 'ALL' ||
     categoryId !== 'ALL' ||
@@ -781,6 +795,21 @@ export const TransactionTable: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-4">
+      {statementImportID && (
+        <Alert>
+          <AlertTitle className="break-all">{activeStatement?.filename || 'Imported statement records'}</AlertTitle>
+          <AlertDescription className="flex flex-col gap-3">
+            <p>Showing saved transactions from this import. Categories, tags and notes reflect your current ledger edits. Shared transactions appear once. For older overlapping imports, re-import the source if records are missing.</p>
+            <div className="flex flex-wrap gap-2">
+              {activeStatement?.has_source_pdf && <Button variant="outline" size="sm" onClick={() => setShowSourcePDF(true)}><Eye data-icon="inline-start" />Preview PDF</Button>}
+              <Link data-slot="button" to="/import" className={buttonVariants({ variant: 'outline', size: 'sm' })}>Import history</Link>
+              <Button variant="outline" size="sm" onClick={() => updateFilters({ statement_import_id: undefined, page: undefined }, false)}>Remove import filter</Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+      {showSourcePDF && activeStatement && <StatementPDFPreview key={activeStatement.id} statement={activeStatement} onClose={() => setShowSourcePDF(false)} />}
+      {statementImportID && statementHistory.isError && <QueryError message="Unable to load import details" onRetry={statementHistory.refetch} />}
       {isError && <QueryError message="Unable to load transactions" onRetry={refetch} />}
       {/* Search & Filter Controls Card */}
       <Card className="p-4 flex flex-col gap-3.5">
@@ -1094,6 +1123,7 @@ export const TransactionTable: React.FC = () => {
         {isFiltered && (
           <div className="flex items-center gap-1.5 flex-wrap pt-2 border-t border-border/40 text-[11px]">
             <span className="text-muted-foreground font-medium">Active filters:</span>
+            {statementImportID && <Badge variant="secondary">Imported statement</Badge>}
             {search && (
               <Badge variant="secondary" className="gap-1 px-1.5 py-0.5">
                 Search: "{search}"
@@ -1373,7 +1403,7 @@ export const TransactionTable: React.FC = () => {
                       <EmptyHeader>
                         <EmptyTitle>No matching transactions</EmptyTitle>
                         <EmptyDescription>
-                          Try adjusting your search terms, time window, or filter criteria.
+                          {statementImportID ? 'No saved records match this import and your current filters. Older overlapping imports may need to be re-imported to restore their record links.' : 'Try adjusting your search terms, time window, or filter criteria.'}
                         </EmptyDescription>
                       </EmptyHeader>
                       <EmptyContent>

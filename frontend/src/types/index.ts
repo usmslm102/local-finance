@@ -63,6 +63,7 @@ export interface StatementImport {
   total_debits?: number
   total_credits?: number
   imported_at: string
+  has_source_pdf: boolean
 }
 
 export const CATEGORY_TRANSFERS_ID = 'cat_transfers'
@@ -774,6 +775,7 @@ export type TimeWindowPreset =
   | 'custom'
 
 export interface TransactionsSearchParams {
+  statement_import_id?: string
   page?: number
   pageSize?: number
   search?: string
