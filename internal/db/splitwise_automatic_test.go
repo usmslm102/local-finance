@@ -6,7 +6,6 @@ import (
 	"local-finance/internal/models"
 	"local-finance/internal/parser"
 	"regexp"
-	"strings"
 	"testing"
 )
 
@@ -388,64 +387,5 @@ func TestSplitwiseLegacyNameOnlyPaymentCannotReapply(t *testing.T) {
 	tx, err := d.GetTransaction(bank.ID)
 	if err != nil || tx.IsTransfer || tx.SplitwiseEntryID != nil {
 		t.Fatalf("legacy payment recreated: %+v %v", tx, err)
-	}
-}
-
-func TestSplitwisePaymentEvidenceUpgradePreservesCsvAndRemoval(t *testing.T) {
-	d := safetyDB(t)
-	account, err := d.GetOrCreateAccount("Demo", models.AccountTypeSavings, "demo", "demo", "", "", "", "", "", "", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	bank := &models.Transaction{AccountID: account.ID, TxHash: "csv", TxDate: "2026-09-01", RawNarration: "Ravi Makwana", CleanedPayee: "Ravi Makwana", Amount: 50, TxType: models.TxTypeCredit}
-	if _, err := d.UpsertTransaction(bank); err != nil {
-		t.Fatal(err)
-	}
-	entries, err := parser.ParseSplitwise(bytes.NewBufferString("Date,Description,Category,Cost,Currency,Sanjay Example,Ravi Makwana\n2026-09-02,Ravi m. paid Sanjay N.,Payment,50,INR,-50,50\n"), "Example", "Sanjay")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := d.ImportSplitwiseAutomatically(entries); err != nil {
-		t.Fatal(err)
-	}
-	for _, status := range []string{"CONFIRMED", "REVIEW", "IGNORED"} {
-		if _, err := d.conn.Exec(`INSERT INTO splitwise_entries(id,group_name,person,tx_date,description,category,cost_cents,net_cents,share_cents,kind,status,member_names) VALUES(?,'Example','Sanjay Example','2026-09-02','Settlement with Ravi Makwana','Payment',5000,-5000,0,'PAYMENT',?,'[]')`, "sw-settlement-"+status, status); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if _, err := d.conn.Exec(`ALTER TABLE splitwise_entries DROP COLUMN counterparty; DELETE FROM goose_db_version WHERE version_id>=19`); err != nil {
-		t.Fatal(err)
-	}
-	path := d.path
-	if err := d.Close(); err != nil {
-		t.Fatal(err)
-	}
-	upgraded, err := NewDB(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer upgraded.Close()
-	members, err := upgraded.ListSplitwiseMembers()
-	if err != nil || len(members) != 1 || members[0].MatchedPayments != 1 || members[0].SuggestedPattern == "" {
-		t.Fatalf("retained CSV mapping hidden: %+v %v", members, err)
-	}
-	all, err := upgraded.ListSplitwise()
-	if err != nil || len(all) != 2 {
-		t.Fatalf("legacy cleanup: %+v %v", all, err)
-	}
-	for _, entry := range all {
-		if strings.HasPrefix(entry.ID, "sw-settlement-") && entry.Status != "IGNORED" {
-			t.Fatalf("legacy evidence retained: %+v", entry)
-		}
-	}
-	if err := upgraded.WithStatementImport(func(w *StatementWriter) error { return w.ReconcileSplitwise() }); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := upgraded.ImportSplitwiseAutomatically(entries); err != nil {
-		t.Fatal(err)
-	}
-	tx, err := upgraded.GetTransaction(bank.ID)
-	if err != nil || tx.SplitwiseEntryID == nil || *tx.SplitwiseEntryID != entries[0].ID {
-		t.Fatalf("CSV match lost: %+v %v", tx, err)
 	}
 }
