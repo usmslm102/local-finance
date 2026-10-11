@@ -53,7 +53,7 @@ function ReviewMatch({ entry, onClose, onDismiss }: { entry: SplitwiseEntry; onC
         <div><p className="text-xs text-muted-foreground">Splitwise amount you paid</p><p className="font-semibold"><PrivacyAmount amount={expected} /></p></div>
         <div><p className="text-xs text-muted-foreground">Your expense after approval</p><p className="font-semibold"><PrivacyAmount amount={entry.share_cents / 100} /></p></div>
       </div>
-      <p className="text-sm text-muted-foreground">Choose the correct bank debit. Suggestions use the entry date and preceding 15 days, closest amount first. Nothing changes until you approve.</p>
+      <p className="text-sm text-muted-foreground">Choose the correct bank debit. Suggestions use the entry date and preceding 15 days, nearest date first, then closest amount. Nothing changes until you approve.</p>
       <Input aria-label="Search bank candidates" placeholder="Search bank payee or narration" value={search} onInput={event => { setSearch(event.currentTarget.value); setSelected(''); setShowMore(false) }} onChange={event => { setSearch(event.target.value); setSelected(''); setShowMore(false) }} />
       {candidates.isPending && <p role="status">Finding nearby bank transactions…</p>}
       {candidates.error && <Alert variant="destructive"><AlertDescription>Unable to load candidates. <Button variant="link" onClick={() => { void candidates.refetch() }}>Retry</Button></AlertDescription></Alert>}
@@ -69,7 +69,7 @@ function ReviewMatch({ entry, onClose, onDismiss }: { entry: SplitwiseEntry; onC
           </div>
         </Button>)}
       </div>
-      {(candidates.data?.length ?? 0) > 5 && <Button variant="ghost" onClick={() => setShowMore(!showMore)}>{showMore ? 'Show closest five' : `Show more (${candidates.data?.length} found)`}</Button>}
+      {(candidates.data?.length ?? 0) > 5 && <Button variant="ghost" onClick={() => setShowMore(!showMore)}>{showMore ? 'Show nearest five' : `Show more (${candidates.data?.length} found)`}</Button>}
       <p className="text-xs text-muted-foreground">Up to 50 candidates are shown. Search to find a specific payee. Dismissing keeps this entry out of future CSV imports; you can undo the latest dismissal while this page remains open.</p>
       {bank && <Alert><AlertDescription>
         <p>Bank paid <PrivacyAmount amount={bank.amount} />; Splitwise recorded <PrivacyAmount amount={expected} />. Difference: <PrivacyAmount amount={difference} />.</p>

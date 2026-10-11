@@ -61,7 +61,7 @@ func TestSplitwiseNearMatchNeedsExplicitApproval(t *testing.T) {
 		t.Fatalf("strict candidates: %+v %v", strict, err)
 	}
 	near, err := d.SplitwiseCandidates(e.ID, models.SplitwiseMatchOptions{Share: e.Share, IncludeNearMatches: true})
-	if err != nil || len(near) != 2 || near[0].ID != closest || near[1].ID != second {
+	if err != nil || len(near) != 2 || near[0].ID != second || near[1].ID != closest {
 		t.Fatalf("near ordering/window: %+v %v", near, err)
 	}
 	req := models.SplitwiseConfirmation{Share: e.Share, TransactionID: closest, CategoryID: "cat_travel"}

@@ -58,6 +58,7 @@ export function SplitwiseView() {
   }
   return <div className="space-y-6">
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"><div><h1 className="text-2xl font-bold tracking-tight">Splitwise</h1><p className="text-sm text-muted-foreground mt-1">Your share of group expenses, connected to your bank.</p></div><div className="flex gap-2"><Button variant="outline" onClick={() => setRulesOpen(true)}><SlidersHorizontal className="h-4 w-4" />Matching rules</Button><Button onClick={() => setImportOpen(true)}><Upload className="h-4 w-4" />Import CSV</Button></div></div>
+    <SplitwiseReview />
     <div className="grid gap-3 sm:grid-cols-3">
       <Card><CardContent className="p-5"><p className="text-xs text-muted-foreground">Your expense share</p><p className="text-2xl font-semibold mt-2"><PrivacyAmount amount={expense / 100} /></p><p className="text-xs text-muted-foreground mt-1">Repayments excluded</p></CardContent></Card>
       <Card><CardContent className="p-5"><p className="text-xs text-muted-foreground">Applied entries</p><p className="text-2xl font-semibold mt-2">{mappings.data?.length ?? 0}</p></CardContent></Card>
@@ -85,7 +86,6 @@ export function SplitwiseView() {
       {!mappings.isPending && !mappings.error && !rows.length && <p className="text-sm text-muted-foreground">No applied entries found.</p>}
       <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-4"><span className="text-xs text-muted-foreground">{rows.length ? `${currentPage*25+1}–${Math.min((currentPage+1)*25,rows.length)} of ${rows.length}` : '0 entries'}</span><div className="flex gap-2"><Button size="sm" variant="outline" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>Previous</Button><Button size="sm" variant="outline" disabled={(currentPage + 1) * 25 >= rows.length} onClick={() => setPage(currentPage + 1)}>Next</Button></div></div>
     </CardContent></Card>
-    <SplitwiseReview />
     <SplitwiseSettlements />
     <Dialog open={importOpen} onOpenChange={setImportOpen}><DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto"><DialogHeader><DialogTitle>Import Splitwise</DialogTitle><DialogDescription>Import bank statements first, then match your group history automatically.</DialogDescription></DialogHeader><SplitwiseImporter showMemberRules={false} onImported={result => { setImportOpen(false); setPage(0); setMessage(`Imported: ${result.matched} bank matches, ${result.paid_by_others} paid-by-other expenses and ${result.transfers} matched payments. ${result.review} expenses need review. Skipped ${result.skipped} unmatched payments and ${result.uninvolved} uninvolved entries.`) }} /></DialogContent></Dialog>
     <Dialog open={rulesOpen} onOpenChange={setRulesOpen}><DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto"><DialogHeader><DialogTitle>Payment matching rules</DialogTitle><DialogDescription>Add a suggested rule in one step, or edit a member’s bank pattern. These rules also appear in Settings.</DialogDescription></DialogHeader><SplitwiseSettlements /></DialogContent></Dialog>

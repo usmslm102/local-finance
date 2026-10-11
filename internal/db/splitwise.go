@@ -348,12 +348,14 @@ func splitwiseCandidates(conn statementConnection, id string, options models.Spl
 	}
 	includeNear := options.IncludeNearMatches && kind == "EXPENSE"
 	order := "CASE WHEN ROUND(t.amount*100)=? THEN 0 ELSE 1 END,ABS(julianday(t.tx_date)-julianday(?)),ABS(ROUND(t.amount*100)-?),t.id"
+	orderArgs := []any{paid, date, paid}
 	extraFilter := ""
 	limit := 50
-	// Review-only suggestions use closest amount, then nearest preceding date.
+	// Review-only suggestions use nearest preceding date, then closest amount.
 	// Larger differences require explicit approval; settlements stay within ₹5.
 	if includeNear {
-		order = "ABS(ROUND(t.amount*100)-?),ABS(julianday(t.tx_date)-julianday(?)),CASE WHEN ROUND(t.amount*100)=? THEN 0 ELSE 1 END,t.id"
+		order = "ABS(julianday(t.tx_date)-julianday(?)),ABS(ROUND(t.amount*100)-?),t.id"
+		orderArgs = []any{date, paid}
 		extraFilter = splitwiseReviewBankFilter
 	}
 	search := "%" + strings.TrimSpace(options.Search) + "%"
@@ -366,7 +368,8 @@ func splitwiseCandidates(conn statementConnection, id string, options models.Spl
 		query := strings.ToLower(strings.TrimSpace(options.Search))
 		return kind != "PAYMENT" || query == "" || strings.Contains(strings.ToLower(t.RawNarration), query) || strings.Contains(strings.ToLower(t.CleanedPayee), query)
 	}
-	rows, err := conn.Query(`SELECT t.id,t.tx_date,t.raw_narration,t.amount,t.tx_type,COALESCE(NULLIF(a.nickname,''),a.bank_name),t.is_transfer,COALESCE(t.cleaned_payee,''),t.upi_vpa FROM transactions t JOIN accounts a ON a.id=t.account_id WHERE a.currency='INR' AND t.tx_type=? AND t.amount>0 AND (?=1 OR ABS(ROUND(t.amount*100)-?)<=?) AND t.tx_date BETWEEN date(?,'-15 days') AND ? AND COALESCE(t.transfer_peer_id,'')='' AND t.is_excluded=0 AND (t.raw_narration LIKE ? OR t.cleaned_payee LIKE ?) AND NOT EXISTS(SELECT 1 FROM splitwise_entries s WHERE (s.transaction_id=t.id AND s.id!=?) OR (s.status='IGNORED' AND s.removed_transaction_id=t.id)) `+extraFilter+` ORDER BY `+order, direction, includeNear, paid, splitwiseAmountTolerance, date, date, search, search, id, paid, date, paid)
+	queryArgs := append([]any{direction, includeNear, paid, splitwiseAmountTolerance, date, date, search, search, id}, orderArgs...)
+	rows, err := conn.Query(`SELECT t.id,t.tx_date,t.raw_narration,t.amount,t.tx_type,COALESCE(NULLIF(a.nickname,''),a.bank_name),t.is_transfer,COALESCE(t.cleaned_payee,''),t.upi_vpa FROM transactions t JOIN accounts a ON a.id=t.account_id WHERE a.currency='INR' AND t.tx_type=? AND t.amount>0 AND (?=1 OR ABS(ROUND(t.amount*100)-?)<=?) AND t.tx_date BETWEEN date(?,'-15 days') AND ? AND COALESCE(t.transfer_peer_id,'')='' AND t.is_excluded=0 AND (t.raw_narration LIKE ? OR t.cleaned_payee LIKE ?) AND NOT EXISTS(SELECT 1 FROM splitwise_entries s WHERE (s.transaction_id=t.id AND s.id!=?) OR (s.status='IGNORED' AND s.removed_transaction_id=t.id)) `+extraFilter+` ORDER BY `+order, queryArgs...)
 	if err != nil {
 		return nil, err
 	}
