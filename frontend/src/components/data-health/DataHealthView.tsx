@@ -1,13 +1,19 @@
-import { useState, useId } from 'react'
+import { useId, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowRight, RefreshCw, Check, CircleAlert } from 'lucide-react'
-import { fetchAccounts, fetchStatements, fetchDataHealth } from '@/lib/api'
-import { localDate, monthName, statementCoverage } from '@/lib/planning'
-import { formatDate } from '@/lib/utils'
+import { CircleAlert, Upload } from 'lucide-react'
+import { fetchAccounts, fetchStatements, fetchCreditCardBills } from '@/lib/api'
+import { localDate, monthName } from '@/lib/planning'
+import {
+  calendarSummary,
+  sourceMonth,
+  validMonth,
+  validDate,
+} from '@/lib/import-calendar'
+import { useCalendarPreferences } from '@/hooks/use-calendar-preferences'
 import { usePrivacy } from '@/components/privacy-provider'
 import { Button, buttonVariants } from '@/components/ui/button'
-import { Field, FieldLabel } from '@/components/ui/field'
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import {
   Select,
   SelectContent,
@@ -16,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Badge } from '@/components/ui/badge'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 import {
   Empty,
@@ -25,267 +31,312 @@ import {
   EmptyDescription,
   EmptyContent,
 } from '@/components/ui/empty'
-import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableHead,
-  TableCell,
-} from '@/components/ui/table'
+import { Separator } from '@/components/ui/separator'
 import { PageLoading, QueryError } from '@/components/ui/query-state'
+import { ImportCalendarGrid } from './ImportCalendarGrid'
+import { MonthSourceDetail } from './MonthSourceDetail'
+import { UndatedImportsSection } from './UndatedImportsSection'
 
 export function DataHealthView() {
   const id = useId()
   const today = localDate()
   const { isPrivacyMode } = usePrivacy()
-  const [month, setMonth] = useState(today.slice(0, 7))
+  const [year, setYear] = useState(today.slice(0, 4))
+  const [selectedMonth, setSelectedMonth] = useState(today.slice(5, 7))
+  const [selectedSources, setSelectedSources] = useState<string[]>([])
   const accounts = useQuery({ queryKey: ['accounts'], queryFn: fetchAccounts })
-  const statements = useQuery({ queryKey: ['statements'], queryFn: fetchStatements })
-  const health = useQuery({ queryKey: ['data-health'], queryFn: fetchDataHealth })
+  const statements = useQuery({
+    queryKey: ['statements'],
+    queryFn: fetchStatements,
+  })
+  const bills = useQuery({
+    queryKey: ['credit-card-bills'],
+    queryFn: () => fetchCreditCardBills(),
+  })
   const refresh = () => {
     void accounts.refetch()
     void statements.refetch()
-    void health.refetch()
+    void bills.refetch()
   }
-  if (accounts.isPending || statements.isPending || health.isPending)
-    return <PageLoading label="Checking local data health" />
-  if (accounts.isError || statements.isError || health.isError)
-    return <QueryError message="Unable to inspect data health" onRetry={refresh} />
-  const months = [
+  const {
+    preferences,
+    storageError,
+    assignMonth,
+    updateTracking,
+    toggleNoActivity,
+  } = useCalendarPreferences(
+    accounts.isSuccess ? accounts.data : undefined,
+    statements.isSuccess ? statements.data : undefined,
+  )
+  if (accounts.isPending || statements.isPending || bills.isPending)
+    return <PageLoading label="Loading your import calendar" />
+  if (accounts.isError || statements.isError || bills.isError)
+    return (
+      <QueryError
+        message="Unable to load your import calendar"
+        onRetry={refresh}
+      />
+    )
+  const activeSourceIds = selectedSources.filter((id) =>
+    accounts.data.some((account) => account.id === id),
+  )
+  const sources = accounts.data.filter(
+    (account) =>
+      !activeSourceIds.length || activeSourceIds.includes(account.id),
+  )
+  const sourceName = (account: (typeof accounts.data)[number]) =>
+    isPrivacyMode
+      ? `Source ${accounts.data.findIndex((item) => item.id === account.id) + 1}`
+      : account.nickname ||
+        [
+          account.bank_name,
+          account.card_variant || account.account_type.replaceAll('_', ' '),
+          account.account_number_mask,
+        ]
+          .filter(Boolean)
+          .join(' · ')
+  const years = [
     ...new Set([
-      today.slice(0, 7),
-      ...(statements.data ?? [])
-        .flatMap((s) => [s.start_date?.slice(0, 7), s.end_date?.slice(0, 7)])
-        .filter((m): m is string => !!m && /^\d{4}-\d{2}$/.test(m) && m <= today.slice(0, 7)),
+      today.slice(0, 4),
+      year,
+      ...statements.data.flatMap((statement) =>
+        [statement.start_date, statement.end_date]
+          .filter(validDate)
+          .map((date) => date.slice(0, 4)),
+      ),
+      ...bills.data
+        .map((bill) => bill.statement_date)
+        .filter(validDate)
+        .map((date) => date.slice(0, 4)),
+      ...Object.values(preferences.importMonths).map((month) =>
+        month.slice(0, 4),
+      ),
+      ...Object.values(preferences.sources).flatMap((tracking) =>
+        [tracking.from, tracking.until]
+          .filter(validMonth)
+          .map((month) => month.slice(0, 4)),
+      ),
     ]),
   ]
     .sort()
     .reverse()
-  // Include intermediate months for statements spanning several cycles.
-  for (let n = 1; n <= 12; n++) {
-    const date = new Date(`${today.slice(0, 7)}-01T00:00:00Z`)
-    date.setUTCMonth(date.getUTCMonth() - n)
-    const value = date.toISOString().slice(0, 7)
-    if (!months.includes(value)) months.push(value)
-  }
-  months.sort().reverse()
-  const items = (accounts.data ?? []).map((account) => ({
-    account,
-    coverage: statementCoverage(statements.data ?? [], account.id, month, today),
-    stats: health.data?.find((a) => a.account_id === account.id),
-  }))
-  const complete = items.filter(
-    (item) => item.coverage.covered === item.coverage.total && item.coverage.total > 0
-  ).length
-  const reviewCount = (health.data ?? []).reduce((sum, a) => sum + a.review_count, 0)
-  const stale = items.filter(
-    (item) =>
-      !item.coverage.latest ||
-      Date.parse(`${today}T00:00:00Z`) - Date.parse(`${item.coverage.latest}T00:00:00Z`) >
-        35 * 86400000
-  ).length
+  // Include intervening years even when that entire year's imports are absent.
+  const earliest = Math.min(...years.map(Number))
+  for (let value = Number(today.slice(0, 4)) - 1; value >= earliest; value--)
+    if (!years.includes(String(value))) years.push(String(value))
+  years.sort().reverse()
+  const months = Array.from({ length: 12 }, (_, index) => {
+    const month = `${year}-${String(index + 1).padStart(2, '0')}`
+    const items = sources.map((account) =>
+      sourceMonth(
+        account,
+        statements.data,
+        bills.data,
+        preferences,
+        month,
+        today,
+      ),
+    )
+    return { month, items, summary: calendarSummary(items) }
+  })
+  const selected = months[Number(selectedMonth) - 1]
+  const unknownImports = selected.items.flatMap((item) => item.unknown)
+  const missingMonths = months
+    .filter((month) => month.items.some((item) => item.status === 'missing'))
+    .map((month) => monthName(month.month).split(' ')[0])
+  const needsDates = months.some((month) =>
+    month.items.some((item) => item.status === 'unknown'),
+  )
+  const needsTracking = months.some((month) =>
+    month.items.some((item) => item.status === 'unconfigured'),
+  )
+  const hasPartial = months.some((month) =>
+    month.items.some((item) => item.status === 'partial'),
+  )
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Data health</h1>
-          <p className="mt-1 max-w-prose text-sm text-muted-foreground">
-            See what your imported statements cover before trusting a comparison or a forecast.
+          <p className="mt-1 text-sm text-muted-foreground">
+            Your imports, month by month. See what’s missing and pick a month to
+            inspect.
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={refresh}
-          disabled={accounts.isFetching || statements.isFetching || health.isFetching}
-        >
-          <RefreshCw data-icon="inline-start" />
-          Refresh checks
-        </Button>
+        <Link to="/import" data-slot="button" className={buttonVariants()}>
+          <Upload data-icon="inline-start" />
+          Import statement
+        </Link>
       </div>
-      {items.length === 0 ? (
+      {storageError && (
+        <Alert variant="destructive">
+          <CircleAlert />
+          <AlertTitle>Tracking changes could not be saved</AlertTitle>
+          <AlertDescription>
+            Your changes apply for this visit. Browser storage is unavailable.
+          </AlertDescription>
+        </Alert>
+      )}
+      {!accounts.data.length ? (
         <Empty>
           <EmptyHeader>
-            <EmptyTitle>No accounts to check yet</EmptyTitle>
+            <EmptyTitle>No sources yet</EmptyTitle>
             <EmptyDescription>
-              Import a statement to see date coverage, freshness and transactions that need
-              categorization.
+              Import your first statement to start your calendar.
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
-            <Link to="/import" className={buttonVariants()}>
+            <Link to="/import" data-slot="button" className={buttonVariants()}>
               Import statement
             </Link>
           </EmptyContent>
         </Empty>
       ) : (
         <>
-          <Alert>
-            <CircleAlert />
-            <AlertTitle>
-              {complete === items.length && stale === 0 && reviewCount === 0
-                ? 'No issues in these checks'
-                : 'A few checks before you plan'}
-            </AlertTitle>
-            <AlertDescription>
-              {complete} of {items.length} accounts cover the selected period. {stale} accounts have
-              no valid statement range or a latest end date over 35 days ago. {reviewCount}{' '}
-              transactions need category review across all history.
-            </AlertDescription>
-          </Alert>
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <Field className="w-full sm:w-56">
-              <FieldLabel htmlFor={id}>Coverage month</FieldLabel>
+          <FieldGroup className="gap-4">
+            <Field className="w-36">
+              <FieldLabel htmlFor={`${id}-year`}>Year</FieldLabel>
               <Select
-                value={month}
+                value={year}
                 onValueChange={(value) => {
-                  if (value) setMonth(value)
+                  if (value) setYear(value)
                 }}
               >
-                <SelectTrigger id={id}>
+                <SelectTrigger id={`${id}-year`}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    {months.map((m) => (
-                      <SelectItem key={m} value={m}>
-                        {monthName(m)}
+                    {years.map((value) => (
+                      <SelectItem key={value} value={value}>
+                        {value}
                       </SelectItem>
                     ))}
                   </SelectGroup>
                 </SelectContent>
               </Select>
             </Field>
-            <Link to="/import" className={buttonVariants({ variant: 'outline', size: 'sm' })}>
-              Fill gaps with statements
-              <ArrowRight className="size-4" />
-            </Link>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            {month === today.slice(0, 7)
-              ? `Coverage is checked from the first of this month through ${formatDate(today)}.`
-              : `Coverage is checked across all of ${monthName(month)}.`}{' '}
-            Overlapping statements count once. Future dates do not fill past gaps.
-          </p>
-          <div className="flex flex-col divide-y border-y">
-            {items.map(({ account, coverage, stats }) => (
-              <section key={account.id} className="flex flex-col gap-3 py-5">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <h2 className="font-semibold">
-                      {isPrivacyMode
-                        ? 'Account hidden'
-                        : account.nickname ||
-                          `${account.bank_name} · ${account.account_number_mask}`}
-                    </h2>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {account.account_type.replaceAll('_', ' ')} · latest reported end{' '}
-                      {coverage.latest ? formatDate(coverage.latest) : 'unavailable'}
-                    </p>
-                  </div>
-                  <Badge variant={coverage.covered === coverage.total ? 'secondary' : 'outline'}>
-                    {coverage.covered}/{coverage.total} days covered
-                  </Badge>
-                </div>
-                {coverage.gaps.length ? (
-                  <div className="flex flex-wrap gap-2" aria-label="Missing statement date ranges">
-                    {coverage.gaps.map((gap) => (
-                      <Badge key={gap.start} variant="outline">
-                        {formatDate(gap.start)}
-                        {gap.end !== gap.start ? ` – ${formatDate(gap.end)}` : ''}
-                      </Badge>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="flex items-center gap-2 text-sm text-success">
-                    <Check className="size-4" />
-                    Reported date ranges cover this period.
-                  </p>
-                )}
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-sm text-muted-foreground">
-                    {stats?.transaction_count ?? 0} transactions · latest activity{' '}
-                    {stats?.latest_transaction
-                      ? formatDate(stats.latest_transaction)
-                      : 'unavailable'}
-                    {(stats?.review_count ?? 0) > 0
-                      ? ` · ${stats!.review_count} need category review`
-                      : ''}
-                  </p>
-                  <Link
-                    to="/transactions"
-                    search={{
-                      account: account.id,
-                      ...(stats?.review_count ? { category: 'REVIEW_NEEDED' } : {}),
-                    }}
-                    className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+            <Field>
+              <div className="flex items-center gap-3">
+                <FieldLabel id={`${id}-sources`}>Sources</FieldLabel>
+                {activeSourceIds.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedSources([])}
                   >
-                    {stats?.review_count ? 'Review categories' : 'Open ledger'}
-                    <ArrowRight className="size-4" />
-                  </Link>
-                </div>
-              </section>
-            ))}
-          </div>
-          <section className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold">Finish categorizing your history</h2>
-              <Link
-                to="/transactions"
-                search={{ category: 'REVIEW_NEEDED' }}
-                className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                    Show all sources
+                  </Button>
+                )}
+              </div>
+              <ToggleGroup
+                multiple
+                value={activeSourceIds}
+                onValueChange={setSelectedSources}
+                variant="outline"
+                className="max-w-full flex-wrap"
+                aria-labelledby={`${id}-sources`}
               >
-                Review {reviewCount} transactions
-                <ArrowRight className="size-4" />
-              </Link>
-            </div>
-            <p className="max-w-prose text-sm text-muted-foreground">
-              This includes missing categories and “Others & Uncategorized”, excluding transfers and
-              excluded activity. Edit a transaction or create a rule in the ledger to improve future
-              imports.
+                {accounts.data.map((account) => (
+                  <ToggleGroupItem
+                    key={account.id}
+                    value={account.id}
+                    className="h-auto min-h-9 max-w-full whitespace-normal text-left"
+                  >
+                    {sourceName(account)}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+              <p className="text-xs text-muted-foreground">
+                {activeSourceIds.length
+                  ? `${activeSourceIds.length} selected`
+                  : 'All sources shown. Select one or more to narrow the calendar.'}
+              </p>
+            </Field>
+          </FieldGroup>
+          <div className="flex flex-col gap-3">
+            <p className="text-sm" aria-live="polite">
+              {missingMonths.length
+                ? `Missing imports in ${missingMonths.join(', ')}.`
+                : needsDates
+                  ? 'Assign undated imports to check for missing months.'
+                  : needsTracking
+                    ? 'Set a tracking start for sources without dated imports.'
+                    : hasPartial
+                      ? 'Some months have partial import ranges.'
+                      : `No missing imports found in the tracked months of ${year}.`}
             </p>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Check</TableHead>
-                  <TableHead>Meaning</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow>
-                  <TableCell>Coverage gaps</TableCell>
-                  <TableCell className="whitespace-normal">
-                    Missing reported statement dates, even if transactions exist during those dates.
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell>Stale account</TableCell>
-                  <TableCell className="whitespace-normal">
-                    No valid statement range or the latest range ends more than 35 days before
-                    today.
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell>Category review</TableCell>
-                  <TableCell className="whitespace-normal">
-                    An opportunity to make spending breakdowns more useful; it does not indicate an
-                    incorrect transaction.
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
+            <ImportCalendarGrid
+              months={months}
+              year={year}
+              selectedMonth={selected.month}
+              detailsId={`${id}-details`}
+              onSelectMonth={(month) => setSelectedMonth(month.slice(5, 7))}
+              sourceName={sourceName}
+            />
+            <p className="text-xs text-muted-foreground">
+              Cards count once in their statement month. Bank ranges can span
+              several months. Bank months stay in progress until a full period
+              is imported. Cards with a known billing day get a
+              three-calendar-day grace period.
+            </p>
+          </div>
+          <Separator />
+          <section
+            id={`${id}-details`}
+            className="flex flex-col gap-4"
+            aria-labelledby={`${id}-month-title`}
+          >
+            <div>
+              <h2 id={`${id}-month-title`} className="text-lg font-semibold">
+                {monthName(selected.month)}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {activeSourceIds.length
+                  ? 'Imports for the selected sources.'
+                  : 'All your sources and imports for this month.'}
+              </p>
+            </div>
+            <div className="flex flex-col divide-y">
+              {selected.items.map((item) => (
+                <MonthSourceDetail
+                  key={item.account.id}
+                  item={item}
+                  month={selected.month}
+                  today={today}
+                  name={sourceName(item.account)}
+                  isPrivacyMode={isPrivacyMode}
+                  bills={bills.data}
+                  preferences={preferences}
+                  onAssignMonth={assignMonth}
+                  onTracking={(patch) => updateTracking(item.account.id, patch)}
+                  onToggleNoActivity={() =>
+                    toggleNoActivity(item.account.id, selected.month)
+                  }
+                />
+              ))}
+            </div>
           </section>
+          <UndatedImportsSection
+            statements={unknownImports}
+            today={today}
+            isPrivacyMode={isPrivacyMode}
+            sourceName={(accountId) => {
+              const account = accounts.data.find(
+                (item) => item.id === accountId,
+              )
+              return account ? sourceName(account) : 'Source'
+            }}
+            onAssignMonth={assignMonth}
+          />
+          <p className="max-w-prose text-xs text-muted-foreground">
+            “Imported” records a file for the period; it doesn’t verify every
+            transaction. Some date ranges come from transaction dates. Tracking
+            dates and no-activity confirmations are saved in this browser and
+            are not included in database backups.
+          </p>
         </>
       )}
-      <p className="max-w-prose text-sm text-muted-foreground">
-        These checks use local records only. Statement date coverage does not verify balances,
-        missing rows, or whether you have imported every account.{' '}
-        <Link to="/planning" className="underline underline-offset-4">
-          Open savings forecast
-        </Link>
-        .
-      </p>
     </div>
   )
 }

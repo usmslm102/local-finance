@@ -77,6 +77,14 @@ New bank and credit-card PDF imports retain the original PDF in your local datab
 
 Use **View imported records** to open the Transactions Ledger filtered to one import, with a **Preview PDF** action for comparison. These are the saved records, including your current categories, tags and notes. New imports keep their record links across overlapping re-imports without duplicating transactions. For older imports, only the latest recorded association can be recovered; re-import the source if links are missing. Deleting an import retains the existing behavior of removing transactions currently owned by that import.
 
+### Monthly Import Calendar
+
+Open **Data Health** to see all 12 months of a year. All sources are shown by default; select one or more accounts to narrow the calendar. Choose a month to inspect its imports and open the corresponding records in the Transactions Ledger.
+
+Bank statement ranges can span several months. Credit-card imports count once, using a manually confirmed month first, then the linked bill's statement date, then the recorded range's ending month. Cards with a known billing day get a three-calendar-day grace period before a missing import is flagged. Undated imports show **Check dates** until you assign their month.
+
+Use **Tracking** to set when an account should start or stop being checked, and **Mark no activity** for months with no activity. Tracking dates, no-activity confirmations, and month corrections are saved in the browser, sync between tabs on the same browser origin, and are not included in database backups. **Imported** indicates a recorded file or range; it does not verify that every transaction is present.
+
 ### Investment Statements and Samples
 
 Import portfolio holdings through **Import Statements → Investments**. Attach a supported workbook, review its preview, and import it. The **Investments** page shows dated holdings, provider fields, and original worksheets.
