@@ -10,9 +10,18 @@ import (
 	"local-finance/internal/db"
 	"local-finance/internal/mcp"
 	"local-finance/internal/service"
+	"local-finance/internal/updater"
 )
 
 func SetupRouter(database *db.DB, svc *service.TransactionService, staticFS fs.FS, managers ...*mcp.Manager) *gin.Engine {
+	return setupRouter(database, svc, staticFS, nil, managers...)
+}
+
+func SetupDesktopRouter(database *db.DB, svc *service.TransactionService, staticFS fs.FS, desktop DesktopActions, manager *mcp.Manager) *gin.Engine {
+	return setupRouter(database, svc, staticFS, desktop, manager)
+}
+
+func setupRouter(database *db.DB, svc *service.TransactionService, staticFS fs.FS, desktop DesktopActions, managers ...*mcp.Manager) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.Use(gin.Recovery())
@@ -33,6 +42,9 @@ func SetupRouter(database *db.DB, svc *service.TransactionService, staticFS fs.F
 		manager = managers[0]
 	}
 	h := newHandler(database, svc, manager)
+	if desktop != nil {
+		h.updaterService = updater.NewDesktopService()
+	}
 
 	// API Group
 	apiGroup := r.Group("/api")
@@ -41,6 +53,7 @@ func SetupRouter(database *db.DB, svc *service.TransactionService, staticFS fs.F
 	apiGroup.Use(requestBodyLimits())
 	{
 		apiGroup.GET("/health", h.HealthCheck)
+		registerDesktopRoutes(apiGroup, desktop)
 		apiGroup.GET("/auth/status", h.GetAuthStatus)
 		apiGroup.POST("/auth/setup", h.SetupAuth)
 		apiGroup.POST("/auth/login", h.Login)

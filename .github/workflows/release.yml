@@ -9,7 +9,24 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
+  backend-check:
+    name: Verify portable backend
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: mkdir -p frontend/dist && touch frontend/dist/index.html
+      - run: go test ./... && go vet ./...
+
   frontend:
     name: Build embedded frontend
     runs-on: ubuntu-latest
@@ -35,7 +52,7 @@ jobs:
 
       - name: Build frontend
         working-directory: frontend
-        run: pnpm build
+        run: pnpm lint && pnpm test && pnpm build
 
       - name: Upload embedded frontend
         uses: actions/upload-artifact@v4
@@ -71,8 +88,8 @@ jobs:
         run: |
           mkdir -p dist
           VERSION="${GITHUB_REF_NAME:-v1.0.0}"
-          GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="-s -w -X 'local-finance/internal/updater.CurrentVersion=${{ github.ref_name }}'" -o dist/local-finance-arm64 ./cmd/server/main.go
-          GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags="-s -w -X 'local-finance/internal/updater.CurrentVersion=${{ github.ref_name }}'" -o dist/local-finance-amd64 ./cmd/server/main.go
+          GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="-s -w -X 'local-finance/internal/updater.CurrentVersion=${VERSION}'" -o dist/local-finance-arm64 ./cmd/server/main.go
+          GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags="-s -w -X 'local-finance/internal/updater.CurrentVersion=${VERSION}'" -o dist/local-finance-amd64 ./cmd/server/main.go
           lipo -create -output dist/LocalFinance dist/local-finance-arm64 dist/local-finance-amd64
           chmod +x dist/LocalFinance
           # Sign every architecture after combining the Go executables.
@@ -172,7 +189,7 @@ jobs:
         run: |
           mkdir -p dist
           VERSION="${GITHUB_REF_NAME:-v1.0.0}"
-          go build -trimpath -ldflags="-s -w -X 'local-finance/internal/updater.CurrentVersion=${{ github.ref_name }}'" -o dist/LocalFinance.exe ./cmd/server/main.go
+          go build -trimpath -ldflags="-s -w -X 'local-finance/internal/updater.CurrentVersion=${VERSION}'" -o dist/LocalFinance.exe ./cmd/server/main.go
 
       - name: Upload Windows binary
         uses: actions/upload-artifact@v4
@@ -217,7 +234,7 @@ jobs:
         run: |
           mkdir -p dist
           VERSION="${GITHUB_REF_NAME:-v1.0.0}"
-          go build -trimpath -ldflags="-s -w -X 'local-finance/internal/updater.CurrentVersion=${{ github.ref_name }}'" -o dist/local-finance ./cmd/server/main.go
+          go build -trimpath -ldflags="-s -w -X 'local-finance/internal/updater.CurrentVersion=${VERSION}'" -o dist/local-finance ./cmd/server/main.go
 
       - name: Package Linux tarball
         run: |
@@ -230,10 +247,18 @@ jobs:
           path: dist/${{ matrix.archive }}
           if-no-files-found: error
 
+  desktop:
+    name: Build native desktop installers
+    needs: frontend
+    uses: ./.github/workflows/desktop.yml
+    with:
+      version: ${{ github.ref_name }}
+    secrets: inherit
+
   release:
     name: Publish GitHub release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [macos, windows, linux]
+    needs: [backend-check, macos, windows, linux, desktop]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -257,8 +282,21 @@ jobs:
           GH_REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
         run: |
-          if gh release view "${TAG}" >/dev/null 2>&1; then
+          cat > /tmp/localfinance-release-notes.md <<'NOTES'
+          Native desktop installers include the React interface, Go backend and optional finance MCP in one application. Desktop and portable hosts use the same local ledger; quit one before opening it in the other.
+
+          Choose artifacts containing Desktop for the native window. The portable browser/server downloads remain available. macOS requires 13+; builds are ad-hoc signed and unnotarized by default unless Developer ID credentials are configured. Windows requires WebView2 installed beforehand. Linux desktop packages require Ubuntu 24.04+ / glibc 2.39, GTK4 and WebKitGTK 6.
+
+          Desktop updates use complete installer replacements and preserve the separately stored database. See docs/desktop-release.md in the source for installation, signing status and platform verification instructions. Verify downloads against checksums.txt. For unnotarized macOS builds, follow the Privacy & Security first-launch instructions and targeted quarantine recovery in docs/desktop-release.md.
+          NOTES
+          if release_draft=$(gh release view "${TAG}" --json isDraft --jq '.isDraft' 2>/dev/null); then
+            if [ "$release_draft" != true ]; then
+              echo 'Published releases are immutable; choose a new version tag instead of replacing public artifacts.' >&2
+              exit 1
+            fi
             gh release upload "${TAG}" release-assets/* --clobber
           else
-            gh release create "${TAG}" release-assets/* --generate-notes --verify-tag
+            release_args=(--generate-notes --notes-file /tmp/localfinance-release-notes.md --verify-tag --draft)
+            if [[ "$TAG" == *-* ]]; then release_args+=(--prerelease); fi
+            gh release create "${TAG}" release-assets/* "${release_args[@]}"
           fi

@@ -1,0 +1,197 @@
+name: Desktop builds
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        default: dev
+
+permissions:
+  contents: read
+
+jobs:
+  desktop:
+    name: Desktop ${{ matrix.os }} / ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            arch: universal
+            platform: darwin
+          - os: windows-latest
+            arch: amd64
+            platform: windows
+          - os: windows-latest
+            arch: arm64
+            platform: windows
+          - os: ubuntu-24.04
+            arch: amd64
+            platform: linux
+          - os: ubuntu-24.04-arm
+            arch: arm64
+            platform: linux
+    runs-on: ${{ matrix.os }}
+    env:
+      VERSION: ${{ inputs.version }}
+      GOTOOLCHAIN: auto
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            cmd/desktop/go.sum
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+      - name: Install Linux native dependencies
+        if: matrix.platform == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev
+      - name: Verify desktop module
+        shell: bash
+        working-directory: cmd/desktop
+        run: |
+          go mod verify
+          if [ "${{ matrix.platform }}" = darwin ]; then
+            export MACOSX_DEPLOYMENT_TARGET=13.0
+            export CGO_CFLAGS='-O2 -g -mmacosx-version-min=13.0'
+            export CGO_CXXFLAGS='-O2 -g -mmacosx-version-min=13.0'
+            go test -tags production -ldflags '-extldflags=-mmacosx-version-min=13.0' ./...
+          else
+            go test -tags production ./...
+          fi
+          go vet -tags production ./...
+      - name: Check reachable desktop Go vulnerabilities
+        shell: bash
+        working-directory: cmd/desktop
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 -tags production ./...
+      - name: Build macOS Universal desktop
+        if: matrix.platform == 'darwin'
+        shell: bash
+        run: |
+          GOARCH=arm64 DESKTOP_OUTPUT=../../dist/desktop/arm64 sh cmd/desktop/build.sh
+          GOARCH=amd64 DESKTOP_OUTPUT=../../dist/desktop/amd64 sh cmd/desktop/build.sh
+          lipo -create -output dist/desktop/local-finance-desktop dist/desktop/arm64 dist/desktop/amd64
+          lipo dist/desktop/local-finance-desktop -verify_arch arm64 x86_64
+          rm dist/desktop/arm64 dist/desktop/amd64
+      - name: Import optional Developer ID certificate
+        if: matrix.platform == 'darwin'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          if [ -z "$APPLE_CERTIFICATE_P12" ]; then
+            echo 'No Developer ID configured: using ad-hoc signing; package will not be notarized.'
+            exit 0
+          fi
+          keychain="$RUNNER_TEMP/localfinance-signing.keychain-db"
+          keychain_password=$(openssl rand -hex 32)
+          echo "::add-mask::$keychain_password"
+          printf '%s' "$APPLE_CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$RUNNER_TEMP/certificate.p12" -k "$keychain" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain"
+          security list-keychains -d user -s "$keychain" login.keychain-db
+          rm "$RUNNER_TEMP/certificate.p12"
+      - name: Package macOS app and DMG
+        if: matrix.platform == 'darwin'
+        shell: bash
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          PACKAGE_DMG: '1'
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          sh cmd/desktop/package-macos.sh
+          dist/desktop/LocalFinance.app/Contents/MacOS/LocalFinance -h
+          plutil -lint dist/desktop/LocalFinance.app/Contents/Info.plist
+      - name: Notarize when configured
+        if: matrix.platform == 'darwin'
+        shell: bash
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          if [ -z "$APPLE_SIGNING_IDENTITY" ]; then exit 0; fi
+          # An explicitly configured Developer ID release must not silently skip notarization.
+          test -n "$APPLE_ID" && test -n "$APPLE_TEAM_ID" && test -n "$APPLE_APP_PASSWORD"
+          xcrun notarytool submit dist/desktop/LocalFinance-Desktop.dmg --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
+          xcrun stapler staple dist/desktop/LocalFinance-Desktop.dmg
+          xcrun stapler validate dist/desktop/LocalFinance-Desktop.dmg
+      - name: Build Linux desktop and packages
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          sh cmd/desktop/build.sh
+          sh packaging/desktop/package-linux.sh
+          dist/desktop/local-finance-desktop -h
+          dpkg-deb --info dist/desktop/*.deb
+          ldd dist/desktop/local-finance-desktop
+          if ldd dist/desktop/local-finance-desktop | grep -q 'not found'; then exit 1; fi
+      - name: Build Windows desktop
+        if: matrix.platform == 'windows'
+        shell: bash
+        env:
+          GOARCH: ${{ matrix.arch }}
+        run: sh cmd/desktop/build.sh
+      - name: Sign Windows executable when configured
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE_PFX: ${{ secrets.WINDOWS_CERTIFICATE_PFX }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          if (!$env:WINDOWS_CERTIFICATE_PFX) { Write-Host 'No certificate configured: Windows installer will be unsigned.'; exit 0 }
+          $certificate = Join-Path $env:RUNNER_TEMP 'localfinance.pfx'
+          [IO.File]::WriteAllBytes($certificate, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE_PFX))
+          $signtool = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe' | Sort-Object FullName -Descending | Select-Object -First 1
+          & $signtool.FullName sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /f $certificate /p $env:WINDOWS_CERTIFICATE_PASSWORD dist/desktop/local-finance-desktop.exe
+          if ($LASTEXITCODE -ne 0) { throw 'Windows executable signing failed' }
+      - name: Build Windows installer
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $version = $env:VERSION -replace '^v', ''
+          $version = ($version -split '-', 2)[0]
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { $version = '0.0.0' }
+          & 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' "/DAppVersion=$version" '/DTargetArch=${{ matrix.arch }}' packaging/desktop/windows.iss
+          if ($LASTEXITCODE -ne 0) { throw 'Installer build failed' }
+      - name: Sign Windows installer when configured
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE_PFX: ${{ secrets.WINDOWS_CERTIFICATE_PFX }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          if (!$env:WINDOWS_CERTIFICATE_PFX) { exit 0 }
+          $signtool = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe' | Sort-Object FullName -Descending | Select-Object -First 1
+          $certificate = Join-Path $env:RUNNER_TEMP 'localfinance.pfx'
+          & $signtool.FullName sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /f $certificate /p $env:WINDOWS_CERTIFICATE_PASSWORD "dist/desktop/LocalFinance-Desktop-windows-${{ matrix.arch }}-setup.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Windows installer signing failed' }
+          & $signtool.FullName verify /pa "dist/desktop/LocalFinance-Desktop-windows-${{ matrix.arch }}-setup.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Windows installer signature verification failed' }
+      - name: Remove signing material
+        if: always()
+        shell: bash
+        run: |
+          rm -f "$RUNNER_TEMP/localfinance.pfx" "$RUNNER_TEMP/certificate.p12"
+          if [ "${{ matrix.platform }}" = darwin ] && [ -f "$RUNNER_TEMP/localfinance-signing.keychain-db" ]; then
+            security delete-keychain "$RUNNER_TEMP/localfinance-signing.keychain-db"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-desktop-${{ matrix.platform }}-${{ matrix.arch }}
+          path: |
+            dist/desktop/*.dmg
+            dist/desktop/*-setup.exe
+            dist/desktop/*.deb
+            dist/desktop/*.tar.gz
+          if-no-files-found: error

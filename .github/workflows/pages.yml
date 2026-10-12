@@ -6,6 +6,8 @@ on:
     paths:
       - "docs/**"
       - ".github/workflows/pages.yml"
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -26,12 +28,31 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Verify published desktop downloads
+        id: downloads
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          # Preserve the existing site until the first native release is public.
+          gh api "repos/$GH_REPO/releases/latest" --jq '.assets[].name' > /tmp/localfinance-assets.txt
+          for asset in LocalFinance-Desktop.dmg LocalFinance-Desktop-windows-amd64-setup.exe LocalFinance-Desktop-windows-arm64-setup.exe local-finance-desktop-linux-amd64.deb local-finance-desktop-linux-arm64.deb; do
+            if ! grep -Fxq "$asset" /tmp/localfinance-assets.txt; then
+              echo '::notice::Desktop downloads are not public yet; preserving the existing Pages site.'
+              echo 'ready=false' >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          echo 'ready=true' >> "$GITHUB_OUTPUT"
       - name: Configure Pages
+        if: steps.downloads.outputs.ready == 'true'
         uses: actions/configure-pages@v5
       - name: Upload site
+        if: steps.downloads.outputs.ready == 'true'
         uses: actions/upload-pages-artifact@v3
         with:
           path: docs
       - name: Deploy
+        if: steps.downloads.outputs.ready == 'true'
         id: deployment
         uses: actions/deploy-pages@v4

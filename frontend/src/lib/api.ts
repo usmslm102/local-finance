@@ -107,7 +107,7 @@ export function clearAuthToken() {
   localStorage.removeItem('local_finance_token')
 }
 
-async function fetchWithAuth(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+export async function fetchWithAuth(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const token = getAuthToken()
   const headers = new Headers(init?.headers)
   headers.set('X-LocalFinance-Request', '1')

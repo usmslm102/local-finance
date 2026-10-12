@@ -57,7 +57,7 @@ func IsRestarting() bool {
 	return restarting.Load()
 }
 
-// WaitForRelaunch blocks until the replacement process has been started or a safety timeout expires.
+// WaitForRelaunch blocks until the restart attempt finishes or a safety timeout expires.
 func WaitForRelaunch() {
 	select {
 	case <-relaunchDone:
@@ -126,6 +126,7 @@ type UpdateInfo struct {
 
 // Service handles checking and applying updates.
 type Service struct {
+	desktop    bool
 	client     *http.Client
 	mu         sync.Mutex
 	applyMu    sync.Mutex
@@ -142,6 +143,44 @@ func NewService() *Service {
 		},
 		cacheTTL: 4 * time.Hour,
 	}
+}
+
+// NewDesktopService checks the same releases but offers complete installers only.
+// Replacing a desktop executable in place can break bundle signatures and relaunch flags.
+func NewDesktopService() *Service {
+	s := NewService()
+	s.desktop = true
+	return s
+}
+
+func (s *Service) writable() (bool, string) {
+	if s.desktop {
+		return false, "Download the desktop installer, quit LocalFinance, and install the new version. Your database is preserved."
+	}
+	return CheckExecutableWritable()
+}
+
+// SelectDesktopAsset keeps desktop installers distinct from portable server artifacts.
+func SelectDesktopAsset(assets []GitHubAsset, goos, goarch string) (*GitHubAsset, *GitHubAsset) {
+	name := ""
+	switch goos {
+	case "darwin":
+		name = "LocalFinance-Desktop.dmg"
+	case "windows":
+		name = "LocalFinance-Desktop-windows-" + goarch + "-setup.exe"
+	case "linux":
+		name = "local-finance-desktop-linux-" + goarch + ".deb"
+	}
+	var asset, checksums *GitHubAsset
+	for i := range assets {
+		if name != "" && assets[i].Name == name {
+			asset = &assets[i]
+		}
+		if assets[i].Name == "checksums.txt" {
+			checksums = &assets[i]
+		}
+	}
+	return asset, checksums
 }
 
 // NormalizeVersion ensures a version string starts with 'v' and is valid semver.
@@ -311,7 +350,7 @@ func (s *Service) CheckForUpdate(ctx context.Context, forceRefresh bool, offline
 		if s.cachedInfo != nil {
 			return s.cachedInfo, nil
 		}
-		writable, writeErr := CheckExecutableWritable()
+		writable, writeErr := s.writable()
 		return &UpdateInfo{
 			CurrentVersion:  CurrentVersion,
 			LatestVersion:   "",
@@ -361,7 +400,7 @@ func (s *Service) CheckForUpdate(ctx context.Context, forceRefresh bool, offline
 		return nil, fmt.Errorf("failed to parse GitHub release: %w", err)
 	}
 
-	writable, writeErr := CheckExecutableWritable()
+	writable, writeErr := s.writable()
 	updateAvailable := IsUpdateAvailable(CurrentVersion, release.TagName)
 
 	exePath, err := GetExecutablePath()
@@ -369,6 +408,9 @@ func (s *Service) CheckForUpdate(ctx context.Context, forceRefresh bool, offline
 		return nil, err
 	}
 	matchedAsset, checksumAsset := SelectInstallationAsset(release.Assets, runtime.GOOS, runtime.GOARCH, exePath)
+	if s.desktop {
+		matchedAsset, checksumAsset = SelectDesktopAsset(release.Assets, runtime.GOOS, runtime.GOARCH)
+	}
 
 	info := &UpdateInfo{
 		CurrentVersion:  CurrentVersion,
@@ -529,6 +571,10 @@ type ApplyUpdateResult struct {
 // ApplyUpdate downloads the release asset, backs up the database, and replaces the binary.
 // Serialized via applyMu to prevent concurrent updates from corrupting binary files or scheduling duplicate restarts.
 func (s *Service) ApplyUpdate(ctx context.Context, database *db.DB) (*ApplyUpdateResult, error) {
+	if s.desktop {
+		_, reason := s.writable()
+		return nil, errors.New(reason)
+	}
 	if restarting.Load() {
 		return nil, errors.New("an update is already in progress")
 	}
@@ -652,8 +698,13 @@ func (s *Service) ApplyUpdate(ctx context.Context, database *db.DB) (*ApplyUpdat
 // RestartServer safely shuts down the existing HTTP server (releasing the bound port) and relaunches
 // the updated executable at the pre-resolved path with the exact same port.
 func RestartServer() {
-	restarting.Store(true)
+	if !restarting.CompareAndSwap(false, true) {
+		return
+	}
 	go func() {
+		// Also wake main when shutdown fails; never leave it waiting for a child
+		// that was deliberately not started.
+		defer close(relaunchDone)
 		// 1. Allow HTTP response to be completely written and flushed to the network socket
 		time.Sleep(600 * time.Millisecond)
 
@@ -678,8 +729,12 @@ func RestartServer() {
 		// 2. Shut down parent HTTP server if registered, releasing port listener so child can rebind
 		if hook != nil {
 			shutdownCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-			_ = hook(shutdownCtx)
+			err := hook(shutdownCtx)
 			cancel()
+			if err != nil {
+				log.Printf("Updater restart aborted: unable to release server resources: %v. Relaunch LocalFinance manually.", err)
+				return
+			}
 		}
 
 		// 3. Construct arguments preserving current port, database path, and disable duplicate browser open

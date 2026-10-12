@@ -1,4 +1,4 @@
-.PHONY: all build dev dev-backend dev-frontend serve start run test clean
+.PHONY: all build dev dev-backend dev-frontend serve start run test clean desktop build-desktop desktop-prototype build-desktop-prototype
 
 VERSION ?= $(shell git describe --tags --always 2>/dev/null || echo "v1.2.0")
 LDFLAGS := -X "local-finance/internal/updater.CurrentVersion=$(VERSION)"
@@ -10,7 +10,7 @@ build:
 	@echo "📦 Building React frontend..."
 	@cd frontend && pnpm build
 	@echo "🔨 Building Go binary with embedded frontend..."
-	@go build -ldflags="$(LDFLAGS)" -o local-finance ./cmd/server/main.go
+	@CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o local-finance ./cmd/server/main.go
 	@echo "✅ Single binary build complete: ./local-finance"
 
 # Build frontend and start the Go server in one command
@@ -36,6 +36,25 @@ dev-frontend:
 # Run standalone single binary
 run:
 	@./local-finance -port 8080 -open
+
+# Wails dependencies stay isolated; portable server builds remain CGO-free.
+build-desktop:
+	@cd frontend && pnpm build
+	@VERSION="$(VERSION)" sh cmd/desktop/build.sh
+	@VERSION="$(VERSION)" sh cmd/desktop/package-macos.sh
+
+desktop: build-desktop
+	@if [ "$$(uname -s)" = Darwin ]; then \
+		"./dist/desktop/LocalFinance.app/Contents/MacOS/LocalFinance"; \
+	elif [ -f ./dist/desktop/local-finance-desktop.exe ]; then \
+		./dist/desktop/local-finance-desktop.exe; \
+	else \
+		./dist/desktop/local-finance-desktop; \
+	fi
+
+# Compatibility aliases for the original feasibility command.
+build-desktop-prototype: build-desktop
+desktop-prototype: desktop
 
 clean:
 	@rm -f local-finance server local_finance.db*

@@ -27,6 +27,8 @@ func requestBodyLimits() gin.HandlerFunc {
 		case "/api/statements/upload-batch", "/api/statements/preview-batch":
 			fileLimit = service.MaxStatementFileSize
 			limit, batch = maxBatchBytes+(1<<20), true
+		case "/api/desktop/save":
+			limit = db.MaxRestoreSize
 		case "/api/database/restore":
 			fileLimit = db.MaxRestoreSize
 			limit = fileLimit + (1 << 20)

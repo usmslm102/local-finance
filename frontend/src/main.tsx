@@ -4,6 +4,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider } from '@tanstack/react-router'
 import { router } from './router'
 import './index.css'
+import { installDesktopActions } from './lib/desktop'
+
+void installDesktopActions()
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -12,6 +15,11 @@ const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
     },
   },
+})
+
+// Desktop hosts can request a refresh after focus returns from an external MCP client.
+window.addEventListener('localfinance:refresh', () => {
+  void queryClient.invalidateQueries()
 })
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

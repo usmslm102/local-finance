@@ -69,3 +69,17 @@ jobs:
       - name: Check frontend dependencies
         working-directory: frontend
         run: pnpm audit --audit-level=high
+
+      - name: Upload embedded frontend for desktop builds
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 1
+
+  desktop:
+    name: Verify desktop packages
+    needs: frontend-build
+    uses: ./.github/workflows/desktop.yml
+    with:
+      version: dev

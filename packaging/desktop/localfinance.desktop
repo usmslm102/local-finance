@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=LocalFinance
+Comment=Offline personal finance
+Exec=local-finance-desktop
+Icon=localfinance
+Terminal=false
+Categories=Office;Finance;

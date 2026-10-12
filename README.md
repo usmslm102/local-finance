@@ -11,6 +11,19 @@ Splitwise group CSVs can now be imported automatically from **Splitwise** in the
 > **A privacy-first, 100% offline personal finance intelligence app tailored for the Indian banking & credit card ecosystem.**  
 > Distributed as a **single standalone executable binary** with an embedded React frontend and an embedded pure-Go SQLite database.
 
+### Native desktop app
+
+The Wails v3 desktop app packages the frontend, Go backend and opt-in finance MCP
+in one application. It uses the existing `~/.localfinance/local_finance.db`;
+quit the portable server before opening the same ledger in desktop.
+
+Run `make desktop` to build and launch, or `make build-desktop` to build only.
+Choose `LocalFinance-Desktop.dmg` or the **Desktop** Windows/Linux installer from
+releases for the native window. The portable downloads remain available.
+macOS packages are ad-hoc signed and unnotarized without an Apple Developer
+account. See [desktop setup](cmd/desktop/README.md) and
+[release operations and platform requirements](docs/desktop-release.md).
+
 > [!IMPORTANT]
 > ### ⚖️ Disclaimer & Notice of Liability (Use at Your Own Risk)
 > **LocalFinance is an independent open-source software project distributed under the terms of the [MIT License](LICENSE).**
@@ -177,7 +190,7 @@ graph TD
 You don't need Go or Node.js installed to use LocalFinance. Download the pre-compiled package for your operating system from **[GitHub Releases](https://github.com/usmslm102/local-finance/releases)**.
 
 #### 🍏 macOS (Universal: Apple Silicon M1/M2/M3/M4 & Intel)
-1. Download **`LocalFinance.dmg`** directly from Releases.
+1. Download **`LocalFinance-Desktop.dmg`** directly from Releases.
 2. Open the `.dmg` and drag **LocalFinance** into your **Applications** folder.
 3. Launch **LocalFinance** from Applications or Spotlight.
    - *Note on Gatekeeper*: Because LocalFinance is open-source and distributed without an Apple Developer ID certificate, macOS may show a prompt:
@@ -186,17 +199,15 @@ You don't need Go or Node.js installed to use LocalFinance. Download the pre-com
    - *(CLI Alternative)*: A universal command-line binary archive is also available as `local-finance-darwin-universal.tar.gz`.
 
 #### 🪟 Windows
-1. Download **`LocalFinance.exe`** directly from Releases (no unzipping required).
-2. Double-click `LocalFinance.exe` to launch.
+1. Download **`LocalFinance-Desktop-windows-amd64-setup.exe`** (or the ARM64 installer).
+2. Run the installer, then launch LocalFinance. WebView2 must already be installed.
+   - For the portable browser/server host, use `LocalFinance.exe` instead.
    - If Windows SmartScreen appears (*"Windows protected your PC"*), click **More info** → **Run anyway**.
 
 #### 🐧 Linux
-1. Download `local-finance-linux-amd64.tar.gz` (or `local-finance-linux-arm64.tar.gz`).
-2. Extract and run:
-   ```bash
-   tar -xzf local-finance-linux-amd64.tar.gz
-   ./local-finance
-   ```
+1. On Ubuntu 24.04+, download `local-finance-desktop-linux-amd64.deb` (or ARM64).
+2. Install with `sudo apt install ./local-finance-desktop-linux-amd64.deb`, then open LocalFinance from your applications menu.
+3. For the portable browser/server host, download `local-finance-linux-amd64.tar.gz` (or ARM64), extract it, and run `./local-finance`.
 
 ---
 

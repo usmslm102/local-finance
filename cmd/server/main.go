@@ -10,15 +10,13 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"path/filepath"
+	"os/signal"
 	"runtime"
+	"syscall"
 	"time"
 
 	localfinance "local-finance"
-	"local-finance/internal/api"
-	"local-finance/internal/db"
-	"local-finance/internal/mcp"
-	"local-finance/internal/service"
+	"local-finance/internal/app"
 	"local-finance/internal/updater"
 )
 
@@ -28,35 +26,21 @@ func main() {
 	openBrowserFlag := flag.Bool("open", true, "Auto-open web app in default browser (default: true; use -open=false to disable)")
 	flag.Parse()
 
-	// Default database path in user home directory if not provided
 	finalDBPath := *dbPath
 	if finalDBPath == "" {
-		homeDir, err := os.UserHomeDir()
+		var err error
+		finalDBPath, err = app.DefaultDatabasePath()
 		if err != nil {
-			finalDBPath = "./local_finance.db"
-		} else {
-			appDir := filepath.Join(homeDir, ".localfinance")
-			if err := os.MkdirAll(appDir, 0700); err != nil {
-				log.Fatalf("Failed to create data directory: %v", err)
-			}
-			finalDBPath = filepath.Join(appDir, "local_finance.db")
+			log.Fatal(err)
 		}
 	}
 
 	log.Printf("📁 Database location: %s", finalDBPath)
-	database, err := db.NewDB(finalDBPath)
+	application, err := app.Open(finalDBPath, localfinance.GetStaticFS())
 	if err != nil {
 		log.Fatalf("❌ Failed to initialize database: %v", err)
 	}
-	defer database.Close()
-
-	svc := service.NewTransactionService(database)
-	mcpManager := mcp.NewManager(database)
-	if err := mcpManager.Start(); err != nil {
-		log.Printf("MCP unavailable: %v", err)
-	}
-	defer mcpManager.Close()
-	router := api.SetupRouter(database, svc, localfinance.GetStaticFS(), mcpManager)
+	defer application.Close()
 
 	addr := fmt.Sprintf("127.0.0.1:%d", *port)
 
@@ -79,7 +63,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              actualAddr,
-		Handler:           router,
+		Handler:           application.Handler,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       2 * time.Minute,
 		WriteTimeout:      5 * time.Minute,
@@ -89,8 +73,7 @@ func main() {
 	// Register server details and graceful shutdown hook with updater
 	updater.RegisterServerContext(actualPort, finalDBPath, func(ctx context.Context) error {
 		log.Printf("🛑 Releasing listener and shutting down HTTP server on %s for updater restart...", actualAddr)
-		mcpManager.Close()
-		return srv.Shutdown(ctx)
+		return shutdownForRestart(ctx, srv, application)
 	})
 
 	log.Printf("🚀 Local Finance server listening on %s", url)
@@ -102,6 +85,17 @@ func main() {
 		}()
 	}
 
+	signalCtx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stopSignals()
+	go func() {
+		<-signalCtx.Done()
+		application.StopMCP()
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := srv.Shutdown(ctx); err != nil {
+			_ = srv.Close()
+		}
+	}()
 	if err := srv.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("❌ Server error: %v", err)
 	}
@@ -126,4 +120,16 @@ func openBrowser(url string) {
 	if err != nil {
 		log.Printf("⚠️ Could not open default browser automatically: %v", err)
 	}
+}
+
+// Force-close connections after the grace period before releasing ledger ownership.
+// A replacement must never start while this process still owns the database.
+func shutdownForRestart(ctx context.Context, srv *http.Server, application *app.App) error {
+	application.StopMCP()
+	var closeErr error
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Printf("Graceful updater shutdown failed; closing connections: %v", err)
+		closeErr = srv.Close()
+	}
+	return errors.Join(closeErr, application.Close())
 }

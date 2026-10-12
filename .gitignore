@@ -198,3 +198,6 @@ local_finance.db.bak
 /.impeccable/*
 !/.impeccable/design.json
 !/.impeccable/config.json
+
+# Generated Windows resource objects
+*.syso
