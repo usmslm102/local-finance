@@ -792,8 +792,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                       <p className="text-muted-foreground text-[11px]">
                         {versionInfo?.update_available
                           ? `New version ${versionInfo.latest_version} is available!`
-                          : updateCheckError || versionInfo?.auto_update_error
-                            ? `Check failed: ${updateCheckError || versionInfo?.auto_update_error}`
+                          : updateCheckError
+                            ? `Check failed: ${updateCheckError}`
                             : !autoCheckEnabled && !versionInfo?.checked_at
                               ? 'Automatic checks disabled (offline mode). You can still check manually at any time.'
                               : versionInfo?.checked_at
@@ -803,7 +803,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                     </div>
                     {versionInfo?.update_available ? (
                       <Badge variant="default">{versionInfo.latest_version} Available</Badge>
-                    ) : updateCheckError || versionInfo?.auto_update_error ? (
+                    ) : updateCheckError ? (
                       <Badge variant="destructive">Check Failed</Badge>
                     ) : !autoCheckEnabled && !versionInfo?.checked_at ? (
                       <Badge variant="secondary">Offline Only</Badge>

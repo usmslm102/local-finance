@@ -14,16 +14,17 @@ func (h *Handler) GetSystemVersion(c *gin.Context) {
 	info, err := h.updaterService.CheckForUpdate(c.Request.Context(), refresh, offline)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
-			"current_version":   updater.CurrentVersion,
-			"latest_version":    "",
-			"update_available":  false,
-			"can_auto_update":   false,
-			"auto_update_error": err.Error(),
-			"release_name":      "",
-			"release_notes":     "",
-			"release_url":       "",
-			"published_at":      "",
-			"checked_at":        "",
+			"current_version":    updater.CurrentVersion,
+			"latest_version":     "",
+			"update_available":   false,
+			"can_auto_update":    false,
+			"auto_update_error":  err.Error(), // Retained for older clients.
+			"update_check_error": err.Error(),
+			"release_name":       "",
+			"release_notes":      "",
+			"release_url":        "",
+			"published_at":       "",
+			"checked_at":         "",
 		})
 		return
 	}

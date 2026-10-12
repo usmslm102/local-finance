@@ -865,6 +865,7 @@ export interface SystemVersionInfo {
   update_available: boolean
   can_auto_update: boolean
   auto_update_error?: string
+  update_check_error?: string
   release_name: string
   release_notes: string
   release_url: string

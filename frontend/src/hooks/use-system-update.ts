@@ -66,7 +66,7 @@ export function useSystemUpdate() {
 
   // Query is keyed by the shared reactive preference.
   // When autoCheckEnabled is false, offline is strictly true across the whole app.
-  const { data: versionInfo, refetch } = useQuery<SystemVersionInfo>({
+  const { data: versionInfo, error: queryError, refetch } = useQuery<SystemVersionInfo>({
     queryKey: ['system-version', autoCheckEnabled],
     queryFn: () => fetchSystemVersion(false, !autoCheckEnabled),
     staleTime: 1000 * 60 * 60 * 4, // 4 hours
@@ -84,8 +84,8 @@ export function useSystemUpdate() {
       queryClient.setQueryData(['system-version', autoCheckEnabled], data)
       if (data.update_available) {
         setDialogOpen(true)
-      } else if (data.auto_update_error) {
-        setCheckError(data.auto_update_error)
+      } else if (data.update_check_error) {
+        setCheckError(data.update_check_error)
       }
       return data
     } catch (err: any) {
@@ -102,7 +102,8 @@ export function useSystemUpdate() {
     dialogOpen,
     setDialogOpen,
     isChecking,
-    checkError,
+    // Installation restrictions (auto_update_error) do not mean a check failed.
+    checkError: checkError || versionInfo?.update_check_error || (queryError instanceof Error ? queryError.message : null),
     autoCheckEnabled,
     setAutoCheckEnabled,
     checkNow,
