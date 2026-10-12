@@ -55,7 +55,11 @@ jobs:
         shell: bash
         working-directory: cmd/desktop
         run: |
-          go mod verify
+          # Treat the locally replaced root module as workspace source, not a
+          # downloaded dependency requiring a nonexistent module-cache ziphash.
+          verify_workspace="$RUNNER_TEMP/desktop-verify.work"
+          GOWORK="$verify_workspace" go work init "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/cmd/desktop"
+          GOWORK="$verify_workspace" go mod verify
           if [ "${{ matrix.platform }}" = darwin ]; then
             export MACOSX_DEPLOYMENT_TARGET=13.0
             export CGO_CFLAGS='-O2 -g -mmacosx-version-min=13.0'
