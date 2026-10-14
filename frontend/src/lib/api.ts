@@ -193,7 +193,7 @@ export interface TransactionParams {
   review_needed?: boolean
 }
 
-export async function fetchTransactions(params: TransactionParams = {}): Promise<TransactionListResponse> {
+export async function fetchTransactions(params: TransactionParams = {}, signal?: AbortSignal): Promise<TransactionListResponse> {
   const query = new URLSearchParams()
   if (params.spending_only) query.append('spending_only', 'true')
   if (params.min_amount) query.append('min_amount', params.min_amount)
@@ -209,7 +209,7 @@ export async function fetchTransactions(params: TransactionParams = {}): Promise
   if (params.page) query.append('page', params.page.toString())
   if (params.page_size) query.append('page_size', params.page_size.toString())
 
-  const res = await fetchWithAuth(`${BASE_URL}/transactions?${query.toString()}`)
+  const res = await fetchWithAuth(`${BASE_URL}/transactions?${query.toString()}`, { signal })
   if (!res.ok) throw new Error('Failed to fetch transactions')
   return res.json()
 }
