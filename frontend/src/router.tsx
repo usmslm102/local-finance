@@ -18,6 +18,7 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/s
 import { Separator } from '@/components/ui/separator'
 import { OverviewTimeFrame } from '@/components/dashboard/OverviewTimeFrame'
 import type { OverviewRange } from '@/lib/overview-range'
+import { validSpendingMonth } from '@/lib/spending'
 import { OverviewCard } from '@/components/dashboard/OverviewCard'
 import { SpendingChart } from '@/components/dashboard/SpendingChart'
 import { CashFlowChart } from '@/components/dashboard/CashFlowChart'
@@ -623,7 +624,8 @@ const cashflowRoute = createRoute({
   validateSearch: (search: Record<string, unknown>): CashFlowSearchParams => {
     const periodStr = (search.month as string) || (search.period as string) || undefined
     return {
-      month: periodStr || undefined,
+      month: typeof periodStr === 'string' && (validSpendingMonth(periodStr) || ['ALL', 'LAST_3_MONTHS'].includes(periodStr) || /^FY-\d{4}-\d{2}$/.test(periodStr)) ? periodStr : undefined,
+      node: typeof search.node === 'string' ? search.node : undefined,
     }
   },
   component: () => <CashFlowView />,

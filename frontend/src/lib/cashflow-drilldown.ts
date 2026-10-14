@@ -63,7 +63,10 @@ export function contributingTransactions(node: SankeyNode, transactions: Transac
       !tx.is_transfer &&
       !tx.is_excluded &&
       tx.category_id !== 'cat_transfers' &&
-      (!params.account_id || tx.account_id === params.account_id) &&
+      (!params.account_id ||
+        (params.account_id === 'splitwise'
+          ? tx.account_id === ''
+          : tx.account_id === params.account_id)) &&
       (!params.category_id || tx.category_id === params.category_id) &&
       (!params.tx_type || tx.tx_type === params.tx_type) &&
       (node.type !== 'INCOME_SOURCE' || incomeSource(tx) === node.id)

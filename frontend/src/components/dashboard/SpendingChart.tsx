@@ -6,12 +6,19 @@ import { usePrivacy } from '@/components/privacy-provider'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty'
+import { Button } from '@/components/ui/button'
+import { ArrowRight } from 'lucide-react'
 
-export const SpendingChart: React.FC<{ data: CategorySpend[] }> = ({ data }) => {
+export const SpendingChart: React.FC<{
+  data: CategorySpend[]
+  onCategorySelect?: (id: string) => void
+  selectedCategory?: string
+}> = ({ data, onCategorySelect, selectedCategory }) => {
   const { isPrivacyMode } = usePrivacy()
   const chartData = (data ?? [])
     .filter((item) => item.total_amount > 0)
     .map((item, index) => ({
+      id: item.category_id,
       name: item.category_name,
       value: item.total_amount,
       percentage: item.percentage,
@@ -21,7 +28,11 @@ export const SpendingChart: React.FC<{ data: CategorySpend[] }> = ({ data }) => 
     <Card>
       <CardHeader>
         <CardTitle>Spending by category</CardTitle>
-        <CardDescription>Spending categories across your accounts</CardDescription>
+        <CardDescription>
+          {onCategorySelect
+            ? 'Choose a category to inspect its purchases.'
+            : 'Spending categories across your accounts'}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         {!chartData.length ? (
@@ -50,7 +61,7 @@ export const SpendingChart: React.FC<{ data: CategorySpend[] }> = ({ data }) => 
                   isAnimationActive={false}
                 >
                   {chartData.map((item) => (
-                    <Cell key={item.name} fill={item.color} stroke="var(--card)" strokeWidth={2} />
+                    <Cell key={item.id} fill={item.color} stroke="var(--card)" strokeWidth={2} />
                   ))}
                 </Pie>
                 <ChartTooltip
@@ -74,21 +85,47 @@ export const SpendingChart: React.FC<{ data: CategorySpend[] }> = ({ data }) => 
               className="flex max-h-60 min-w-0 flex-col gap-2 overflow-y-auto"
               aria-label="Spending category breakdown"
             >
-              {chartData.map((item) => (
-                <li key={item.name} className="flex items-start justify-between gap-2 text-xs">
-                  <span className="flex min-w-0 items-start gap-2">
-                    <span
-                      className="mt-1 size-2 shrink-0 rounded-full"
-                      style={{ backgroundColor: item.color }}
-                    />
-                    <span className="break-words">{item.name}</span>
-                  </span>
-                  <span className="flex shrink-0 flex-col items-end tabular-nums">
-                    <span>{formatINR(item.value, isPrivacyMode)}</span>
-                    <span className="text-muted-foreground">{item.percentage.toFixed(0)}%</span>
-                  </span>
-                </li>
-              ))}
+              {chartData.map((item) => {
+                const content = (
+                  <>
+                    <span className="flex min-w-0 items-start gap-2">
+                      <span
+                        className="mt-1 size-2 shrink-0 rounded-full"
+                        style={{ backgroundColor: item.color }}
+                      />
+                      <span className="break-words">{item.name}</span>
+                    </span>
+                    <span className="flex shrink-0 flex-col items-end tabular-nums">
+                      <span>{formatINR(item.value, isPrivacyMode)}</span>
+                      <span className="text-muted-foreground">{item.percentage.toFixed(0)}%</span>
+                    </span>
+                    {onCategorySelect && (
+                      <ArrowRight
+                        className="mt-1 size-3 shrink-0 text-muted-foreground"
+                        aria-hidden="true"
+                      />
+                    )}
+                  </>
+                )
+                return (
+                  <li key={item.id}>
+                    {onCategorySelect ? (
+                      <Button
+                        variant="ghost"
+                        className="h-auto w-full items-start justify-between gap-2 px-2 py-2 text-xs whitespace-normal aria-pressed:bg-secondary"
+                        aria-pressed={selectedCategory === item.id}
+                        onClick={() => onCategorySelect(item.id)}
+                      >
+                        {content}
+                      </Button>
+                    ) : (
+                      <div className="flex items-start justify-between gap-2 text-xs">
+                        {content}
+                      </div>
+                    )}
+                  </li>
+                )
+              })}
             </ul>
           </div>
         )}

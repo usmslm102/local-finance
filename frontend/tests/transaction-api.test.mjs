@@ -35,6 +35,20 @@ test('transaction requests and complete calendar datasets', async (t) => {
     await fetchTransactions({ min_amount: '0', max_amount: '200', account_id: 'account-1', page: 1 })
   })
 
+  await t.test('requests spending evidence with calendar dates and uncategorized scope', async () => {
+    fetch.mock.mockImplementation(async (url) => {
+      const params = new URL(url, 'http://localhost').searchParams
+      assert.equal(params.get('spending_only'), 'true')
+      assert.equal(params.get('category_id'), 'uncat')
+      assert.equal(params.get('start_date'), '2024-02-01')
+      assert.equal(params.get('end_date'), '2024-02-29')
+      assert.equal(params.get('page'), '2')
+      assert.equal(params.get('page_size'), '10')
+      return Response.json({ items: [], total: 0, total_pages: 0, page_size: 10 })
+    })
+    await fetchTransactions({ spending_only: true, category_id: 'uncat', start_date: '2024-02-01', end_date: '2024-02-29', page: 2, page_size: 10 })
+  })
+
   await t.test('retains import scope through every page of a complete dataset', async () => {
     const pages = []
     fetch.mock.mockImplementation(async (url) => {

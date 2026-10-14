@@ -20,10 +20,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { SpendingChart } from '@/components/dashboard/SpendingChart'
+import { CategoryPurchases } from './CategoryPurchases'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { cashFlowCategories, spendingMonthLabel, validSpendingMonth } from '@/lib/spending'
 import { QueryError, PageLoading } from '@/components/ui/query-state'
 import { usePrivacy } from '@/components/privacy-provider'
-import React, { useState, useCallback } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import React, { useState, useCallback, useEffect } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearch, useNavigate } from '@tanstack/react-router'
 import { fetchCashFlowIntelligence, fetchAllTransactions } from '@/lib/api'
 import { SankeyDiagram } from './SankeyDiagram'
@@ -40,14 +45,23 @@ import {
   Calendar,
   Layers,
   RefreshCw,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 
 export const CashFlowView: React.FC = () => {
   const searchParams = (useSearch({ strict: false }) as CashFlowSearchParams) || {}
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { isPrivacyMode } = usePrivacy()
   const money = (amount: number) => (isPrivacyMode ? '₹••••••' : formatINR(amount, isPrivacyMode))
   const selectedPeriod = searchParams.month || searchParams.period || ''
@@ -58,13 +72,11 @@ export const CashFlowView: React.FC = () => {
         to: '/cashflow',
         search: newPeriod ? { month: newPeriod } : {},
         replace: false,
+        resetScroll: false,
       })
     },
     [navigate]
   )
-
-  const [activeNode, setActiveNode] = useState<SankeyNode | null>(null)
-  const [isDrilldownOpen, setIsDrilldownOpen] = useState(false)
 
   // 1. Fetch Cash Flow Intelligence Data
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
@@ -72,7 +84,12 @@ export const CashFlowView: React.FC = () => {
     queryFn: () => fetchCashFlowIntelligence(selectedPeriod || undefined),
   })
 
+  const activeNode = data?.sankey.nodes.find((node) => node.id === searchParams.node) ?? null
+  const isDrilldownOpen = !!activeNode
+  const categories = cashFlowCategories(data?.sankey.nodes ?? [], data?.summary.total_outflow ?? 0)
+  const selectedCategory = categories.find((item) => `cat_${item.category_id}` === activeNode?.id)
   const [nodePage, setNodePage] = useState(1)
+  useEffect(() => { setNodePage(1) }, [activeNode?.id, data?.selected_month])
   const {
     data: nodeTxs,
     isLoading: isNodeTxsLoading,
@@ -82,41 +99,48 @@ export const CashFlowView: React.FC = () => {
     queryKey: ['node-transactions', activeNode?.id, data?.selected_month, data?.available_months],
     queryFn: async () => {
       if (!activeNode || !data || ['SURPLUS', 'DEFICIT'].includes(activeNode.type)) return []
-      const transactions = await fetchAllTransactions({
-        ...cashFlowPeriodDates(data.selected_month, data.available_months),
-        ...cashFlowNodeParams(activeNode),
-      })
+      const dates = cashFlowPeriodDates(data.selected_month, data.available_months)
+      const params = cashFlowNodeParams(activeNode)
+      if (params.account_id === 'splitwise') delete params.account_id
+      const transactions =
+        activeNode.type === 'ACCOUNT'
+          ? (
+              await Promise.all([
+                fetchAllTransactions({ ...dates, ...params, spending_only: true }),
+                fetchAllTransactions({ ...dates, ...params, tx_type: 'CREDIT' }),
+              ])
+            )
+              .flat()
+              .sort((a, b) => b.tx_date.localeCompare(a.tx_date))
+          : await fetchAllTransactions({
+              ...dates,
+              ...params,
+              spending_only: activeNode.type === 'CHANNEL' || undefined,
+            })
       return contributingTransactions(activeNode, transactions)
     },
-    enabled: !!activeNode && isDrilldownOpen,
+    enabled: !!activeNode && isDrilldownOpen && activeNode.type !== 'CATEGORY',
   })
 
   const handleNodeClick = (node: SankeyNode) => {
     setNodePage(1)
-    setActiveNode(node)
-    setIsDrilldownOpen(true)
+    void navigate({
+      to: '/cashflow',
+      search: { month: data?.selected_month || selectedPeriod, node: node.id },
+      resetScroll: false,
+    })
   }
-
   const handleCategoryRowClick = (categoryId: string) => {
-    setNodePage(1)
-    const node = data?.sankey.nodes.find((n) => n.id === `cat_${categoryId}`)
-    if (node) {
-      setActiveNode(node)
-    } else {
-      setActiveNode({
-        id: `cat_${categoryId}`,
-        name:
-          data?.category_comparisons.find((item) => item.category_id === categoryId)
-            ?.category_name || categoryId,
-        type: 'CATEGORY',
-        color_hex: '#3B82F6',
-        total_value: 0,
-        layer: 3,
-      })
-    }
-    setIsDrilldownOpen(true)
+    const node = data?.sankey.nodes.find((item) => item.id === `cat_${categoryId}`)
+    if (node) handleNodeClick(node)
   }
-
+  const closeDrilldown = () => {
+    void navigate({
+      to: '/cashflow',
+      search: { month: data?.selected_month || selectedPeriod },
+      resetScroll: false,
+    })
+  }
   if (isLoading) return <PageLoading label="Loading cash flow" />
   if (isError) return <QueryError message="Unable to load cash flow" onRetry={refetch} />
 
@@ -145,6 +169,23 @@ export const CashFlowView: React.FC = () => {
     .sort()
     .reverse()
   const previousMonth = data?.previous_month || ''
+  const isMonthly = validSpendingMonth(currentSelectedMonth)
+  const monthIndex = availableMonths.indexOf(currentSelectedMonth)
+  const purchaseCount = categories.reduce((sum, category) => sum + category.tx_count, 0)
+  const largestIncrease = isMonthly
+    ? [...(data?.category_comparisons ?? [])]
+        .filter((item) => item.delta_amount > 0)
+        .sort((a, b) => b.delta_amount - a.delta_amount)[0]
+    : undefined
+  const now = new Date()
+  const latestMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  const periodLabel = isMonthly
+    ? spendingMonthLabel(currentSelectedMonth)
+    : currentSelectedMonth === 'ALL'
+      ? 'All time'
+      : currentSelectedMonth === 'LAST_3_MONTHS'
+        ? 'Latest 3 recorded months'
+        : currentSelectedMonth
 
   return (
     <div className="flex flex-col gap-8">
@@ -161,7 +202,25 @@ export const CashFlowView: React.FC = () => {
         </div>
 
         {/* Period Selector Bar */}
-        <div className="flex items-center gap-2 bg-card/60 border rounded-lg p-1 shadow-xs">
+        <div className="flex flex-wrap items-center gap-2 bg-card/60 border rounded-lg p-1 shadow-xs">
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label="Previous recorded month"
+            disabled={monthIndex < 0 || monthIndex + 1 >= availableMonths.length}
+            onClick={() => handlePeriodChange(availableMonths[monthIndex + 1])}
+          >
+            <ChevronLeft />
+          </Button>
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label="Next recorded month"
+            disabled={monthIndex <= 0}
+            onClick={() => handlePeriodChange(availableMonths[monthIndex - 1])}
+          >
+            <ChevronRight />
+          </Button>
           <Calendar className="size-3.5 text-muted-foreground ml-2" />
           <Select
             value={selectedPeriod || currentSelectedMonth}
@@ -190,7 +249,11 @@ export const CashFlowView: React.FC = () => {
             aria-label="Refresh Data"
             size="sm"
             variant="ghost"
-            onClick={() => refetch()}
+            onClick={() => {
+              void refetch()
+              void queryClient.invalidateQueries({ queryKey: ['transactions', 'spending'] })
+              void queryClient.invalidateQueries({ queryKey: ['node-transactions'] })
+            }}
             disabled={isFetching}
             className="size-7 p-0"
             title="Refresh Data"
@@ -206,9 +269,26 @@ export const CashFlowView: React.FC = () => {
         </div>
       </div>
 
-      {(!selectedPeriod || /^\d{4}-\d{2}$/.test(selectedPeriod)) && (
-        <MonthlyReview month={selectedPeriod || undefined} onMonthChange={handlePeriodChange} />
-      )}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <p className="text-sm text-muted-foreground" aria-live="polite">
+          {periodLabel} · {purchaseCount} {purchaseCount === 1 ? 'purchase' : 'purchases'}
+        </p>
+        <div className="space-y-1.5">
+          <Label htmlFor="cashflow-month">Choose month</Label>
+          <Input
+            id="cashflow-month"
+            type="month"
+            min="0002-01"
+            max={latestMonth}
+            className="w-44"
+            value={isMonthly ? currentSelectedMonth : ''}
+            onChange={(event) => {
+              if (validSpendingMonth(event.target.value) && event.target.value <= latestMonth)
+                handlePeriodChange(event.target.value)
+            }}
+          />
+        </div>
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
@@ -265,6 +345,71 @@ export const CashFlowView: React.FC = () => {
         </Card>
       </div>
 
+      <section aria-label="Spending insights" className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Biggest category</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {categories[0] ? (
+                <Button
+                  variant="ghost"
+                  className="h-auto w-full items-start justify-between gap-3 whitespace-normal text-left"
+                  onClick={() => handleCategoryRowClick(categories[0].category_id)}
+                >
+                  <span>
+                    {categories[0].category_name}
+                    <span className="mt-1 block text-xs text-muted-foreground">
+                      {categories[0].percentage.toFixed(1)}% of spending · View purchases
+                    </span>
+                  </span>
+                  <span className="tabular-nums">{money(categories[0].total_amount)}</span>
+                </Button>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No spending recorded for this period.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Average purchase</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-2xl font-semibold tabular-nums">
+                {money(purchaseCount ? summary.total_outflow / purchaseCount : 0)}
+              </p>
+              <CardDescription>
+                Across {purchaseCount} purchases in {categories.length} categories
+              </CardDescription>
+            </CardContent>
+          </Card>
+        </div>
+        {largestIncrease && (
+          <Button
+            variant="outline"
+            className="h-auto w-full justify-start whitespace-normal text-left py-3"
+            onClick={() => handleCategoryRowClick(largestIncrease.category_id)}
+          >
+            <TrendingUp className="shrink-0" /> {largestIncrease.category_name} rose the most:{' '}
+            {money(largestIncrease.delta_amount)} more than {spendingMonthLabel(previousMonth)}.
+            View purchases.
+          </Button>
+        )}
+        <SpendingChart
+          data={categories}
+          selectedCategory={selectedCategory?.category_id}
+          onCategorySelect={handleCategoryRowClick}
+        />
+        <p className="text-xs text-muted-foreground">
+          Personal Splitwise shares are included. Transfers, excluded rows, and credits are omitted
+          from spending; refunds are not deducted. Missing statements can make recorded spending
+          look lower.
+        </p>
+      </section>
+
       <Card>
         <CardHeader>
           <CardTitle>
@@ -296,23 +441,42 @@ export const CashFlowView: React.FC = () => {
       </Card>
 
       {/* MoM Anomaly & Shift Intelligence */}
-      <AnomaliesSection
-        anomalies={data?.anomalies || []}
-        previousMonth={previousMonth}
-        selectedMonth={currentSelectedMonth}
-      />
+      {isMonthly && (
+        <AnomaliesSection
+          anomalies={data?.anomalies || []}
+          previousMonth={previousMonth}
+          selectedMonth={currentSelectedMonth}
+        />
+      )}
 
       {/* Category Shifts & 6-Month Trajectory Table */}
-      <CategoryComparisonTable
-        items={data?.category_comparisons || []}
-        selectedMonth={currentSelectedMonth}
-        previousMonth={previousMonth}
-        totalOutflow={summary.total_outflow}
-        onCategoryClick={handleCategoryRowClick}
-      />
+      {isMonthly && (
+        <CategoryComparisonTable
+          items={data?.category_comparisons || []}
+          selectedMonth={currentSelectedMonth}
+          previousMonth={previousMonth}
+          totalOutflow={summary.total_outflow}
+          onCategoryClick={handleCategoryRowClick}
+        />
+      )}
+      {isMonthly && (
+        <details className="rounded-xl border bg-card p-4">
+          <summary className="cursor-pointer font-medium">
+            Monthly review and statement coverage
+          </summary>
+          <div className="mt-4">
+            <MonthlyReview month={currentSelectedMonth} onMonthChange={handlePeriodChange} />
+          </div>
+        </details>
+      )}
 
       {/* Drilldown Modal for Selected Node */}
-      <Dialog open={isDrilldownOpen} onOpenChange={setIsDrilldownOpen}>
+      <Dialog
+        open={isDrilldownOpen}
+        onOpenChange={(open) => {
+          if (!open) closeDrilldown()
+        }}
+      >
         <DialogContent className="max-w-2xl max-h-[85dvh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between pr-6">
@@ -321,14 +485,33 @@ export const CashFlowView: React.FC = () => {
                   className="size-3 rounded-full"
                   style={{ backgroundColor: activeNode?.color_hex || '#3B82F6' }}
                 />
-                <span>{activeNode?.name} Transactions</span>
+                <span>
+                  {activeNode?.name} {selectedCategory ? 'purchases' : 'transactions'}
+                </span>
               </div>
               <Badge variant="outline">{activeNode && money(activeNode.total_value)}</Badge>
             </DialogTitle>
+            <DialogDescription>
+              {periodLabel}
+              {selectedCategory
+                ? ` · ${selectedCategory.tx_count} purchases · ${selectedCategory.percentage.toFixed(1)}% of spending`
+                : activeNode?.type === 'ACCOUNT'
+                  ? ' · Incoming and outgoing personal flows'
+                  : activeNode?.type === 'CHANNEL'
+                    ? ' · Personal purchases on this card'
+                    : ' · Supporting transactions'}
+            </DialogDescription>
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto mt-3">
-            {activeNode && ['SURPLUS', 'DEFICIT'].includes(activeNode.type) ? (
+            {selectedCategory ? (
+              <CategoryPurchases
+                key={`${currentSelectedMonth}:${selectedCategory.category_id}`}
+                category={selectedCategory}
+                range={cashFlowPeriodDates(currentSelectedMonth, availableMonths)}
+                periodLabel={periodLabel}
+              />
+            ) : activeNode && ['SURPLUS', 'DEFICIT'].includes(activeNode.type) ? (
               <p className="py-6 text-sm text-muted-foreground">
                 {activeNode.type === 'SURPLUS'
                   ? 'Savings are the difference between recorded income and spending.'
@@ -355,7 +538,7 @@ export const CashFlowView: React.FC = () => {
                   >
                     <div className="min-w-0 pr-3">
                       <div className="font-semibold text-foreground truncate">
-                        {tx.cleaned_payee || tx.raw_narration}
+                        {isPrivacyMode ? 'Payee hidden' : tx.cleaned_payee || tx.raw_narration}
                       </div>
                       <div className="text-[11px] text-muted-foreground flex items-center gap-2 mt-0.5">
                         <span>{formatDate(tx.tx_date)}</span>
@@ -365,7 +548,9 @@ export const CashFlowView: React.FC = () => {
                           </Badge>
                         )}
                         {tx.account_name && (
-                          <span className="truncate opacity-75">{tx.account_name}</span>
+                          <span className="truncate opacity-75">
+                            {isPrivacyMode ? 'Account hidden' : tx.account_name}
+                          </span>
                         )}
                       </div>
                     </div>
@@ -386,7 +571,7 @@ export const CashFlowView: React.FC = () => {
               </div>
             )}
           </div>
-          {nodeTxs && nodeTxs.length > 0 && (
+          {!selectedCategory && nodeTxs && nodeTxs.length > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3 text-xs">
               <span>
                 {nodeTxs.length} contributing transactions · Page {nodePage} of{' '}

@@ -178,6 +178,7 @@ export async function fetchCreditCardBills(accountId?: string): Promise<import('
 }
 
 export interface TransactionParams {
+  spending_only?: boolean
   statement_import_id?: string
   min_amount?: string
   max_amount?: string
@@ -194,6 +195,7 @@ export interface TransactionParams {
 
 export async function fetchTransactions(params: TransactionParams = {}): Promise<TransactionListResponse> {
   const query = new URLSearchParams()
+  if (params.spending_only) query.append('spending_only', 'true')
   if (params.min_amount) query.append('min_amount', params.min_amount)
   if (params.statement_import_id) query.append('statement_import_id', params.statement_import_id)
   if (params.max_amount) query.append('max_amount', params.max_amount)

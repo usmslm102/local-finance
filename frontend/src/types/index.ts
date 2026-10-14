@@ -817,6 +817,7 @@ export interface BudgetSearchParams {
 }
 
 export interface CashFlowSearchParams {
+  node?: string
   month?: string
   period?: string
 }

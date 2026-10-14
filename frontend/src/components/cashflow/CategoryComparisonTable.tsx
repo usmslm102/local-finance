@@ -14,6 +14,7 @@ import { formatINR } from '@/lib/utils'
 import { ArrowUpRight, ArrowDownRight, ArrowRight, Search, SlidersHorizontal } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 
 interface CategoryComparisonTableProps {
   items: CategoryComparisonItem[]
@@ -150,12 +151,13 @@ export const CategoryComparisonTable: React.FC<CategoryComparisonTableProps> = (
                 <TableHead className="py-3 px-4 text-right">3-Mo Avg</TableHead>
                 <TableHead className="py-3 px-4 text-center">6-Mo Trend</TableHead>
                 <TableHead className="py-3 px-4">Top Payees</TableHead>
+                <TableHead className="py-3 px-4">Purchases</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody className="divide-y divide-border/60">
               {filteredItems.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-8 text-center">
+                  <TableCell colSpan={8} className="py-8 text-center">
                     No categories match your search.
                   </TableCell>
                 </TableRow>
@@ -222,7 +224,7 @@ export const CategoryComparisonTable: React.FC<CategoryComparisonTableProps> = (
                         ) : (
                           <span className="flex items-center gap-0.5 text-muted-foreground">
                             <ArrowRight className="size-3 shrink-0" />
-                            ₹0 (0%)
+                            {money(0)} (0%)
                           </span>
                         )}
                       </div>
@@ -246,13 +248,17 @@ export const CategoryComparisonTable: React.FC<CategoryComparisonTableProps> = (
                         <div className="flex flex-wrap gap-1">
                           {item.top_payees.map((p, idx) => (
                             <Badge key={idx} variant="secondary" className="px-1.5 py-0">
-                              {p.payee}
+                              {isPrivacyMode ? 'Payee hidden' : p.payee}
                             </Badge>
                           ))}
                         </div>
                       ) : (
                         <span className="text-muted-foreground text-[11px]">-</span>
                       )}
+                    </TableCell>
+                    <TableCell className="py-3 px-4">
+                      <Button variant="outline" size="sm" aria-label={`View ${item.category_name} purchases`}
+                        onClick={(event) => { event.stopPropagation(); onCategoryClick?.(item.category_id) }}>View purchases</Button>
                     </TableCell>
                   </TableRow>
                 )

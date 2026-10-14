@@ -196,3 +196,12 @@ test('all four layers fit a narrow desktop without shrinking node text', () => {
     assert.ok(node.x + node.width <= layout.width)
   }
 })
+
+
+test('the virtual Splitwise account opens the personal shares paid by others', () => {
+  const transactions = [
+    { id: 'shared', account_id: '', tx_type: 'DEBIT', amount: 25 },
+    { id: 'bank', account_id: 'bank', tx_type: 'DEBIT', amount: 100 },
+  ]
+  assert.deepEqual(contributingTransactions(node('acc_splitwise', 1, 25, 'ACCOUNT'), transactions).map((row) => row.id), ['shared'])
+})

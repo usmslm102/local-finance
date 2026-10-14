@@ -98,6 +98,7 @@ func (h *Handler) ListTransactions(c *gin.Context) {
 		AccountID:         c.Query("account_id"),
 		CategoryID:        c.Query("category_id"),
 		ReviewNeeded:      c.Query("review_needed") == "true",
+		SpendingOnly:      c.Query("spending_only") == "true",
 		TxType:            c.Query("tx_type"),
 		Search:            c.Query("search"),
 		StartDate:         c.Query("start_date"),

@@ -502,6 +502,19 @@ Implement `ID()` with a stable, versioned format ID; `Info()` with the provider 
 
 The registry rejects unsupported files and files recognized by multiple adapters. Its metadata drives `/api/investments/formats` and the upload UI, while the shared service handles preview, import, file limits, and deduplication. Adding a provider requires no provider-specific changes to routes, storage, or frontend lists. Add a fictional fixture under `samples/investments/` and tests for detection, values, preview, and repeat imports; never check in personal statements.
 
+## Cash Flow spending drilldowns
+
+Open **Cash Flow & Sankey** to see spending insights alongside the flow diagram.
+Choose a recorded month, use the month picker for older history, or select **All
+time**. Category buttons, the largest-category insight, category comparisons,
+and Sankey category nodes open the same paginated personal purchases. The period
+and selected node stay in the URL for bookmarks and browser history.
+
+Transfers, excluded rows, and credits are omitted from spending. Splitwise uses
+your personal share. Amounts, payees, and account names respect Discreet Mode.
+Month comparisons appear only for individual months; missing statements can make
+recorded spending look lower.
+
 ## Monthly Review
 
 Overview now includes a compact review of the latest month with imported data. Choose **Understand what changed** to open the detailed review in Cash Flow, or use **Review month** there to inspect another month.
