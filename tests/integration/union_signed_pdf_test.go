@@ -25,6 +25,13 @@ func TestUnionSignedPDFEncryptedPreviewAndIdempotentImport(t *testing.T) {
 		{"01-10-2026", "DEMO001", "Example withdrawal", "100.00(Dr)", "900.00(Cr)"},
 		{"03-10-2026", "DEMO002", "Example deposit", "250.00(Cr)", "1150.00(Cr)"},
 	} {
+		if n == 1 {
+			pdf.AddPage()
+			pdf.Text(416, 20, "Savings Account")
+			for i, label := range []string{"Date", "Transaction Id", "Remarks", "Amount(INR)", "Balance(INR)"} {
+				pdf.Text([]float64{39, 77, 265, 439, 510}[i], 200, label)
+			}
+		}
 		for i, value := range row {
 			pdf.Text([]float64{26, 85, 156, 437, 501}[i], float64(230+n*25), value)
 		}
