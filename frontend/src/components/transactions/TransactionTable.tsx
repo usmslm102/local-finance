@@ -22,7 +22,7 @@ import {
   getCoreRowModel,
   useReactTable,
 } from '@tanstack/react-table'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useSearch, useNavigate } from '@tanstack/react-router'
 import {
   CATEGORY_TRANSFERS_ID,
@@ -171,7 +171,7 @@ function getPaginationItems(current: number, total: number): (number | 'ellipsis
 
 const columnHelper = createColumnHelper<Transaction>()
 
-const PAGE_SIZE_OPTIONS = [25, 50, 100, 250, 500, 1000]
+const PAGE_SIZE_OPTIONS = [25, 50, 100]
 
 export const TransactionTable: React.FC = () => {
   const fieldId = useId()
@@ -179,7 +179,8 @@ export const TransactionTable: React.FC = () => {
   const navigate = useNavigate()
 
   // 1. Primary filter & pagination values derived directly from URL search params
-  const page = searchParams.page && searchParams.page > 0 ? searchParams.page : 1
+  const requestedPage = searchParams.page ?? 1
+  const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1
   const pageSize =
     searchParams.pageSize && PAGE_SIZE_OPTIONS.includes(searchParams.pageSize)
       ? searchParams.pageSize
@@ -414,7 +415,7 @@ export const TransactionTable: React.FC = () => {
     setShowQuickRuleModal(true)
   }
 
-  const { data, isLoading, isFetching, isError, refetch } = useQuery({
+  const { data, isLoading, isFetching, isPlaceholderData, isError, refetch } = useQuery({
     queryKey: [
       'transactions',
       statementImportID,
@@ -429,7 +430,11 @@ export const TransactionTable: React.FC = () => {
       minAmount,
       maxAmount,
     ],
-    queryFn: () =>
+    // Release inactive pages immediately instead of retaining a growing ledger
+    // in the query cache. Keep only the previous visible page while loading.
+    gcTime: 0,
+    placeholderData: keepPreviousData,
+    queryFn: ({ signal }) =>
       fetchTransactions({
         statement_import_id: statementImportID || undefined,
         page,
@@ -443,7 +448,7 @@ export const TransactionTable: React.FC = () => {
         end_date: endDate,
         min_amount: minAmount || undefined,
         max_amount: maxAmount || undefined,
-      }),
+      }, signal),
   })
 
   const handlePageSizeChange = (val: string | null) => {
@@ -456,6 +461,12 @@ export const TransactionTable: React.FC = () => {
   }
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1
+
+  useEffect(() => {
+    if (data && !isPlaceholderData && page > totalPages) {
+      updateFilters({ page: totalPages > 1 ? totalPages : undefined }, true)
+    }
+  }, [data, isPlaceholderData, page, totalPages, updateFilters])
 
   const handleJumpToPage = (e?: React.FormEvent) => {
     if (e) e.preventDefault()
@@ -777,8 +788,8 @@ export const TransactionTable: React.FC = () => {
   ]
 
   const totalCount = data?.total || 0
-  const startItem = totalCount === 0 ? 0 : (page - 1) * pageSize + 1
-  const endItem = Math.min(page * pageSize, totalCount)
+  const startItem = !data?.items.length ? 0 : (data.page - 1) * data.page_size + 1
+  const endItem = !data?.items.length ? 0 : startItem + data.items.length - 1
   const paginationPages = useMemo(() => getPaginationItems(page, totalPages), [page, totalPages])
 
   // Get active account and category objects for filter badges
@@ -811,6 +822,78 @@ export const TransactionTable: React.FC = () => {
       {showSourcePDF && activeStatement && <StatementPDFPreview key={activeStatement.id} statement={activeStatement} onClose={() => setShowSourcePDF(false)} />}
       {statementImportID && statementHistory.isError && <QueryError message="Unable to load import details" onRetry={statementHistory.refetch} />}
       {isError && <QueryError message="Unable to load transactions" onRetry={refetch} />}
+      {/* Top Pagination & Quick Navigation Bar */}
+      <div className="sticky top-14 z-20 flex items-center justify-between gap-3 flex-wrap rounded-lg border bg-background/95 p-3 text-xs backdrop-blur-sm">
+        <div className="text-muted-foreground font-mono flex items-center gap-1.5">
+          <span>Showing</span>
+          <span className="font-semibold text-foreground">
+            {startItem}–{endItem}
+          </span>
+          <span>of</span>
+          <span className="font-semibold text-foreground">{totalCount}</span>
+          <span>transactions</span>
+          {isFetching && (
+            <span
+              className="inline-block size-2 rounded-full bg-primary animate-ping ml-1"
+              title="Updating..."
+            />
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <nav aria-label="Transaction pages" className="flex items-center gap-1">
+            <Button aria-label="First page" variant="outline" size="icon-sm" disabled={isFetching || page <= 1} onClick={() => updateFilters({ page: undefined }, false)}>
+              <ChevronsLeft />
+            </Button>
+            <Button aria-label="Previous page" variant="outline" size="sm" disabled={isFetching || page <= 1} onClick={() => updateFilters({ page: page > 2 ? page - 1 : undefined }, false)}>
+              <ChevronLeft /> Previous
+            </Button>
+            <span aria-live="polite" className="px-2 font-mono">Page {page} of {totalPages}</span>
+            <Button aria-label="Next page" variant="outline" size="sm" disabled={isFetching || page >= totalPages} onClick={() => updateFilters({ page: page + 1 }, false)}>
+              Next <ChevronRight />
+            </Button>
+            <Button aria-label="Last page" variant="outline" size="icon-sm" disabled={isFetching || page >= totalPages} onClick={() => updateFilters({ page: totalPages }, false)}>
+              <ChevronsRight />
+            </Button>
+          </nav>
+          {/* Rows per page selector */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-muted-foreground text-[11px]">Rows:</span>
+            <Select value={String(pageSize)} onValueChange={handlePageSizeChange}>
+              <SelectTrigger aria-label="Transactions per page" className="h-7 w-[95px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="end">
+                <SelectGroup>
+                  {PAGE_SIZE_OPTIONS.map((size) => (
+                    <SelectItem key={size} value={String(size)} className="font-mono text-xs">
+                      {size} / page
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Quick Page Jump Input */}
+          <form onSubmit={handleJumpToPage} className="flex items-center gap-1">
+            <Input
+              aria-label="Jump to transaction page"
+              type="number"
+              min={1}
+              max={totalPages}
+              placeholder={`Page 1–${totalPages}`}
+              value={jumpPageInput}
+              onChange={(e) => setJumpPageInput(e.target.value)}
+              className="h-7 w-24"
+            />
+            <Button type="submit" variant="secondary" size="sm" className="h-7 px-2 cursor-pointer">
+              Go
+            </Button>
+          </form>
+        </div>
+      </div>
+
       {/* Search & Filter Controls Card */}
       <Card className="p-4 flex flex-col gap-3.5">
         {/* Time Window Preset Filter Bar */}
@@ -1288,63 +1371,6 @@ export const TransactionTable: React.FC = () => {
         </Card>
       </div>
 
-      {/* Top Pagination & Quick Navigation Bar */}
-      <div className="flex items-center justify-between gap-3 flex-wrap px-1 text-xs">
-        <div className="text-muted-foreground font-mono flex items-center gap-1.5">
-          <span>Showing</span>
-          <span className="font-semibold text-foreground">
-            {startItem}–{endItem}
-          </span>
-          <span>of</span>
-          <span className="font-semibold text-foreground">{totalCount}</span>
-          <span>transactions</span>
-          {isFetching && (
-            <span
-              className="inline-block size-2 rounded-full bg-primary animate-ping ml-1"
-              title="Updating..."
-            />
-          )}
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Rows per page selector */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-muted-foreground text-[11px]">Rows:</span>
-            <Select value={String(pageSize)} onValueChange={handlePageSizeChange}>
-              <SelectTrigger aria-label="Transactions per page" className="h-7 w-[95px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent align="end">
-                <SelectGroup>
-                  {PAGE_SIZE_OPTIONS.map((size) => (
-                    <SelectItem key={size} value={String(size)} className="font-mono text-xs">
-                      {size} / page
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Quick Page Jump Input */}
-          <form onSubmit={handleJumpToPage} className="flex items-center gap-1">
-            <Input
-              aria-label="Jump to transaction page"
-              type="number"
-              min={1}
-              max={totalPages}
-              placeholder={`Page 1–${totalPages}`}
-              value={jumpPageInput}
-              onChange={(e) => setJumpPageInput(e.target.value)}
-              className="h-7 w-24"
-            />
-            <Button type="submit" variant="secondary" size="sm" className="h-7 px-2 cursor-pointer">
-              Go
-            </Button>
-          </form>
-        </div>
-      </div>
-
       {/* Transaction Table Card */}
       <Card className="overflow-hidden">
         <div className="overflow-x-auto max-h-[70vh]">
@@ -1450,7 +1476,7 @@ export const TransactionTable: React.FC = () => {
               variant="outline"
               size="sm"
               onClick={() => updateFilters({ page: undefined }, false)}
-              disabled={page <= 1}
+              disabled={isFetching || page <= 1}
               className="size-8 p-0 cursor-pointer"
               title="First Page"
             >
@@ -1465,7 +1491,7 @@ export const TransactionTable: React.FC = () => {
               onClick={() =>
                 updateFilters({ page: Math.max(1, page - 1) > 1 ? page - 1 : undefined }, false)
               }
-              disabled={page <= 1}
+              disabled={isFetching || page <= 1}
               className="h-8 gap-1 px-2.5 cursor-pointer"
             >
               <ChevronLeft data-icon="inline-start" />
@@ -1514,7 +1540,7 @@ export const TransactionTable: React.FC = () => {
               variant="outline"
               size="sm"
               onClick={() => updateFilters({ page: Math.min(totalPages, page + 1) }, false)}
-              disabled={page >= totalPages}
+              disabled={isFetching || page >= totalPages}
               className="h-8 gap-1 px-2.5 cursor-pointer"
             >
               <span className="hidden sm:inline">Next</span>
@@ -1527,7 +1553,7 @@ export const TransactionTable: React.FC = () => {
               variant="outline"
               size="sm"
               onClick={() => updateFilters({ page: totalPages }, false)}
-              disabled={page >= totalPages}
+              disabled={isFetching || page >= totalPages}
               className="size-8 p-0 cursor-pointer"
               title={`Last Page (${totalPages})`}
             >

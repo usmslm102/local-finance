@@ -484,7 +484,7 @@ const transactionsRoute = createRoute({
         : undefined
 
     return {
-      page: pageNum && !isNaN(pageNum) && pageNum > 0 ? pageNum : undefined,
+      page: pageNum && Number.isSafeInteger(pageNum) && pageNum > 0 ? pageNum : undefined,
       statement_import_id: typeof search.statement_import_id === 'string' ? search.statement_import_id.trim() || undefined : undefined,
       pageSize: pageSizeNum && !isNaN(pageSizeNum) && pageSizeNum > 0 ? pageSizeNum : undefined,
       search: searchStr?.trim() || undefined,
