@@ -85,6 +85,30 @@ func TestUnionSignedAmountRepeatedHeadersAndWrappedRemarks(t *testing.T) {
 	}
 }
 
+func TestUnionSignedAmountPageBannerBeforeRepeatedHeader(t *testing.T) {
+	rows := syntheticUnionSignedRows()
+	header := rows[4]
+	header.Page = 2
+	rows[6].Page = 2
+	banner := extractor.PositionalRow{Page: 2, Y: 786, Elements: []extractor.PositionalElement{{X: 416, S: "Savings Account"}}}
+	rows = slices.Insert(rows, 6, banner, header)
+	tx, _, err := parseUnionSavingsRows(rows)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tx) != 2 || tx[1].ReferenceNumber != "DEMO002" {
+		t.Fatalf("page banner lost transactions: %+v", tx)
+	}
+}
+
+func TestUnionSignedAmountRejectsPageWithoutTableHeading(t *testing.T) {
+	rows := syntheticUnionSignedRows()
+	rows[6].Page = 2
+	if _, _, err := parseUnionSavingsRows(rows); err == nil {
+		t.Fatal("transaction on a page without a table heading was accepted")
+	}
+}
+
 func TestUnionSignedAmountPDF(t *testing.T) {
 	data := syntheticBaselinePDFWithFontSize(t, syntheticUnionSignedRows(), 4)
 	p, _, _ := DefaultRegistry.Detect("DownloadStatement.pdf", data)
