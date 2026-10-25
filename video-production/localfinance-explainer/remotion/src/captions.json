@@ -1,0 +1,226 @@
+[
+  {
+    "text": "Bank statements. Card bills.",
+    "startMs": 400,
+    "endMs": 2146,
+    "timestampMs": null,
+    "confidence": null,
+    "pageBreakAfter": true
+  },
+  {
+    "text": "So many transactions.",
+    "startMs": 2146,
+    "endMs": 3455,
+    "timestampMs": null,
+    "confidence": null,
+    "pageBreakAfter": true
+  },
+  {
+    "text": "Where does your money actually go?",
+    "startMs": 3455,
+    "endMs": 5575,
+    "timestampMs": null,
+    "confidence": null,
+    "pageBreakAfter": true
+  },
+  {
+    "text": "Meet Local Finance.",
+    "startMs": 6400,
+    "endMs": 7590,
+    "timestampMs": null,
+    "confidence": null,
+    "pageBreakAfter": true
+  },
+  {
+    "text": "A private, offline workspace for your Indian",
+    "startMs": 7590,
+    "endMs": 10346,
+    "timestampMs": null,
+    "confidence": null,
+    "pageBreakAfter": true
+  },
+  {
+    "text": "bank accounts and credit cards.",
+    "startMs": 10346,
+    "endMs": 12288,
+    "timestampMs": null,
+    "confidence": null,
+    "pageBreakAfter": true
+  },
+  {
+    "text": "Start with a supported PDF,",
+    "startMs": 13400,
+    "endMs": 15056,
+    "timestampMs": null,
+    "confidence": null,
+    "pageBreakAfter": true
+  },
+  {
+    "text": "CSV, or Excel statement.",
+    "startMs": 15056,
+    "endMs": 16527,
+    "timestampMs": null,
+    "confidence": null,
+    "pageBreakAfter": true
+  },
+  {
+    "text": "Preview the transactions,",
+    "startMs": 16527,
+    "endMs": 18060,
+    "timestampMs": null,
+    "confidence": null,
+    "pageBreakAfter": true
+  },
+  {
+    "text": "then import. Local Finance reads and organizes",
+    "startMs": 18060,
+    "endMs": 20880,
+    "timestampMs": null,
+    "confidence": null,
+    "pageBreakAfter": true
+  },
+  {
+    "text": "the records on your computer.",
+    "startMs": 20880,
+    "endMs": 22659,
+    "timestampMs": null,
+    "confidence": null,
+    "pageBreakAfter": true
+  },
+  {
+    "text": "Rules help categorize spending.",
+    "startMs": 23400,
+    "endMs": 25472,
+    "timestampMs": null,
+    "confidence": null,
+    "pageBreakAfter": true
+  },
+  {
+    "text": "Add tags and notes.",
+    "startMs": 25472,
+    "endMs": 26742,
+    "timestampMs": null,
+    "confidence": null,
+    "pageBreakAfter": true
+  },
+  {
+    "text": "Reimport the same statement without duplicates.",
+    "startMs": 26742,
+    "endMs": 29883,
+    "timestampMs": null,
+    "confidence": null,
+    "pageBreakAfter": true
+  },
+  {
+    "text": "Your edits stay.",
+    "startMs": 29883,
+    "endMs": 30952,
+    "timestampMs": null,
+    "confidence": null,
+    "pageBreakAfter": true
+  },
+  {
+    "text": "See spending by category,",
+    "startMs": 32400,
+    "endMs": 33917,
+    "timestampMs": null,
+    "confidence": null,
+    "pageBreakAfter": true
+  },
+  {
+    "text": "follow your cash flow,",
+    "startMs": 33917,
+    "endMs": 35253,
+    "timestampMs": null,
+    "confidence": null,
+    "pageBreakAfter": true
+  },
+  {
+    "text": "and compare monthly totals.",
+    "startMs": 35253,
+    "endMs": 36891,
+    "timestampMs": null,
+    "confidence": null,
+    "pageBreakAfter": true
+  },
+  {
+    "text": "Set category budgets to track spending against",
+    "startMs": 36891,
+    "endMs": 39683,
+    "timestampMs": null,
+    "confidence": null,
+    "pageBreakAfter": true
+  },
+  {
+    "text": "the limits you choose.",
+    "startMs": 39683,
+    "endMs": 41019,
+    "timestampMs": null,
+    "confidence": null,
+    "pageBreakAfter": true
+  },
+  {
+    "text": "The app and its database run locally.",
+    "startMs": 43400,
+    "endMs": 45699,
+    "timestampMs": null,
+    "confidence": null,
+    "pageBreakAfter": true
+  },
+  {
+    "text": "Your financial records stay on your machine.",
+    "startMs": 45699,
+    "endMs": 48432,
+    "timestampMs": null,
+    "confidence": null,
+    "pageBreakAfter": true
+  },
+  {
+    "text": "No cloud sync,",
+    "startMs": 48432,
+    "endMs": 49302,
+    "timestampMs": null,
+    "confidence": null,
+    "pageBreakAfter": true
+  },
+  {
+    "text": "no bank connection.",
+    "startMs": 49302,
+    "endMs": 50482,
+    "timestampMs": null,
+    "confidence": null,
+    "pageBreakAfter": true
+  },
+  {
+    "text": "Public release checks are optional.",
+    "startMs": 50482,
+    "endMs": 52656,
+    "timestampMs": null,
+    "confidence": null,
+    "pageBreakAfter": true
+  },
+  {
+    "text": "Import. Review. Understand.",
+    "startMs": 53400,
+    "endMs": 55100,
+    "timestampMs": null,
+    "confidence": null,
+    "pageBreakAfter": true
+  },
+  {
+    "text": "Local Finance. Your money,",
+    "startMs": 55100,
+    "endMs": 56738,
+    "timestampMs": null,
+    "confidence": null,
+    "pageBreakAfter": true
+  },
+  {
+    "text": "made clear.",
+    "startMs": 56738,
+    "endMs": 57430,
+    "timestampMs": null,
+    "confidence": null,
+    "pageBreakAfter": true
+  }
+]

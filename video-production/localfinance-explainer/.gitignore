@@ -1,0 +1,21 @@
+remotion/node_modules/
+remotion/.cache/
+remotion/build/
+remotion/public/*.aiff
+remotion/public/*-raw.wav
+remotion/public/tts-temp.wav
+remotion/public/tempo-input.wav
+renders/preview.mp4
+renders/chunks/
+*.log
+__pycache__/
+
+# Keep the site MP4 canonical; render outputs and local QA artifacts are reproducible.
+renders/*.mp4
+renders/ffprobe.json
+production/previews/final/
+production/previews/preview-*
+production/previews/first-pass-contact-sheet.jpg
+production/previews/spending.png
+remotion/public/*.wav
+models/
