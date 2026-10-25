@@ -1,0 +1,668 @@
+{
+  "schema_version": "1.0",
+  "project_id": "localfinance-explainer",
+  "title": "Your money. Made clear.",
+  "intent": "product-demo",
+  "format": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30,
+    "duration_seconds": 60,
+    "duration_frames": 1800,
+    "platform": "Static website and vertical sharing",
+    "aspect_ratio": "9:16"
+  },
+  "creative": {
+    "audience": "Indian bank and credit card users",
+    "logline": "Scattered statements become a private, understandable ledger.",
+    "viewer_outcome": "Understand the product and statement import-to-insight workflow.",
+    "visual_style": "Private ledger: ink, paper, mint, Inter, restrained editorial motion.",
+    "tone": "Calm and precise",
+    "cta": "Download LocalFinance from the site."
+  },
+  "narration": {
+    "enabled": true,
+    "voice_profile": "Kokoro v1.0 af_heart, local ONNX synthesis, conversational English",
+    "planned_wpm": 155,
+    "voiceover_asset": "voice-mix",
+    "segments": [
+      {
+        "id": "vo-story",
+        "start_frame": 12,
+        "end_frame": 168,
+        "text": "Bank statements. Card bills. So many transactions. Where does your money actually go?",
+        "delivery": "Warm, measured; leave a breath at the end.",
+        "measured_duration_seconds": 5.175
+      },
+      {
+        "id": "vo-introduce",
+        "start_frame": 192,
+        "end_frame": 369,
+        "text": "Meet Local Finance. A private, offline workspace for your Indian bank accounts and credit cards.",
+        "delivery": "Warm, measured; leave a breath at the end.",
+        "measured_duration_seconds": 5.888
+      },
+      {
+        "id": "vo-import",
+        "start_frame": 402,
+        "end_frame": 680,
+        "text": "Start with a supported PDF, CSV, or Excel statement. Preview the transactions, then import. Local Finance reads and organizes the records on your computer.",
+        "delivery": "Warm, measured; leave a breath at the end.",
+        "measured_duration_seconds": 9.259
+      },
+      {
+        "id": "vo-organize",
+        "start_frame": 702,
+        "end_frame": 929,
+        "text": "Rules help categorize spending. Add tags and notes. Reimport the same statement without duplicates. Your edits stay.",
+        "delivery": "Warm, measured; leave a breath at the end.",
+        "measured_duration_seconds": 7.552
+      },
+      {
+        "id": "vo-understand",
+        "start_frame": 972,
+        "end_frame": 1231,
+        "text": "See spending by category, follow your cash flow, and compare monthly totals. Set category budgets to track spending against the limits you choose.",
+        "delivery": "Warm, measured; leave a breath at the end.",
+        "measured_duration_seconds": 8.619
+      },
+      {
+        "id": "vo-local",
+        "start_frame": 1302,
+        "end_frame": 1580,
+        "text": "The app and its database run locally. Your financial records stay on your machine. No cloud sync, no bank connection. Public release checks are optional.",
+        "delivery": "Warm, measured; leave a breath at the end.",
+        "measured_duration_seconds": 9.256
+      },
+      {
+        "id": "vo-close",
+        "start_frame": 1602,
+        "end_frame": 1723,
+        "text": "Import. Review. Understand. Local Finance. Your money, made clear.",
+        "delivery": "Warm, measured; leave a breath at the end.",
+        "measured_duration_seconds": 4.03
+      }
+    ],
+    "pronunciation_glossary": [
+      {
+        "term": "LocalFinance",
+        "guidance": "Local Finance"
+      },
+      {
+        "term": "PDF / CSV",
+        "guidance": "Speak letters individually"
+      }
+    ]
+  },
+  "audio": {
+    "music": [
+      {
+        "id": "bed",
+        "start_frame": 0,
+        "end_frame": 1800,
+        "description": "Original D major pad and sparse 96 BPM arpeggio, fade in/out",
+        "asset_id": "music",
+        "level": "Approx -30 dBFS, below narration"
+      }
+    ],
+    "sfx": [
+      {
+        "id": "ping-story",
+        "start_frame": 0,
+        "end_frame": 18,
+        "description": "Quiet original data/paper tick at chapter transition",
+        "asset_id": "sfx"
+      },
+      {
+        "id": "ping-introduce",
+        "start_frame": 180,
+        "end_frame": 198,
+        "description": "Quiet original data/paper tick at chapter transition",
+        "asset_id": "sfx"
+      },
+      {
+        "id": "ping-import",
+        "start_frame": 390,
+        "end_frame": 408,
+        "description": "Quiet original data/paper tick at chapter transition",
+        "asset_id": "sfx"
+      },
+      {
+        "id": "ping-organize",
+        "start_frame": 690,
+        "end_frame": 708,
+        "description": "Quiet original data/paper tick at chapter transition",
+        "asset_id": "sfx"
+      },
+      {
+        "id": "ping-understand",
+        "start_frame": 960,
+        "end_frame": 978,
+        "description": "Quiet original data/paper tick at chapter transition",
+        "asset_id": "sfx"
+      },
+      {
+        "id": "ping-local",
+        "start_frame": 1290,
+        "end_frame": 1308,
+        "description": "Quiet original data/paper tick at chapter transition",
+        "asset_id": "sfx"
+      },
+      {
+        "id": "ping-close",
+        "start_frame": 1590,
+        "end_frame": 1608,
+        "description": "Quiet original data/paper tick at chapter transition",
+        "asset_id": "sfx"
+      }
+    ]
+  },
+  "scenes": [
+    {
+      "id": "story",
+      "title": "Your money tells a story.",
+      "purpose": "Scattered statement slips converge into one orderly ledger.",
+      "start_frame": 0,
+      "end_frame": 180,
+      "shots": [
+        {
+          "id": "shot-story",
+          "start_frame": 0,
+          "end_frame": 180,
+          "subject": "Scattered statement slips converge into one orderly ledger.",
+          "visual_style": "Original 2D typography and source-faithful illustrative ledger graphics",
+          "composition": "Large upper-third headline, central focal object, bottom caption safe area",
+          "camera": {
+            "movement": "restrained push_in",
+            "start": "Centered, full graphic, scale 1",
+            "end": "Centered, scale 1.025, readable hold"
+          },
+          "on_screen_text": [
+            "Your money",
+            "tells a story."
+          ],
+          "transition_out": "Direct chapter cut; persistent brand and progress line retain continuity",
+          "visual_cues": [
+            {
+              "start_frame": 0,
+              "end_frame": 30,
+              "action": "Headline enters upward with ease-out; focal object appears",
+              "easing": "ease-out",
+              "layer": "title"
+            },
+            {
+              "start_frame": 30,
+              "end_frame": 150,
+              "action": "Scattered statement slips converge into one orderly ledger.; stagger details and then hold",
+              "easing": "ease-out",
+              "layer": "subject"
+            },
+            {
+              "start_frame": 150,
+              "end_frame": 180,
+              "action": "Hold resolved explanatory state; prepare chapter cut",
+              "layer": "subject"
+            }
+          ],
+          "keyframes": [
+            {
+              "frame": 0,
+              "description": "Headline immediately legible; primary graphic begins entry"
+            },
+            {
+              "frame": 90,
+              "description": "Scattered statement slips converge into one orderly ledger."
+            },
+            {
+              "frame": 179,
+              "description": "Resolved state with readable headline and brand"
+            }
+          ],
+          "asset_ids": [
+            "mark",
+            "inter"
+          ],
+          "claim_ids": [
+            "C01"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "introduce",
+      "title": "Meet LocalFinance.",
+      "purpose": "Shield mark resolves into a computer containing an organized financial workspace.",
+      "start_frame": 180,
+      "end_frame": 390,
+      "shots": [
+        {
+          "id": "shot-introduce",
+          "start_frame": 180,
+          "end_frame": 390,
+          "subject": "Shield mark resolves into a computer containing an organized financial workspace.",
+          "visual_style": "Original 2D typography and source-faithful illustrative ledger graphics",
+          "composition": "Large upper-third headline, central focal object, bottom caption safe area",
+          "camera": {
+            "movement": "restrained push_in",
+            "start": "Centered, full graphic, scale 1",
+            "end": "Centered, scale 1.025, readable hold"
+          },
+          "on_screen_text": [
+            "Meet",
+            "LocalFinance.",
+            "Your private money workspace."
+          ],
+          "transition_out": "Direct chapter cut; persistent brand and progress line retain continuity",
+          "visual_cues": [
+            {
+              "start_frame": 180,
+              "end_frame": 210,
+              "action": "Headline enters upward with ease-out; focal object appears",
+              "easing": "ease-out",
+              "layer": "title"
+            },
+            {
+              "start_frame": 210,
+              "end_frame": 360,
+              "action": "Shield mark resolves into a computer containing an organized financial workspace.; stagger details and then hold",
+              "easing": "ease-out",
+              "layer": "subject"
+            },
+            {
+              "start_frame": 360,
+              "end_frame": 390,
+              "action": "Hold resolved explanatory state; prepare chapter cut",
+              "layer": "subject"
+            }
+          ],
+          "keyframes": [
+            {
+              "frame": 180,
+              "description": "Headline immediately legible; primary graphic begins entry"
+            },
+            {
+              "frame": 285,
+              "description": "Shield mark resolves into a computer containing an organized financial workspace."
+            },
+            {
+              "frame": 389,
+              "description": "Resolved state with readable headline and brand"
+            }
+          ],
+          "asset_ids": [
+            "mark",
+            "inter"
+          ],
+          "claim_ids": [
+            "C01",
+            "C02"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "import",
+      "title": "Bring your statements.",
+      "purpose": "Statement file descends into local preview; preview rows turn into imported ledger rows.",
+      "start_frame": 390,
+      "end_frame": 690,
+      "shots": [
+        {
+          "id": "shot-import",
+          "start_frame": 390,
+          "end_frame": 690,
+          "subject": "Statement file descends into local preview; preview rows turn into imported ledger rows.",
+          "visual_style": "Original 2D typography and source-faithful illustrative ledger graphics",
+          "composition": "Large upper-third headline, central focal object, bottom caption safe area",
+          "camera": {
+            "movement": "restrained push_in",
+            "start": "Centered, full graphic, scale 1",
+            "end": "Centered, scale 1.025, readable hold"
+          },
+          "on_screen_text": [
+            "01 / IMPORT",
+            "Statements in.",
+            "Clarity out.",
+            "Preview \u2192 Import \u2192 Local ledger"
+          ],
+          "transition_out": "Direct chapter cut; persistent brand and progress line retain continuity",
+          "visual_cues": [
+            {
+              "start_frame": 390,
+              "end_frame": 420,
+              "action": "Headline enters upward with ease-out; focal object appears",
+              "easing": "ease-out",
+              "layer": "title"
+            },
+            {
+              "start_frame": 420,
+              "end_frame": 660,
+              "action": "Statement file descends into local preview; preview rows turn into imported ledger rows.; stagger details and then hold",
+              "easing": "ease-out",
+              "layer": "subject"
+            },
+            {
+              "start_frame": 660,
+              "end_frame": 690,
+              "action": "Hold resolved explanatory state; prepare chapter cut",
+              "layer": "subject"
+            }
+          ],
+          "keyframes": [
+            {
+              "frame": 390,
+              "description": "Headline immediately legible; primary graphic begins entry"
+            },
+            {
+              "frame": 540,
+              "description": "Statement file descends into local preview; preview rows turn into imported ledger rows."
+            },
+            {
+              "frame": 689,
+              "description": "Resolved state with readable headline and brand"
+            }
+          ],
+          "asset_ids": [
+            "mark",
+            "inter"
+          ],
+          "claim_ids": [
+            "C02",
+            "C03"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "organize",
+      "title": "Make it yours.",
+      "purpose": "Uncategorized fictional merchant row becomes categorized; tags and notes persist through reimport stamp.",
+      "start_frame": 690,
+      "end_frame": 960,
+      "shots": [
+        {
+          "id": "shot-organize",
+          "start_frame": 690,
+          "end_frame": 960,
+          "subject": "Uncategorized fictional merchant row becomes categorized; tags and notes persist through reimport stamp.",
+          "visual_style": "Original 2D typography and source-faithful illustrative ledger graphics",
+          "composition": "Large upper-third headline, central focal object, bottom caption safe area",
+          "camera": {
+            "movement": "restrained push_in",
+            "start": "Centered, full graphic, scale 1",
+            "end": "Centered, scale 1.025, readable hold"
+          },
+          "on_screen_text": [
+            "02 / ORGANIZE",
+            "A ledger that",
+            "stays yours.",
+            "Your edits survive reimport."
+          ],
+          "transition_out": "Direct chapter cut; persistent brand and progress line retain continuity",
+          "visual_cues": [
+            {
+              "start_frame": 690,
+              "end_frame": 720,
+              "action": "Headline enters upward with ease-out; focal object appears",
+              "easing": "ease-out",
+              "layer": "title"
+            },
+            {
+              "start_frame": 720,
+              "end_frame": 930,
+              "action": "Uncategorized fictional merchant row becomes categorized; tags and notes persist through reimport stamp.; stagger details and then hold",
+              "easing": "ease-out",
+              "layer": "subject"
+            },
+            {
+              "start_frame": 930,
+              "end_frame": 960,
+              "action": "Hold resolved explanatory state; prepare chapter cut",
+              "layer": "subject"
+            }
+          ],
+          "keyframes": [
+            {
+              "frame": 690,
+              "description": "Headline immediately legible; primary graphic begins entry"
+            },
+            {
+              "frame": 825,
+              "description": "Uncategorized fictional merchant row becomes categorized; tags and notes persist through reimport stamp."
+            },
+            {
+              "frame": 959,
+              "description": "Resolved state with readable headline and brand"
+            }
+          ],
+          "asset_ids": [
+            "mark",
+            "inter"
+          ],
+          "claim_ids": [
+            "C04",
+            "C05"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "understand",
+      "title": "See the bigger picture.",
+      "purpose": "Fictional income and expense totals resolve into spending bars, followed by a budget indicator.",
+      "start_frame": 960,
+      "end_frame": 1290,
+      "shots": [
+        {
+          "id": "shot-understand",
+          "start_frame": 960,
+          "end_frame": 1290,
+          "subject": "Fictional income and expense totals resolve into spending bars, followed by a budget indicator.",
+          "visual_style": "Original 2D typography and source-faithful illustrative ledger graphics",
+          "composition": "Large upper-third headline, central focal object, bottom caption safe area",
+          "camera": {
+            "movement": "restrained push_in",
+            "start": "Centered, full graphic, scale 1",
+            "end": "Centered, scale 1.025, readable hold"
+          },
+          "on_screen_text": [
+            "03 / UNDERSTAND",
+            "From transactions",
+            "to perspective.",
+            "Spending \u2022 Cash flow \u2022 Budgets"
+          ],
+          "transition_out": "Direct chapter cut; persistent brand and progress line retain continuity",
+          "visual_cues": [
+            {
+              "start_frame": 960,
+              "end_frame": 990,
+              "action": "Headline enters upward with ease-out; focal object appears",
+              "easing": "ease-out",
+              "layer": "title"
+            },
+            {
+              "start_frame": 990,
+              "end_frame": 1260,
+              "action": "Fictional income and expense totals resolve into spending bars, followed by a budget indicator.; stagger details and then hold",
+              "easing": "ease-out",
+              "layer": "subject"
+            },
+            {
+              "start_frame": 1260,
+              "end_frame": 1290,
+              "action": "Hold resolved explanatory state; prepare chapter cut",
+              "layer": "subject"
+            }
+          ],
+          "keyframes": [
+            {
+              "frame": 960,
+              "description": "Headline immediately legible; primary graphic begins entry"
+            },
+            {
+              "frame": 1125,
+              "description": "Fictional income and expense totals resolve into spending bars, followed by a budget indicator."
+            },
+            {
+              "frame": 1289,
+              "description": "Resolved state with readable headline and brand"
+            }
+          ],
+          "asset_ids": [
+            "mark",
+            "inter"
+          ],
+          "claim_ids": [
+            "C06"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "local",
+      "title": "On your machine.",
+      "purpose": "Computer encloses app, Go engine, and SQLite ledger; boundary stays closed around records.",
+      "start_frame": 1290,
+      "end_frame": 1590,
+      "shots": [
+        {
+          "id": "shot-local",
+          "start_frame": 1290,
+          "end_frame": 1590,
+          "subject": "Computer encloses app, Go engine, and SQLite ledger; boundary stays closed around records.",
+          "visual_style": "Original 2D typography and source-faithful illustrative ledger graphics",
+          "composition": "Large upper-third headline, central focal object, bottom caption safe area",
+          "camera": {
+            "movement": "restrained push_in",
+            "start": "Centered, full graphic, scale 1",
+            "end": "Centered, scale 1.025, readable hold"
+          },
+          "on_screen_text": [
+            "Built around",
+            "your privacy.",
+            "App \u2192 Local engine \u2192 SQLite",
+            "Optional public release checks"
+          ],
+          "transition_out": "Direct chapter cut; persistent brand and progress line retain continuity",
+          "visual_cues": [
+            {
+              "start_frame": 1290,
+              "end_frame": 1320,
+              "action": "Headline enters upward with ease-out; focal object appears",
+              "easing": "ease-out",
+              "layer": "title"
+            },
+            {
+              "start_frame": 1320,
+              "end_frame": 1560,
+              "action": "Computer encloses app, Go engine, and SQLite ledger; boundary stays closed around records.; stagger details and then hold",
+              "easing": "ease-out",
+              "layer": "subject"
+            },
+            {
+              "start_frame": 1560,
+              "end_frame": 1590,
+              "action": "Hold resolved explanatory state; prepare chapter cut",
+              "layer": "subject"
+            }
+          ],
+          "keyframes": [
+            {
+              "frame": 1290,
+              "description": "Headline immediately legible; primary graphic begins entry"
+            },
+            {
+              "frame": 1440,
+              "description": "Computer encloses app, Go engine, and SQLite ledger; boundary stays closed around records."
+            },
+            {
+              "frame": 1589,
+              "description": "Resolved state with readable headline and brand"
+            }
+          ],
+          "asset_ids": [
+            "mark",
+            "inter"
+          ],
+          "claim_ids": [
+            "C01",
+            "C07"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "close",
+      "title": "Your money. Made clear.",
+      "purpose": "Emerald closing field with shield mark, brand, three steps, and download cue; final hold.",
+      "start_frame": 1590,
+      "end_frame": 1800,
+      "shots": [
+        {
+          "id": "shot-close",
+          "start_frame": 1590,
+          "end_frame": 1800,
+          "subject": "Emerald closing field with shield mark, brand, three steps, and download cue; final hold.",
+          "visual_style": "Original 2D typography and source-faithful illustrative ledger graphics",
+          "composition": "Large upper-third headline, central focal object, bottom caption safe area",
+          "camera": {
+            "movement": "restrained push_in",
+            "start": "Centered, full graphic, scale 1",
+            "end": "Centered, scale 1.025, readable hold"
+          },
+          "on_screen_text": [
+            "LocalFinance",
+            "Your money.",
+            "Made clear.",
+            "Download LocalFinance"
+          ],
+          "transition_out": "Direct chapter cut; persistent brand and progress line retain continuity",
+          "visual_cues": [
+            {
+              "start_frame": 1590,
+              "end_frame": 1620,
+              "action": "Headline enters upward with ease-out; focal object appears",
+              "easing": "ease-out",
+              "layer": "title"
+            },
+            {
+              "start_frame": 1620,
+              "end_frame": 1770,
+              "action": "Emerald closing field with shield mark, brand, three steps, and download cue; final hold.; stagger details and then hold",
+              "easing": "ease-out",
+              "layer": "subject"
+            },
+            {
+              "start_frame": 1770,
+              "end_frame": 1800,
+              "action": "Hold resolved explanatory state; prepare chapter cut",
+              "layer": "subject"
+            }
+          ],
+          "keyframes": [
+            {
+              "frame": 1590,
+              "description": "Headline immediately legible; primary graphic begins entry"
+            },
+            {
+              "frame": 1695,
+              "description": "Emerald closing field with shield mark, brand, three steps, and download cue; final hold."
+            },
+            {
+              "frame": 1799,
+              "description": "Resolved state with readable headline and brand"
+            }
+          ],
+          "asset_ids": [
+            "mark",
+            "inter"
+          ],
+          "claim_ids": [
+            "C01",
+            "C02"
+          ]
+        }
+      ]
+    }
+  ]
+}

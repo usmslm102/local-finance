@@ -1,0 +1,52 @@
+{
+  "assets": [
+    {
+      "id": "mark",
+      "path": "../remotion/public/mark.svg",
+      "type": "svg",
+      "origin": "Repository docs/mark.svg",
+      "license": "Repository MIT",
+      "status": "ready"
+    },
+    {
+      "id": "inter",
+      "path": "../remotion/public/inter-variable.woff2",
+      "type": "font",
+      "origin": "Repository docs/inter-variable.woff2; @fontsource-variable/inter",
+      "license": "SIL Open Font License; license included with font",
+      "status": "ready"
+    },
+    {
+      "id": "voice-mix",
+      "path": "../remotion/public/narration.flac",
+      "type": "audio",
+      "origin": "Local Kokoro v1.0 af_heart via kokoro-onnx 0.4.9",
+      "license": "Kokoro model Apache-2.0; kokoro-onnx MIT; original script",
+      "status": "ready"
+    },
+    {
+      "id": "music",
+      "path": "../remotion/public/music.flac",
+      "type": "audio",
+      "origin": "Local synthesis by scripts/produce-audio.py",
+      "license": "Original procedural synthesis authored for this project; repository MIT",
+      "status": "ready"
+    },
+    {
+      "id": "sfx",
+      "path": "../remotion/public/sfx.flac",
+      "type": "audio",
+      "origin": "Local synthesis by scripts/produce-audio.py",
+      "license": "Original procedural synthesis authored for this project; repository MIT",
+      "status": "ready"
+    },
+    {
+      "id": "mix",
+      "path": "../remotion/public/mix.flac",
+      "type": "audio",
+      "origin": "Local Kokoro narration + original procedural score and pings",
+      "license": "Original production; Kokoro Apache-2.0 synthesized narration",
+      "status": "ready"
+    }
+  ]
+}

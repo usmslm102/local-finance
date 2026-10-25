@@ -8,7 +8,7 @@ Thank you for your interest in contributing to **LocalFinance**! LocalFinance is
 
 ### Prerequisites
 
-* **Go 1.27.2+** (must satisfy the version in `go.mod`)
+* **Go 1.27.3+** (must satisfy the version in `go.mod`)
 * **Node.js 20+**
 * **pnpm** (v10+ recommended)
 

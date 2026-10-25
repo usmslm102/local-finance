@@ -1,0 +1,43 @@
+{
+  "name": "localfinance-explainer",
+  "version": "1.0.0",
+  "description": "Editable source for the LocalFinance 60-second product explainer",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/usmslm102/local-finance.git",
+    "directory": "video-production/localfinance-explainer/remotion"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": "^20.19.0 || ^22.13.0 || >=24"
+  },
+  "private": true,
+  "dependencies": {
+    "@remotion/cli": "4.0.538",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "remotion": "4.0.538",
+    "@remotion/fonts": "4.0.538",
+    "@remotion/media": "4.0.538",
+    "@remotion/captions": "4.0.538"
+  },
+  "devDependencies": {
+    "@remotion/eslint-config-flat": "4.0.538",
+    "@types/react": "19.2.7",
+    "@types/web": "0.0.166",
+    "eslint": "10.12.0",
+    "prettier": "3.8.1",
+    "typescript": "5.9.3"
+  },
+  "scripts": {
+    "studio": "remotion studio src/index.ts --no-open",
+    "typecheck": "tsc",
+    "render": "node ../scripts/render.mjs",
+    "preview": "remotion render src/index.ts LocalFinance ../renders/preview.mp4 --scale=0.5 --crf=24 --concurrency=4 --port=3004",
+    "sync-site": "node ../scripts/sync-site.mjs"
+  },
+  "allowScripts": {
+    "esbuild": false
+  },
+  "packageManager": "pnpm@11.9.0"
+}

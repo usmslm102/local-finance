@@ -352,3 +352,18 @@ footer > a:last-child { justify-self: end; border-bottom: 1px solid var(--ink); 
   .downloads { padding: 80px 20px; }
   .downloads .section-heading { margin-bottom: 32px; }
 }
+
+/* Self-hosted product film: no remote player or automatic media download. */
+.hero-film { position: relative; z-index: 2; width: min(100%, 370px); margin: 0; justify-self: center; scroll-margin-top: 95px; }
+.film-heading { display: flex; justify-content: space-between; gap: 20px; padding-bottom: 16px; color: #c7d9cd; font-size: 13px; font-weight: 500; }
+.film-heading > span:last-child { color: var(--green-light); font-variant-numeric: tabular-nums; }
+.hero-film video { display: block; width: 100%; height: auto; aspect-ratio: 9 / 16; object-fit: contain; background: var(--ink); border: 1px solid #355341; border-radius: 14px; box-shadow: 0 30px 80px #0005; }
+.hero-film figcaption { margin-top: 18px; color: #dce5e0; font-size: 14px; line-height: 1.6; }
+.hero-film figcaption span { display: block; margin-top: 5px; color: #93a79a; font-size: 12px; }
+.film-transcript { margin-top: 16px; color: #aebbb5; font-size: 13px; line-height: 1.7; }
+.film-transcript summary { width: fit-content; padding: 10px 0; cursor: pointer; color: #dce5e0; text-decoration: underline; text-underline-offset: 4px; }
+.film-transcript p { margin: 16px 0; }
+.film-transcript a { text-decoration: underline; text-underline-offset: 4px; color: var(--green-light); }
+@media (min-width: 981px) { .hero:has(.hero-film) { grid-template-columns: minmax(380px, 1.1fr) minmax(300px, .9fr); gap: clamp(40px, 6vw, 100px); padding-top: calc(var(--header-h) + 50px); } }
+@media (max-width: 980px) { .hero-film { width: min(100%, 390px); } }
+@media (max-width: 720px) { .hero-film { width: min(100%, 350px); } .film-transcript summary { min-height: 44px; } }

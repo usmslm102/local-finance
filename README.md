@@ -168,7 +168,7 @@ graph TD
 
 | Layer | Component | Description |
 | :--- | :--- | :--- |
-| **Backend Core** | **Go 1.27.2+** | High-performance, low-memory footprint, single-binary compilation with `CGO_ENABLED=0`. |
+| **Backend Core** | **Go 1.27.3+** | High-performance, low-memory footprint, single-binary compilation with `CGO_ENABLED=0`. |
 | **API Framework** | **Gin (`gin-gonic/gin`)** | High-speed HTTP router, multipart file upload handling, CORS, and embedded static asset serving. |
 | **Database Engine** | **SQLite (`modernc.org/sqlite`)** | Pure Go SQLite engine (zero CGO required), WAL mode enabled with busy timeout pragmas. |
 | **Schema Migrations** | **Goose (`pressly/goose/v3`)** | Embedded SQL migrations executed automatically on startup via `embed.FS`. |
@@ -212,7 +212,7 @@ You don't need Go or Node.js installed to use LocalFinance. Download the pre-com
 ---
 
 ### Prerequisites (For Building from Source)
-- **Go 1.27.2+**
+- **Go 1.27.3+**
 - **Node.js 20+**
 - **pnpm** (install via `npm install -g pnpm` or `brew install pnpm`)
 
