@@ -68,8 +68,10 @@ func ExtractPDFPositionalRows(r io.Reader, password string) ([]PositionalRow, er
 		if p.V.IsNull() {
 			continue
 		}
-		content := p.Content()
-		texts := content.Text
+		texts, err := pdfPageText(p)
+		if err != nil {
+			return nil, err
+		}
 		textElements += len(texts)
 		if textElements > 2_000_000 {
 			return nil, fmt.Errorf("PDF statement contains too much text")
@@ -92,6 +94,7 @@ func ExtractPDFPositionalRows(r io.Reader, password string) ([]PositionalRow, er
 		var curWord strings.Builder
 		var wordStartX float64 = 0
 		var lastCharEndX float64 = 0
+		lastBlock := -1
 
 		flushWord := func() {
 			if curWord.Len() > 0 {
@@ -109,6 +112,11 @@ func ExtractPDFPositionalRows(r io.Reader, password string) ([]PositionalRow, er
 		}
 
 		for _, t := range texts {
+			if lastBlock >= 0 && t.block != lastBlock {
+				flushWord()
+				wordStartX = t.X
+			}
+			lastBlock = t.block
 			if curY == -999 || curY-t.Y > 1.0 || t.Y-curY > 1.0 {
 				flushRow()
 				curY = t.Y

@@ -36,6 +36,9 @@ func (p *ICICICCPDFParser) CanParse(filename string, sample []byte) (float64, st
 	if !isPDF {
 		return 0.0, "", models.AccountTypeCreditCard
 	}
+	if isICICICCPortalStatement(string(sample)) {
+		return 0.95, "ICICI Bank", models.AccountTypeCreditCard
+	}
 
 	confidence := 0.0
 	if strings.Contains(nameUpper, "ICICI") || strings.Contains(content, "ICICI BANK") {
@@ -63,6 +66,9 @@ func (p *ICICICCPDFParser) Parse(r io.Reader, opts ParseOptions) ([]ParsedTransa
 	rows, err := extractor.ExtractPDFPositionalRows(r, opts.Password)
 	if err != nil {
 		return nil, StatementMeta{}, fmt.Errorf("failed to extract PDF rows: %w", err)
+	}
+	if isICICICCPortalStatement(bankHistoryDocumentText(rows)) {
+		return parseICICICCPortalRows(rows)
 	}
 
 	meta := StatementMeta{
