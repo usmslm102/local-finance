@@ -112,6 +112,66 @@ func TestICICIHistoryRightAlignedSmallAmounts(t *testing.T) {
 	}
 }
 
+func TestICICIHistoryNegativeRunningBalances(t *testing.T) {
+	rows := syntheticICICIHistoryHeaderRows()
+	rows[4].Elements[3].S = "1,100.00"
+	rows[4].Elements[4].S = "-100.00"
+	rows[5].Elements[3].S = "100.00"
+	rows[5].Elements[4].S = "0.00"
+	data := syntheticICICIHistoryCellPDF(t, rows)
+	tx, meta, err := (&ICICISavingsPDFParser{}).Parse(bytes.NewReader(data), ParseOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tx) != 2 || tx[0].RunningBalance == nil || *tx[0].RunningBalance != -100 || tx[1].RunningBalance == nil || *tx[1].RunningBalance != 0 || meta.OpeningBalance != 1000 || meta.ClosingBalance != 0 || meta.TotalDebits != 1100 || meta.TotalCredits != 100 {
+		t.Fatalf("signed balances did not reconcile: %+v %+v", tx, meta)
+	}
+}
+
+func TestBankHistorySignedBalanceValidation(t *testing.T) {
+	for _, value := range []string{"-100.00", "-1,00,000.00", "0.00", "100.00 DR"} {
+		row := extractor.PositionalRow{Elements: []extractor.PositionalElement{{X: 500, S: value}}}
+		balance, present, err := balanceInBankColumn(row, 450, 600)
+		if err != nil || !present || value == "-100.00" && balance != -100 {
+			t.Fatalf("valid balance %q rejected: %v %v %v", value, balance, present, err)
+		}
+	}
+	for _, value := range []string{"-100.00 CR", "-100.00 DR", "100.00 200.00", "--100.00"} {
+		row := extractor.PositionalRow{Elements: []extractor.PositionalElement{{X: 500, S: value}}}
+		if _, _, err := balanceInBankColumn(row, 450, 600); err == nil {
+			t.Fatalf("ambiguous balance %q accepted", value)
+		}
+	}
+	rows := syntheticICICIHistoryHeaderRows()
+	rows[4].Elements[3].S = "-100.00"
+	if _, _, err := (&ICICISavingsPDFParser{}).Parse(bytes.NewReader(syntheticICICIHistoryCellPDF(t, rows)), ParseOptions{}); err == nil {
+		t.Fatal("negative withdrawal accepted")
+	}
+	rows = syntheticICICIHistoryHeaderRows()
+	rows[4].Elements[4].S = "-100.00"
+	if _, _, err := (&ICICISavingsPDFParser{}).Parse(bytes.NewReader(syntheticICICIHistoryCellPDF(t, rows)), ParseOptions{}); err == nil {
+		t.Fatal("inconsistent signed balance accepted")
+	}
+}
+
+func TestICICIHistoryNegativeBalanceOnAdjacentBaseline(t *testing.T) {
+	rows := syntheticICICIHistoryHeaderRows()
+	rows[4].Elements[3].S = "1,100.00"
+	balance := rows[4].Elements[4]
+	balance.S = "-100.00"
+	rows[4].Elements = rows[4].Elements[:4]
+	rows = slices.Insert(rows, 5, extractor.PositionalRow{Page: 1, Y: rows[4].Y - 5, Elements: []extractor.PositionalElement{balance}})
+	rows[6].Elements[3].S = "50.00"
+	rows[6].Elements[4].S = "-50.00"
+	tx, meta, err := (&ICICISavingsPDFParser{}).Parse(bytes.NewReader(syntheticICICIHistoryCellPDF(t, rows)), ParseOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tx) != 2 || *tx[0].RunningBalance != -100 || *tx[1].RunningBalance != -50 || meta.OpeningBalance != 1000 || meta.ClosingBalance != -50 {
+		t.Fatalf("adjacent negative balance was not preserved: %+v %+v", tx, meta)
+	}
+}
+
 func syntheticICICIHistoryCellPDF(t *testing.T, rows []extractor.PositionalRow) []byte {
 	t.Helper()
 	document := gofpdf.NewCustom(&gofpdf.InitType{UnitStr: "pt", Size: gofpdf.SizeType{Wd: 800, Ht: 650}})
