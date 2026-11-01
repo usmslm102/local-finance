@@ -15,20 +15,22 @@ the app, append `-CheckOnly` to the update command. The project path is resolved
 from the saved script's location, so the command also works from another directory
 when you supply the full script path.
 
-The script uses the current working tree, including uncommitted parser fixes.
-It finds Go/Node.js/pnpm on PATH, falling back to the bundled tools used in this
-chat. Go must meet the version in `go.mod`. Dependency downloads need internet
+The script builds the current working tree using the same resource generation,
+production tags, version injection and Windows linker flags as `cmd/desktop/build.sh`.
+It finds Go/Node.js/pnpm on PATH or accepts explicit executable paths. The version
+defaults to `git describe --tags --always --dirty`; use `-Version` to override it.
+Go must meet the version in `go.mod`. Dependency downloads need internet
 access; the running finance application remains offline. WebView2 must already
 be installed, as it is for the existing desktop app.
 
 It creates a unique folder under `Documents\LocalFinance-backups` containing an
 untouched `DataBackup`, the previous executable, the new build, and a separate
 `TestData` database copy. Keep these private: they contain your financial data.
-It builds the frontend and Windows desktop host, runs focused ICICI/bank-history/
-PDF tests and `go vet`, then launches the new app against `TestData`.
+It builds the frontend and Windows desktop host, runs the full Go tests and
+`go vet` in both modules, then launches the new app against `TestData`.
 
 **There is one manual verification checkpoint:** inspect your existing data,
-test the two ICICI imports, confirm reimport creates no duplicate transactions,
+test representative statement imports against their source totals, confirm reimport creates no duplicate transactions,
 close the test app, and type `UPDATE` in the terminal. Any other answer cancels
 installation. A test that crashes, a failed build/check, a changed live database,
 or an app still running blocks installation. Cancellation retains the backup and

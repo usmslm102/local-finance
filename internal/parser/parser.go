@@ -27,6 +27,9 @@ type ParseOptions struct {
 }
 
 type StatementMeta struct {
+	// Layouts without a printed identity must not create or guess an account.
+	RequiresAccountSelection bool
+
 	BankName             string
 	AccountType          models.AccountType
 	AccountNumber        string

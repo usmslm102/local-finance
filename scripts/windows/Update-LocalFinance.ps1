@@ -7,6 +7,7 @@ param(
     [string]$BackupRoot = (Join-Path $env:USERPROFILE 'Documents\LocalFinance-backups'),
     [string]$GoExecutable,
     [string]$PnpmExecutable,
+    [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9.+-]*$')][string]$Version,
     [switch]$CheckOnly
 )
 
@@ -45,22 +46,18 @@ $resourceGenerated = $false
 
 try {
     Assert-LocalFinanceStopped
-    # Prefer installed tools, then the tools already used by this Codex project.
-    $runtime = Join-Path $env:USERPROFILE '.cache\codex-runtimes\codex-primary-runtime\dependencies'
-    if (-not (Get-Command node -ErrorAction SilentlyContinue)) { $env:PATH = "$(Join-Path $runtime 'node\bin');$env:PATH" }
+    # Use installed tools or explicitly supplied executable paths.
     if (-not $GoExecutable) {
         $command = Get-Command go -ErrorAction SilentlyContinue
         if ($command) { $GoExecutable = $command.Source }
-        else { $GoExecutable = Join-Path $env:LOCALAPPDATA 'Temp\local-finance-toolchain\go\bin\go.exe' }
     }
     if (-not $PnpmExecutable) {
         $command = Get-Command pnpm.cmd -ErrorAction SilentlyContinue
         if (-not $command) { $command = Get-Command pnpm -ErrorAction SilentlyContinue }
         if ($command) { $PnpmExecutable = $command.Source }
-        else { $PnpmExecutable = Join-Path $runtime 'bin\fallback\pnpm.cmd' }
     }
-    if (-not (Test-Path -LiteralPath $GoExecutable -PathType Leaf)) { throw 'Go is missing. Install the Go version required by go.mod or supply -GoExecutable.' }
-    if (-not (Test-Path -LiteralPath $PnpmExecutable -PathType Leaf)) { throw 'pnpm is missing. Install pnpm or supply -PnpmExecutable.' }
+    if (-not $GoExecutable -or -not (Test-Path -LiteralPath $GoExecutable -PathType Leaf)) { throw 'Go is missing. Install the Go version required by go.mod or supply -GoExecutable.' }
+    if (-not $PnpmExecutable -or -not (Test-Path -LiteralPath $PnpmExecutable -PathType Leaf)) { throw 'pnpm is missing. Install pnpm or supply -PnpmExecutable.' }
     if (-not (Get-Command node -ErrorAction SilentlyContinue)) { throw 'Node.js is missing. Install Node.js before building.' }
     $env:PATH = "$(Split-Path -Parent $GoExecutable);$env:PATH"
     $env:CGO_ENABLED = '0'
@@ -96,9 +93,11 @@ try {
             Invoke-CheckedCommand $PnpmExecutable @('build')
         }
         finally { Pop-Location }
-        # Focus on the affected bank/PDF behavior; the pre-existing Splitwise
-        # CRLF fixture failure is separate from this update.
-        Invoke-CheckedCommand $GoExecutable @('test', './internal/parser/...', './internal/service', '-run', 'Test(ICICI|IdentityH|BankHistory)')
+        if (-not $Version) {
+            $Version = (& git describe --tags --always --dirty | Out-String).Trim()
+            if ($LASTEXITCODE -ne 0 -or -not $Version) { throw 'Cannot determine build version. Supply -Version.' }
+        }
+        Invoke-CheckedCommand $GoExecutable @('test', './...')
         Invoke-CheckedCommand $GoExecutable @('vet', './...')
         New-Item -ItemType Directory -Force -Path 'dist\desktop' | Out-Null
         $buildDirectory = Join-Path $session 'Build'
@@ -109,8 +108,10 @@ try {
             $resourcePath = Join-Path (Get-Location).Path "rsrc_windows_$arch.syso"
             if (Test-Path -LiteralPath $resourcePath) { $resourceOriginal = [IO.File]::ReadAllBytes($resourcePath) }
             $resourceGenerated = $true
-            Invoke-CheckedCommand $GoExecutable @('run', './tools/resources', '-arch', $arch, '-version', 'dev-icicistatements')
-            Invoke-CheckedCommand $GoExecutable @('build', '-trimpath', '-tags', 'production', '-ldflags', '-s -w -H windowsgui -X local-finance/internal/updater.CurrentVersion=dev-icicistatements', '-o', $builtApp, '.')
+            Invoke-CheckedCommand $GoExecutable @('test', './...')
+            Invoke-CheckedCommand $GoExecutable @('vet', './...')
+            Invoke-CheckedCommand $GoExecutable @('run', './tools/resources', '-arch', $arch, '-version', $Version)
+            Invoke-CheckedCommand $GoExecutable @('build', '-trimpath', '-tags', 'production', '-ldflags', "-s -w -H windowsgui -X local-finance/internal/updater.CurrentVersion=$Version", '-o', $builtApp, '.')
         }
         finally { Pop-Location }
     }
@@ -124,8 +125,8 @@ try {
     Write-Host ''
     Write-Host 'MANUAL VERIFICATION - the next window uses ONLY the database copy.' -ForegroundColor Cyan
     Write-Host '1. Check existing accounts, balances, categories, notes and tags.'
-    Write-Host '2. Check ICICI savings preview (110 transactions) and credit card preview (16 transactions), then import.'
-    Write-Host '   Select the correct card account; the portal PDF does not print a card number.'
+    Write-Host '2. Preview representative statements; compare counts, amounts and totals with their source, then import.'
+    Write-Host '   Select the correct account, especially for statements without an account or card number.'
     Write-Host '3. Reimport and confirm no new duplicate transactions are created.'
     Write-Host '4. Close the test app, then type UPDATE below. Any other answer cancels installation.'
     Write-Host "Test database: $testDatabase"
