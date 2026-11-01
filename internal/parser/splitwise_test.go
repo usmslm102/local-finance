@@ -23,7 +23,10 @@ func TestSplitwiseExport(t *testing.T) {
 			t.Fatal("net balances cannot prove paid amounts")
 		}
 	}
-	reimport, err := ParseSplitwise(strings.NewReader(strings.ReplaceAll(string(data), "\n", "\r\n")), "example", "Sanjay Example")
+	// Git may check the fixture out with CRLF on Windows. Normalize before
+	// constructing the CRLF variant, avoiding invalid CRCRLF records.
+	lf := strings.ReplaceAll(string(data), "\r\n", "\n")
+	reimport, err := ParseSplitwise(strings.NewReader(strings.ReplaceAll(lf, "\n", "\r\n")), "example", "Sanjay Example")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -61,12 +61,13 @@ type bankHistoryBalances struct {
 }
 
 var (
-	bankHistoryDatePrefix = regexp.MustCompile(`^(?:\d{1,2}[./ -](?:\d{1,2}|[A-Za-z]{3,9})[./ -]\d{2,4}|\d{4}[./-]\d{1,2}[./-]\d{1,2})\b`)
-	bankHistoryAmount     = regexp.MustCompile(`(?i)^\s*(?:₹|INR\s*)?([0-9][0-9,]*(?:\.\d{2})?)(?:\s*(CR|DR))?\s*$`)
-	bankHistoryMoneyToken = regexp.MustCompile(`[0-9][0-9,]*\.[0-9]{2}`)
-	bankHistoryDatePart   = regexp.MustCompile(`^\d{1,2}[./-](?:\d{1,2}|[A-Za-z]{3,9})[./-]$`)
-	bankHistoryYearPart   = regexp.MustCompile(`^\d{4}$`)
-	bankHistorySerialDate = regexp.MustCompile(`^\d{1,6}\s+(\d{1,2}[./-]\d{1,2}[./-]\d{4})$`)
+	bankHistoryDatePrefix    = regexp.MustCompile(`^(?:\d{1,2}[./ -](?:\d{1,2}|[A-Za-z]{3,9})[./ -]\d{2,4}|\d{4}[./-]\d{1,2}[./-]\d{1,2})\b`)
+	bankHistoryAmount        = regexp.MustCompile(`(?i)^\s*(?:₹|INR\s*)?([0-9][0-9,]*(?:\.\d{2})?)(?:\s*(CR|DR))?\s*$`)
+	bankHistorySignedBalance = regexp.MustCompile(`^\s*(?:₹|INR\s*)?(-[0-9][0-9,]*(?:\.\d{2})?)\s*$`)
+	bankHistoryMoneyToken    = regexp.MustCompile(`[0-9][0-9,]*\.[0-9]{2}`)
+	bankHistoryDatePart      = regexp.MustCompile(`^\d{1,2}[./-](?:\d{1,2}|[A-Za-z]{3,9})[./-]$`)
+	bankHistoryYearPart      = regexp.MustCompile(`^\d{4}$`)
+	bankHistorySerialDate    = regexp.MustCompile(`^\d{1,6}\s+(\d{1,2}[./-]\d{1,2}[./-]\d{4})$`)
 )
 
 func parseBankHistoryPDF(r io.Reader, opts ParseOptions, profile bankHistoryProfile) ([]ParsedTransaction, StatementMeta, error) {
@@ -231,7 +232,7 @@ func parseBankHistoryRows(rows []extractor.PositionalRow, profile bankHistoryPro
 		if err != nil {
 			return nil, meta, fmt.Errorf("%s statement contains an ambiguous deposit amount", profile.bankName)
 		}
-		balance, balanceOK, err := amountInBankColumn(row, balanceStart, balanceEnd)
+		balance, balanceOK, err := balanceInBankColumn(row, balanceStart, balanceEnd)
 		if err != nil || !balanceOK {
 			return nil, meta, fmt.Errorf("%s statement contains a missing or ambiguous running balance", profile.bankName)
 		}
@@ -603,7 +604,7 @@ func completeBankHistoryRow(row extractor.PositionalRow, columns bankHistoryColu
 	start, end = bankHistoryColumnBounds(columns.credit, columns)
 	credit, _, creditErr := amountInBankColumn(row, start, end)
 	start, end = bankHistoryColumnBounds(columns.balance, columns)
-	_, hasBalance, balanceErr := amountInBankColumn(row, start, end)
+	_, hasBalance, balanceErr := balanceInBankColumn(row, start, end)
 	return debitErr == nil && creditErr == nil && balanceErr == nil && hasBalance && (debit > 0 && credit == 0 || credit > 0 && debit == 0)
 }
 
@@ -629,6 +630,17 @@ func amountInBankColumn(row extractor.PositionalRow, start, end float64) (float6
 		return 0, false, fmt.Errorf("invalid amount value")
 	}
 	return amount, true, nil
+}
+
+// A running balance may be below zero even though withdrawal/deposit amounts
+// must remain positive. Use the same rule during row assembly and parsing.
+func balanceInBankColumn(row extractor.PositionalRow, start, end float64) (float64, bool, error) {
+	cell := bankHistoryCellInColumn(row, start, end)
+	if match := bankHistorySignedBalance.FindStringSubmatch(cell); len(match) == 2 {
+		amount, err := extractor.ParseIndianAmount(match[1])
+		return amount, err == nil, err
+	}
+	return amountInBankColumn(row, start, end)
 }
 
 func bankHistoryCellInColumn(row extractor.PositionalRow, start, end float64) string {
