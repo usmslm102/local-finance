@@ -39,12 +39,13 @@ func CIDPDF(t testing.TB, content string) []byte {
 	objects := []string{
 		"<< /Type /Catalog /Pages 2 0 R >>",
 		"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-		"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 1191] /Resources << /Font << /F1 4 0 R >> >> /Contents 7 0 R >>",
+		"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 1191] /Resources << /Font << /F1 4 0 R /F2 9 0 R >> >> /Contents 7 0 R >>",
 		"<< /Type /Font /Subtype /Type0 /BaseFont /Fixture /Encoding /Identity-H /DescendantFonts [5 0 R] /ToUnicode 6 0 R >>",
 		fmt.Sprintf("<< /Type /Font /Subtype /CIDFontType2 /BaseFont /Fixture /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /FontDescriptor 8 0 R /CIDToGIDMap /Identity /DW 750 /W [288 [%s] 500 501 600] >>", widths.String()),
 		fmt.Sprintf("<< /Length %d >>\nstream\n%s\nendstream", len(cmap), cmap),
 		fmt.Sprintf("<< /Length %d /Filter /FlateDecode >>\nstream\n%s\nendstream", compressed.Len(), compressed.Bytes()),
 		"<< /Type /FontDescriptor /FontName /Fixture /Flags 32 /FontBBox [0 -200 1000 900] /ItalicAngle 0 /Ascent 800 /Descent -200 /CapHeight 700 /StemV 80 >>",
+		fmt.Sprintf("<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding /FirstChar 32 /LastChar 126 /Widths [%s] >>", widths.String()),
 	}
 	var output bytes.Buffer
 	output.WriteString("%PDF-1.7\n")
@@ -88,7 +89,7 @@ func ICICIPortalPDF(t testing.TB) []byte {
 		content.WriteString(CIDText(positions[i], 716, label))
 	}
 	for i, row := range [][5]string{
-		{"27-10-2026", "EXAMPLE MERCHANT SHOP STORE", "100 Dr.", "2", "12345678901"},
+		{"27-10-2026", "EXAMPLE MERCHANT SHOP SHOP", "100 Dr.", "2", "12345678901"},
 		{"26-10-2026", "EXAMPLE REFUND", "20 Cr.", "0", "12345678902"},
 		{"26-10-2026", "INFINITY PAYMENT", "30 Cr.", "0", "12345678903"},
 	} {
