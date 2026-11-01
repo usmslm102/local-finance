@@ -112,10 +112,7 @@ func ExtractPDFPositionalRows(r io.Reader, password string) ([]PositionalRow, er
 		}
 
 		for _, t := range texts {
-			// Positioning operators can split one printed number or word. Only
-			// split blocks at a measured gap or an explicit printed space; keep
-			// touching runs joined without inserting a space into financial data.
-			if lastBlock >= 0 && t.block != lastBlock && (t.X-lastCharEndX > 0.8 || strings.HasSuffix(curWord.String(), " ")) {
+			if lastBlock >= 0 && t.block != lastBlock {
 				flushWord()
 				wordStartX = t.X
 			}

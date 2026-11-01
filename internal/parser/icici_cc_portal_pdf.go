@@ -21,7 +21,7 @@ var iciciPortalAmount = regexp.MustCompile(`(?i)^([0-9][0-9,]*(?:\.\d{2})?)\s+(D
 var iciciPortalPeriod = regexp.MustCompile(`(?i)^(\d{2}-\d{2}-\d{4})\s+TO\s+(\d{2}-\d{2}-\d{4})$`)
 
 func parseICICICCPortalRows(rows []extractor.PositionalRow) ([]ParsedTransaction, StatementMeta, error) {
-	meta := StatementMeta{BankName: "ICICI Bank", AccountType: models.AccountTypeCreditCard, StatementFormat: "PDF", RequiresAccountSelection: true}
+	meta := StatementMeta{BankName: "ICICI Bank", AccountType: models.AccountTypeCreditCard, StatementFormat: "PDF"}
 	values := map[string]string{}
 	labels := []string{"Card Holder Name", "Card Type", "Statement Date", "Payment Due Date", "Statement Period", "Previous Balance", "Purchases and Other Charges", "Payments and Other Credits", "Total Amount Due", "Minimum Amount Due", "Total Credit Limit", "Available Credit Limit", "Total Cash Limit", "Cash Advances"}
 	for _, row := range rows {

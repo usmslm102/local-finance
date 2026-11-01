@@ -99,9 +99,6 @@ func (s *TransactionService) ImportStatement(filename string, r io.Reader, manua
 	if len(parsedTxList) == 0 {
 		return nil, fmt.Errorf("no transactions found in statement. Please verify the file format")
 	}
-	if meta.RequiresAccountSelection && strings.TrimSpace(manualAccountID) == "" {
-		return nil, fmt.Errorf("this statement does not identify its account; please select an account before importing")
-	}
 
 	var account *models.Account
 	var stmtImportID string
@@ -433,9 +430,6 @@ func (s *TransactionService) PreviewStatement(filename string, r io.Reader, manu
 	res.CardNetwork = meta.CardNetwork
 	res.CardVariant = meta.CardVariant
 	res.AccountHolderName = meta.AccountHolderName
-	if meta.RequiresAccountSelection && strings.TrimSpace(manualAccountID) == "" {
-		res.Warnings = append(res.Warnings, "This statement does not identify its account. Please select an account before importing.")
-	}
 
 	// Load categories & rules for preview categorization
 	rules, _ := s.db.ListRules()

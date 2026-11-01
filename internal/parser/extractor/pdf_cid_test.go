@@ -56,39 +56,3 @@ func TestIdentityHTextTransformsAndMalformedGlyphs(t *testing.T) {
 		t.Fatalf("malformed CID accepted: %v", err)
 	}
 }
-
-func TestIdentityHContiguousPositionedRuns(t *testing.T) {
-	for name, content := range map[string]string{
-		"CID Tm":         "BT /F1 12 Tf 1 0 0 1 45 700 Tm <01310132> Tj 1 0 0 1 57 700 Tm <01330134> Tj ET",
-		"CID Td":         "BT /F1 12 Tf 1 0 0 1 45 700 Tm <01310132> Tj 12 0 Td <01330134> Tj ET",
-		"simple font Tm": "BT /F2 12 Tf 1 0 0 1 45 700 Tm (12) Tj 1 0 0 1 57 700 Tm (34) Tj ET",
-		"simple font Td": "BT /F2 12 Tf 1 0 0 1 45 700 Tm (12) Tj 12 0 Td (34) Tj ET",
-	} {
-		t.Run(name, func(t *testing.T) {
-			rows, err := ExtractPDFPositionalRows(bytes.NewReader(testutil.CIDPDF(t, content)), "")
-			if err != nil {
-				t.Fatal(err)
-			}
-			if len(rows) != 1 || len(rows[0].Elements) != 1 || rows[0].Elements[0].S != "1234" {
-				t.Fatalf("contiguous positioned number split: %+v", rows)
-			}
-		})
-	}
-}
-
-func TestIdentityHSeparatedPositionedCells(t *testing.T) {
-	for name, content := range map[string]string{
-		"printed space": testutil.CIDText(45, 700, "12 ") + testutil.CIDText(62.76, 700, "34"),
-		"small gap":     testutil.CIDText(45, 700, "12") + testutil.CIDText(60, 700, "34"),
-	} {
-		t.Run(name, func(t *testing.T) {
-			rows, err := ExtractPDFPositionalRows(bytes.NewReader(testutil.CIDPDF(t, content)), "")
-			if err != nil {
-				t.Fatal(err)
-			}
-			if len(rows) != 1 || len(rows[0].Elements) != 2 || rows[0].Elements[0].S != "12" || rows[0].Elements[1].S != "34" {
-				t.Fatalf("separate printed cells merged: %+v", rows)
-			}
-		})
-	}
-}

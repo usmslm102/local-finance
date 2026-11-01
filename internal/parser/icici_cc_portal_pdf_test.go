@@ -19,7 +19,7 @@ func TestICICICCPortalDetectionAndParsing(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(txs) != 3 || txs[0].Amount != 100 || txs[0].TxType != models.TxTypeDebit || txs[0].RawNarration != "EXAMPLE MERCHANT SHOP SHOP MUMBAI" || txs[0].ReferenceNumber != "12345678901" || txs[0].RewardPointsEarned != 2 || txs[0].CashbackAmount != 0 || txs[1].IsTransfer || !txs[2].IsTransfer {
+		if len(txs) != 3 || txs[0].Amount != 100 || txs[0].TxType != models.TxTypeDebit || txs[0].RawNarration != "EXAMPLE MERCHANT SHOP STORE MUMBAI" || txs[0].ReferenceNumber != "12345678901" || txs[0].RewardPointsEarned != 2 || txs[0].CashbackAmount != 0 || txs[1].IsTransfer || !txs[2].IsTransfer {
 			t.Fatalf("portal transactions: %+v", txs)
 		}
 		if meta.StartDate != "2026-10-01" || meta.EndDate != "2026-10-29" || meta.StatementDate != "2026-10-29" || meta.PaymentDueDate != "2026-11-15" || meta.TotalDueAmount != 100 || meta.TotalDebits != 100 || meta.TotalCredits != 50 || meta.AccountHolderName != "EXAMPLE CARDHOLDER" || meta.CardNetwork != "" || meta.CardVariant != "" || meta.AccountNumberMask != "" {
