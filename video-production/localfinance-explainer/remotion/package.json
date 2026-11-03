@@ -13,16 +13,16 @@
   },
   "private": true,
   "dependencies": {
-    "@remotion/cli": "4.0.538",
+    "@remotion/cli": "4.0.540",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "remotion": "4.0.538",
-    "@remotion/fonts": "4.0.538",
-    "@remotion/media": "4.0.538",
-    "@remotion/captions": "4.0.538"
+    "remotion": "4.0.540",
+    "@remotion/fonts": "4.0.540",
+    "@remotion/media": "4.0.540",
+    "@remotion/captions": "4.0.540"
   },
   "devDependencies": {
-    "@remotion/eslint-config-flat": "4.0.538",
+    "@remotion/eslint-config-flat": "4.0.540",
     "@types/react": "19.2.7",
     "@types/web": "0.0.166",
     "eslint": "10.12.0",
