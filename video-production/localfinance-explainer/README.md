@@ -1,6 +1,6 @@
 # LocalFinance / Your money, made clear
 
-60 seconds · 1080×1920 · 30fps · Remotion 4.0.538.
+60 seconds · 1080×1920 · 30fps · Remotion 4.0.540.
 
 Original project work is MIT; fonts, speech models and optional rendering tools retain their own terms. See [third-party notices](THIRD_PARTY_NOTICES.md), including Remotion’s separate license.
 

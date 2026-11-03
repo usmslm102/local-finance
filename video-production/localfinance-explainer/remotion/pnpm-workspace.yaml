@@ -1,5 +1,5 @@
 allowBuilds:
   esbuild: true
-# Remotion 4.0.538 pins a Zod version affected by GHSA-mrhx-c7xc-m3w5.
+# Keep transitive Zod aligned with Remotion 4.0.540 (past GHSA-mrhx-c7xc-m3w5).
 overrides:
-  zod: 4.6.6
+  zod: 4.6.7
