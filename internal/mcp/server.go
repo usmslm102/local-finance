@@ -20,6 +20,9 @@ import (
 	"local-finance/internal/db"
 )
 
+// Accommodate a 20 MiB PDF encoded as base64 while keeping MCP requests bounded.
+const maxMCPRequestBodyBytes = 32 << 20
+
 // Manager owns the independent MCP listener and its access policy.
 // All lifecycle mutations are serialized; closing drains requests before DB restore.
 type Manager struct {
@@ -57,7 +60,7 @@ func NewManager(database *db.DB) *Manager {
 	m.handler = sdk.NewStreamableHTTPHandler(func(r *http.Request) *sdk.Server {
 		policy, _ := r.Context().Value(writeAccessKey{}).(int)
 		return servers[policy]
-	}, &sdk.StreamableHTTPOptions{Stateless: true, JSONResponse: true, MaxRequestBodyBytes: 1 << 20})
+	}, &sdk.StreamableHTTPOptions{Stateless: true, JSONResponse: true, MaxRequestBodyBytes: maxMCPRequestBodyBytes})
 	return m
 }
 

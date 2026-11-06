@@ -90,6 +90,14 @@ New bank and credit-card PDF imports retain the original PDF in your local datab
 
 Use **View imported records** to open the Transactions Ledger filtered to one import, with a **Preview PDF** action for comparison. These are the saved records, including your current categories, tags and notes. New imports keep their record links across overlapping re-imports without duplicating transactions. For older imports, only the latest recorded association can be recovered; re-import the source if links are missing. Deleting an import retains the existing behavior of removing transactions currently owned by that import.
 
+### Unsupported bank or statement format
+
+On **Statement Import → Bank & credit card statements**, choose **Convert with your agent** beneath the upload area or beside a failed upload. **Copy prompt** gives your agent the complete LocalFinance CSV v1 contract and verification workflow. **Download agent skill** provides the same instructions as a reusable `SKILL.md`; save it in a `localfinance-statement-csv` folder in your agent's skills directory. The [bundled skill](frontend/src/content/localfinance-statement-csv/SKILL.md) is also available in this repository.
+
+Give your agent the PDF and have it extract every page, verify rows and reconcile totals, and return one CSV per account with a verification summary. This transaction format supports INR accounts; it does not import credit-card billing metadata such as due dates. LocalFinance does not send the PDF to an AI service. Your chosen agent may share it with its provider; use local extraction and a local model to keep the conversion on your computer.
+
+Upload the resulting `.csv` here using **Auto-Detect Bank & Format** or **LocalFinance transaction CSV v1**, select the matching existing account when applicable, and review **Preview Records** before importing. Keep the source PDF separately; a CSV import does not retain it. Alternatively, enable **Settings → AI / MCP → Advanced settings & permissions → Allow statement and investment uploads** and ask your connected agent to use `import_statements`. Agents can try original PDFs first, then convert only files that fail parsing and reupload the verified CSV. Both local paths and inline file content are supported, so the agent does not need shared filesystem access. Existing deduplication and manual-edit preservation apply to both routes.
+
 ### Monthly Import Calendar
 
 Open **Data Health** to see all 12 months of a year. All sources are shown by default; select one or more accounts to narrow the calendar. Choose a month to inspect its imports and open the corresponding records in the Transactions Ledger.
@@ -706,9 +714,27 @@ finance reads remain available while MCP is enabled.
 Enable **Settings → AI / MCP → Allow statement and investment uploads** separately
 from category/rule writes. It is off by default. Refresh client tool discovery.
 
-- `import_statement_csv`: ask the agent to parse and verify a statement, save the
-  transaction CSV on the machine running LocalFinance, then pass its absolute
-  local `path`. The tool description specifies the complete CSV v1 format.
+- `get_statement_import_schema`: discover the CSV table's required/optional
+  columns as JSON Schema, value rules, fictional example, native upload modes,
+  limits, current upload permission, and fallback workflow. Available whenever MCP
+  is enabled, including read-only mode. This is the import contract, not SQLite access.
+- `import_statements`: upload 1–20 original bank/credit-card PDFs, CSVs or Excel files
+  using a `statements` array. Each item supplies exactly one source: absolute local
+  `path`, `filename` + `content_base64` for original bytes, or `.csv` `filename` +
+  `csv_content` for verified CSV v1 text. Inline uploads need no shared filesystem.
+  Optional `account_id` and PDF `password` apply per file. Files are limited to
+  20 MiB each, inline content to 20 MiB total per call, and the complete encoded
+  JSON request to 32 MiB. Split larger batches into separate calls.
+  Each result retains its zero-based `index` and `filename`, with `status` and
+  either an import `result` or `error_code`/`error`. A supported original PDF uses
+  the normal parser and retains its source and parser-provided billing metadata.
+  For `parse_failed`, the agent can parse/verify that source using the discovered
+  schema and reupload CSV v1. For `password_required`, ask for the correct PDF
+  password. Batches may partially succeed: retry failed files only; check
+  `list_statement_imports` before retrying uncertain/time-out results.
+- `import_statement_csv`: the existing single-file tool remains available. Parse
+  and verify a statement, save its transaction CSV on the LocalFinance host, and
+  pass its absolute local `path`.
   Optional `account_id` selects an existing account; otherwise CSV metadata
   resolves or creates the account. Imports use existing deduplication and preserve
   manual categories, notes and tags. Only regular local .csv files up to 20 MiB

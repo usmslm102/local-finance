@@ -193,7 +193,7 @@ func TestToolsReadOnlyAndParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(list.Tools) != 26 {
+	if len(list.Tools) != 27 {
 		t.Fatalf("got %d tools", len(list.Tools))
 	}
 	args := map[string]map[string]any{

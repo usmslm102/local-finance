@@ -192,9 +192,9 @@ export function MCPSettingsPanel() {
                     Allow statement and investment uploads
                   </Label>
                   <p className="text-sm text-muted-foreground">
-                    All clients sharing your token can import bank CSVs and investment workbooks by
-                    local path and permanently delete specific uploads and their transactions,
-                    including manual edits.
+                    All clients sharing your token can upload bank and credit-card statements,
+                    import investment workbooks by local path, and permanently delete specific
+                    statement uploads and their transactions, including manual edits.
                   </p>
                 </div>
                 <Switch

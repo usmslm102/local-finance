@@ -16,6 +16,12 @@ func registerWriteTool(server *sdk.Server, name, description string, properties 
 
 func registerMutationTool(server *sdk.Server, name, description string, properties map[string]any, required []string, destructive bool, save func(json.RawMessage) (any, error)) {
 	schema := map[string]any{"type": "object", "properties": properties, "required": required, "additionalProperties": false}
+	registerMutationToolSchema(server, name, description, schema, destructive, func(_ context.Context, raw json.RawMessage) (any, error) {
+		return save(raw)
+	})
+}
+
+func registerMutationToolSchema(server *sdk.Server, name, description string, schema map[string]any, destructive bool, save func(context.Context, json.RawMessage) (any, error)) {
 	encoded, _ := json.Marshal(schema)
 	var inputSchema jsonschema.Schema
 	if err := json.Unmarshal(encoded, &inputSchema); err != nil {
@@ -38,7 +44,7 @@ func registerMutationTool(server *sdk.Server, name, description string, properti
 		if ctx.Err() != nil {
 			return toolError(errors.New("request cancelled")), nil
 		}
-		data, err := save(req.Params.Arguments)
+		data, err := save(ctx, req.Params.Arguments)
 		if err != nil {
 			return toolError(err), nil
 		}
