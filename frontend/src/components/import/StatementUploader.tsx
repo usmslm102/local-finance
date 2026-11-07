@@ -16,6 +16,7 @@ import {
 } from '@/lib/api'
 import { ImportResult, StatementImport, StatementPreviewResult, PreviewTransactionItem } from '@/types'
 import { StatementPDFPreview } from './StatementPDFPreview'
+import { StatementConversionHelp, StatementConversionNotice } from './StatementConversionHelp'
 import { formatDate, formatINR } from '@/lib/utils'
 import {
   UploadCloud,
@@ -88,6 +89,7 @@ export const StatementUploader: React.FC = () => {
   const [accountId, setAccountId] = useState('AUTO')
   const [activePreviewFile, setActivePreviewFile] = useState<QueuedFile | null>(null)
   const [activeStatementPDF, setActiveStatementPDF] = useState<StatementImport | null>(null)
+  const [showConversionHelp, setShowConversionHelp] = useState(false)
   const [previewSearch, setPreviewSearch] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const [isBatchImporting, setIsBatchImporting] = useState(false)
@@ -380,6 +382,8 @@ export const StatementUploader: React.FC = () => {
                 </p>
               </div>
             </div>
+
+            <StatementConversionNotice onOpen={() => setShowConversionHelp(true)} />
 
             {/* 1-Click Sample Statement Loader */}
             {sampleStatements && sampleStatements.length > 0 && (
@@ -711,9 +715,14 @@ export const StatementUploader: React.FC = () => {
                         )}
 
                         {qFile.status === 'error' && qFile.error && (
-                          <p className="text-xs text-destructive mt-1 flex items-center gap-1">
-                            <AlertCircle className="size-3.5 shrink-0" /> {qFile.error}
-                          </p>
+                          <div className="mt-1 flex flex-col items-start gap-2">
+                            <p className="text-xs text-destructive flex items-center gap-1">
+                              <AlertCircle className="size-3.5 shrink-0" /> {qFile.error}
+                            </p>
+                            <Button variant="outline" size="sm" onClick={() => setShowConversionHelp(true)}>
+                              Convert with your agent
+                            </Button>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -1179,6 +1188,7 @@ export const StatementUploader: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <StatementConversionHelp open={showConversionHelp} onOpenChange={setShowConversionHelp} />
     </div>
   )
 }

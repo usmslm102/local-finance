@@ -27,7 +27,7 @@ func TestStatementWritesImportReimportDeleteAndPermissions(t *testing.T) {
 	for _, permissions := range []struct {
 		categories, statements bool
 		count                  int
-	}{{false, false, 26}, {true, false, 28}, {false, true, 29}, {true, true, 31}} {
+	}{{false, false, 27}, {true, false, 29}, {false, true, 31}, {true, true, 33}} {
 		if _, err := m.ConfigureAccess(true, m.Status().Port, &permissions.categories, &permissions.statements); err != nil {
 			t.Fatal(err)
 		}
@@ -48,6 +48,9 @@ func TestStatementWritesImportReimportDeleteAndPermissions(t *testing.T) {
 		if !permissions.statements {
 			if _, err := session.CallTool(context.Background(), &sdk.CallToolParams{Name: "import_statement_csv", Arguments: map[string]any{"path": path}}); err == nil {
 				t.Fatal("unpermitted import")
+			}
+			if _, err := session.CallTool(context.Background(), &sdk.CallToolParams{Name: "import_statements", Arguments: map[string]any{"statements": []any{map[string]any{"path": path}}}}); err == nil {
+				t.Fatal("unpermitted batch import")
 			}
 		}
 	}

@@ -1,9 +1,39 @@
 package parser
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
+
+func TestStatementConversionSkillExampleMatchesCSVContract(t *testing.T) {
+	skill, err := os.ReadFile("../../frontend/src/content/localfinance-statement-csv/SKILL.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, after, ok := strings.Cut(strings.ReplaceAll(string(skill), "\r\n", "\n"), "```csv\n")
+	if !ok {
+		t.Fatal("conversion skill must include a CSV example")
+	}
+	example, _, ok := strings.Cut(after, "```")
+	if !ok {
+		t.Fatal("unterminated CSV example")
+	}
+	p, confidence, _ := DefaultRegistry.Detect("converted-statement.csv", []byte(example))
+	if p == nil || p.ID() != LocalFinanceCSVParserID || confidence != 1 {
+		t.Fatalf("skill CSV was not detected as LocalFinance CSV v1: %v, %v", p, confidence)
+	}
+	txs, meta, err := p.Parse(strings.NewReader(example), ParseOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(txs) != 2 || meta.BankName != "Fictional Bank" || meta.AccountNumberMask != "XXXX1234" || meta.TotalDebits != 125.5 || meta.TotalCredits != 25.5 {
+		t.Fatalf("unexpected skill CSV result: %+v, %+v", txs, meta)
+	}
+	if txs[0].RawNarration != "UPI/DR/000123/Corner, Shop" || txs[0].ReferenceNumber != "000123" || txs[1].RunningBalance == nil || *txs[1].RunningBalance != 9900 {
+		t.Fatalf("skill CSV lost narration, reference, or balance: %+v", txs)
+	}
+}
 
 const fictionalCSVHeader = "bank_name,account_type,account_number_mask,date,narration,amount,tx_type,reference_number,running_balance\n"
 const fictionalCSVRow = "Fictional Bank,SAVINGS,XXXX1234,2026-01-10,Corner Shop,125.50,DEBIT,ref-1,-25.50\n"
