@@ -201,10 +201,10 @@ func TestOfflineOptOutCheck(t *testing.T) {
 
 func TestCheckForUpdateWithMock(t *testing.T) {
 	mockRelease := GitHubRelease{
-		TagName:     "v1.3.0",
-		Name:        "v1.3.0 New Feature",
+		TagName:     "v1.6.0",
+		Name:        "v1.6.0 New Feature",
 		Body:        "Awesome update notes",
-		HTMLURL:     "https://github.com/usmslm102/local-finance/releases/tag/v1.3.0",
+		HTMLURL:     "https://github.com/usmslm102/local-finance/releases/tag/v1.6.0",
 		PublishedAt: "2026-10-06T12:00:00Z",
 		Assets: []GitHubAsset{
 			{Name: "checksums.txt", BrowserDownloadURL: "https://example.com/checksums.txt"},
@@ -212,13 +212,37 @@ func TestCheckForUpdateWithMock(t *testing.T) {
 		},
 	}
 
+	olderRelease := GitHubRelease{TagName: "v1.5.0"}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(mockRelease)
+		switch filepath.Base(r.URL.Path) {
+		case "latest":
+			_ = json.NewEncoder(w).Encode(olderRelease)
+		case "releases":
+			switch r.URL.Query().Get("page") {
+			case "1":
+				w.Header().Set("Link", `<https://api.github.com/repositories/123/releases?per_page=100&page=2>; rel="next"`)
+				_ = json.NewEncoder(w).Encode([]GitHubRelease{
+					olderRelease,
+					{TagName: "v2.0.0", Draft: true},
+					{TagName: "v2.1.0", Prerelease: true},
+					{TagName: "v2.2.0-rc.1"},
+					{TagName: "nightly"},
+				})
+			case "2":
+				_ = json.NewEncoder(w).Encode([]GitHubRelease{{TagName: "v1.4.0"}, mockRelease, {TagName: "v1.3.0"}})
+			default:
+				http.NotFound(w, r)
+			}
+		default:
+			http.NotFound(w, r)
+		}
 	}))
 	defer server.Close()
 
-	CurrentVersion = "v1.2.0"
+	previousVersion := CurrentVersion
+	CurrentVersion = "v1.4.0"
+	t.Cleanup(func() { CurrentVersion = previousVersion })
 
 	svc := NewService()
 	svc.client = server.Client()
@@ -237,11 +261,14 @@ func TestCheckForUpdateWithMock(t *testing.T) {
 	if !info.UpdateAvailable {
 		t.Errorf("expected update to be available, got false")
 	}
-	if info.LatestVersion != "v1.3.0" {
-		t.Errorf("expected latest version v1.3.0, got %s", info.LatestVersion)
+	if info.LatestVersion != mockRelease.TagName {
+		t.Errorf("expected latest version %s, got %s", mockRelease.TagName, info.LatestVersion)
 	}
-	if info.ReleaseName != "v1.3.0 New Feature" {
-		t.Errorf("expected release name 'v1.3.0 New Feature', got %s", info.ReleaseName)
+	if info.ReleaseName != mockRelease.Name {
+		t.Errorf("expected release name %q, got %q", mockRelease.Name, info.ReleaseName)
+	}
+	if info.ChecksumURL != mockRelease.Assets[0].BrowserDownloadURL {
+		t.Errorf("expected checksum URL from %s, got %q", mockRelease.TagName, info.ChecksumURL)
 	}
 }
 
@@ -251,7 +278,7 @@ type mockTransport struct {
 }
 
 func (m *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	mockReq, _ := http.NewRequestWithContext(req.Context(), req.Method, m.targetURL, req.Body)
+	mockReq, _ := http.NewRequestWithContext(req.Context(), req.Method, m.targetURL+req.URL.RequestURI(), req.Body)
 	mockReq.Header = req.Header
 	if m.base != nil {
 		return m.base.RoundTrip(mockReq)
