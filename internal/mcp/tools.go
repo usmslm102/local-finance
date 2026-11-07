@@ -129,7 +129,7 @@ func newServer(database *db.DB, allowCategorizationWrites, allowStatementWrites 
 			return items, nil
 		}},
 		{name: "get_app_info", description: "Get local application version and MCP capabilities; does not check for updates.", query: func(arguments) (any, error) {
-			return map[string]any{"app": "LocalFinance", "version": updater.CurrentVersion, "access": access, "transport": "streamable-http", "statement_imports": statementImportCapabilities(allowStatementWrites)}, nil
+			return map[string]any{"app": "LocalFinance", "version": updater.CurrentVersion, "access": access, "transport": "streamable-http"}, nil
 		}},
 	}
 	specs = append(specs, investmentReadTools(database)...)

@@ -113,7 +113,6 @@ jobs:
           BUILD_NUMBER: ${{ github.run_number }}
         run: |
           sh cmd/desktop/package-macos.sh
-          hdiutil verify dist/desktop/LocalFinance-Desktop.dmg
           dist/desktop/LocalFinance.app/Contents/MacOS/LocalFinance -h
           plutil -lint dist/desktop/LocalFinance.app/Contents/Info.plist
       - name: Notarize when configured

@@ -24,7 +24,8 @@ if [ "${PACKAGE_DMG:-0}" = 1 ]; then
     trap 'rm -rf "$desktop_stage"' EXIT
     cp -R "$desktop_bundle" "$desktop_stage/"
     ln -s /Applications "$desktop_stage/Applications"
-    # Reserve space for filesystem metadata instead of relying on automatic sizing.
+    # Allow another full copy of the staged files plus 50 MiB of fixed headroom
+    # for filesystem metadata and allocation overhead.
     desktop_size_mb=$(du -sm "$desktop_stage" | cut -f1)
     desktop_image_mb=$((desktop_size_mb * 2 + 50))
     hdiutil create -volname LocalFinance -srcfolder "$desktop_stage" -ov -format UDZO -size "${desktop_image_mb}m" dist/desktop/LocalFinance-Desktop.dmg
@@ -32,4 +33,5 @@ if [ "${PACKAGE_DMG:-0}" = 1 ]; then
         codesign --force --timestamp --sign "$APPLE_SIGNING_IDENTITY" dist/desktop/LocalFinance-Desktop.dmg
         codesign --verify --strict dist/desktop/LocalFinance-Desktop.dmg
     fi
+    hdiutil verify dist/desktop/LocalFinance-Desktop.dmg
 fi
