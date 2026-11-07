@@ -87,7 +87,7 @@ func GetRepoCoordinates() (string, string) {
 	return owner, repo
 }
 
-// GitHubRelease represents the structure returned by GitHub's releases/latest API.
+// GitHubRelease represents a release returned by the GitHub Releases API.
 type GitHubRelease struct {
 	TagName     string        `json:"tag_name"`
 	Name        string        `json:"name"`
@@ -135,11 +135,13 @@ type Service struct {
 	cacheTTL   time.Duration
 }
 
+const githubRequestTimeout = 30 * time.Second
+
 // NewService creates a new updater service.
 func NewService() *Service {
 	return &Service{
 		client: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout: githubRequestTimeout,
 		},
 		cacheTTL: 4 * time.Hour,
 	}
@@ -332,7 +334,7 @@ func SelectAsset(assets []GitHubAsset, goos, goarch string) (asset *GitHubAsset,
 	return nil, checksumAsset
 }
 
-// CheckForUpdate queries the GitHub Releases API for the latest release.
+// CheckForUpdate queries the GitHub Releases API for the highest stable version.
 // Release checks are cached in memory for 4 hours to avoid rate limits and unnecessary network access.
 // If offline is true, no network calls are made and only local version or cache is returned.
 // When offline is false, it uses cached data within TTL, or queries GitHub Releases when cache is nil/expired.
@@ -365,39 +367,52 @@ func (s *Service) CheckForUpdate(ctx context.Context, forceRefresh bool, offline
 		}, nil
 	}
 
+	ctx, cancel := context.WithTimeout(ctx, githubRequestTimeout)
+	defer cancel()
+
 	owner, repo := GetRepoCoordinates()
-	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", owner, repo)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create update request: %w", err)
-	}
-	req.Header.Set("Accept", "application/vnd.github.v3+json")
-	req.Header.Set("User-Agent", "LocalFinance-App-Updater")
-
-	resp, err := s.client.Do(req)
-	if err != nil {
-		if s.cachedInfo != nil {
-			return s.cachedInfo, nil // gracefully fall back to cache on network failure
+	var release GitHubRelease
+	var latestVersion string
+	for page := 1; ; page++ {
+		apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases?per_page=100&page=%d", owner, repo, page)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create update request: %w", err)
 		}
-		return nil, fmt.Errorf("failed to reach GitHub API: %w", err)
-	}
-	defer resp.Body.Close()
+		req.Header.Set("Accept", "application/vnd.github.v3+json")
+		req.Header.Set("User-Agent", "LocalFinance-App-Updater")
 
-	if resp.StatusCode == http.StatusNotFound {
-		return nil, errors.New("no releases found for repository")
-	}
-	if resp.StatusCode != http.StatusOK {
+		resp, err := s.client.Do(req)
+		if err != nil {
+			if s.cachedInfo != nil {
+				return s.cachedInfo, nil // gracefully fall back to cache on network failure
+			}
+			return nil, fmt.Errorf("failed to reach GitHub API: %w", err)
+		}
 		if resp.StatusCode == http.StatusForbidden && s.cachedInfo != nil {
+			resp.Body.Close()
 			return s.cachedInfo, nil // GitHub rate limit reached, reuse cache
 		}
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-		return nil, fmt.Errorf("GitHub API returned status %d: %s", resp.StatusCode, string(body))
-	}
 
-	var release GitHubRelease
-	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
-		return nil, fmt.Errorf("failed to parse GitHub release: %w", err)
+		releases, err := readReleasePage(resp)
+		if err != nil {
+			return nil, err
+		}
+		for _, candidate := range releases {
+			version := NormalizeVersion(candidate.TagName)
+			if candidate.Draft || candidate.Prerelease || !semver.IsValid(version) || semver.Prerelease(version) != "" {
+				continue
+			}
+			if semver.Compare(version, latestVersion) > 0 {
+				release, latestVersion = candidate, version
+			}
+		}
+		if !strings.Contains(resp.Header.Get("Link"), `rel="next"`) {
+			break
+		}
+	}
+	if latestVersion == "" {
+		return nil, errors.New("no stable releases found for repository")
 	}
 
 	writable, writeErr := s.writable()
@@ -444,6 +459,23 @@ func (s *Service) CheckForUpdate(ctx context.Context, forceRefresh bool, offline
 	s.cachedAt = time.Now()
 
 	return info, nil
+}
+
+func readReleasePage(resp *http.Response) ([]GitHubRelease, error) {
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, errors.New("no releases found for repository")
+	}
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		return nil, fmt.Errorf("GitHub API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var releases []GitHubRelease
+	if err := json.NewDecoder(resp.Body).Decode(&releases); err != nil {
+		return nil, fmt.Errorf("failed to parse GitHub releases: %w", err)
+	}
+	return releases, nil
 }
 
 // BackupDatabaseBeforeUpdate creates an automatic database backup before applying an update.
