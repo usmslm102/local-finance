@@ -448,7 +448,7 @@ func (d *DB) ListTransactions(f TransactionFilter) ([]models.Transaction, int, e
 		LEFT JOIN categories c ON t.category_id = c.id
 		LEFT JOIN splitwise_entries s ON (s.transaction_id=t.id OR (t.account_id='' AND s.id=t.id)) AND s.status='CONFIRMED'
 		WHERE %s
-		ORDER BY t.tx_date DESC, t.created_at DESC
+		ORDER BY t.tx_date DESC, t.created_at DESC, t.id DESC
 		LIMIT ? OFFSET ?
 	`, source, whereClause)
 

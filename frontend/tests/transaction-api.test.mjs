@@ -35,6 +35,23 @@ test('transaction requests and complete calendar datasets', async (t) => {
     await fetchTransactions({ min_amount: '0', max_amount: '200', account_id: 'account-1', page: 1 })
   })
 
+  await t.test('fetches only the requested page and forwards cancellation', async () => {
+    const controller = new AbortController()
+    let calls = 0
+    fetch.mock.mockImplementation(async (url, options) => {
+      calls += 1
+      const params = new URL(url, 'http://localhost').searchParams
+      assert.equal(params.get('page'), '3')
+      assert.equal(params.get('page_size'), '25')
+      assert.equal(options.signal, controller.signal)
+      return Response.json({ items: [{ id: 'only-this-page' }], total: 125, total_pages: 5, page: 3, page_size: 25 })
+    })
+    const result = await fetchTransactions({ page: 3, page_size: 25 }, controller.signal)
+    assert.equal(calls, 1)
+    assert.deepEqual(result.items, [{ id: 'only-this-page' }])
+    assert.equal(result.total, 125)
+  })
+
   await t.test('requests spending evidence with calendar dates and uncategorized scope', async () => {
     fetch.mock.mockImplementation(async (url) => {
       const params = new URL(url, 'http://localhost').searchParams
