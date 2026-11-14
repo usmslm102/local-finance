@@ -80,7 +80,13 @@ func parseUnionSavingsRows(rows []extractor.PositionalRow) ([]ParsedTransaction,
 	var normalized []extractor.PositionalRow
 	var dateEnd, referenceEnd, remarksEnd, amountEnd float64
 	active, found := false, false
+	page := 0
 	for _, row := range rows {
+		if row.Page != page {
+			// Page furniture precedes the repeated table heading and must not
+			// be interpreted using the previous page's financial columns.
+			active, page = false, row.Page
+		}
 		date, reference, remarks, amount, balance := -1.0, -1.0, -1.0, -1.0, -1.0
 		refEnd := 0.0
 		for _, el := range row.Elements {
@@ -130,6 +136,9 @@ func parseUnionSavingsRows(rows []extractor.PositionalRow) ([]ParsedTransaction,
 			continue
 		}
 		if !active {
+			if found && len(row.Elements) > 0 && row.Elements[0].X < dateEnd && bankHistoryDatePrefix.MatchString(strings.TrimSpace(row.Elements[0].S)) {
+				return nil, StatementMeta{}, fmt.Errorf("Union statement contains a transaction before its page table heading")
+			}
 			normalized = append(normalized, row)
 			continue
 		}
