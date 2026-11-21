@@ -38,6 +38,7 @@ type Manager struct {
 }
 
 type Status struct {
+	AllowSplitwiseWrites      bool   `json:"allow_splitwise_writes"`
 	AllowStatementWrites      bool   `json:"allow_statement_writes"`
 	AllowCategorizationWrites bool   `json:"allow_categorization_writes"`
 	Enabled                   bool   `json:"enabled"`
@@ -56,7 +57,10 @@ func NewManager(database *db.DB) *Manager {
 	} else {
 		m.settings = settings
 	}
-	servers := [4]*sdk.Server{newServer(database, false, false), newServer(database, true, false), newServer(database, false, true), newServer(database, true, true)}
+	var servers [8]*sdk.Server
+	for policy := range servers {
+		servers[policy] = newServer(database, policy&1 != 0, policy&2 != 0, policy&4 != 0)
+	}
 	m.handler = sdk.NewStreamableHTTPHandler(func(r *http.Request) *sdk.Server {
 		policy, _ := r.Context().Value(writeAccessKey{}).(int)
 		return servers[policy]
@@ -120,7 +124,7 @@ func (m *Manager) Status() Status {
 	return m.statusLocked()
 }
 func (m *Manager) statusLocked() Status {
-	return Status{AllowStatementWrites: m.settings.AllowStatementWrites, Enabled: m.settings.Enabled, Port: m.settings.Port, AllowCategorizationWrites: m.settings.AllowCategorizationWrites, HasToken: m.settings.TokenHash != "", Listening: m.server != nil, Endpoint: fmt.Sprintf("http://127.0.0.1:%d/mcp", m.settings.Port), Error: m.lastError}
+	return Status{AllowSplitwiseWrites: m.settings.AllowSplitwiseWrites, AllowStatementWrites: m.settings.AllowStatementWrites, Enabled: m.settings.Enabled, Port: m.settings.Port, AllowCategorizationWrites: m.settings.AllowCategorizationWrites, HasToken: m.settings.TokenHash != "", Listening: m.server != nil, Endpoint: fmt.Sprintf("http://127.0.0.1:%d/mcp", m.settings.Port), Error: m.lastError}
 }
 func (m *Manager) stopLocked() {
 	// Close the raw listener too: Server.Close may run before Serve registers it.
@@ -145,11 +149,14 @@ func (m *Manager) Configure(enabled bool, port int) (Status, error) {
 }
 
 // ConfigureAccess preserves saved write preferences when omitted.
-func (m *Manager) ConfigureAccess(enabled bool, port int, allowCategorizationWrites, allowStatementWrites *bool) (Status, error) {
+func (m *Manager) ConfigureAccess(enabled bool, port int, allowCategorizationWrites, allowStatementWrites *bool, allowSplitwiseWrites ...*bool) (Status, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	s := m.settings
 	s.Enabled, s.Port = enabled, port
+	if len(allowSplitwiseWrites) > 0 && allowSplitwiseWrites[0] != nil {
+		s.AllowSplitwiseWrites = *allowSplitwiseWrites[0]
+	}
 	if allowCategorizationWrites != nil {
 		s.AllowCategorizationWrites = *allowCategorizationWrites
 	}
@@ -196,6 +203,7 @@ func (m *Manager) Revoke() error {
 	m.settings.TokenHash = ""
 	m.settings.AllowCategorizationWrites = false
 	m.settings.AllowStatementWrites = false
+	m.settings.AllowSplitwiseWrites = false
 	return m.database.SetMCPSettings(m.settings)
 }
 
@@ -238,6 +246,9 @@ func (m *Manager) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if m.settings.AllowStatementWrites {
 		policy |= 2
+	}
+	if m.settings.AllowSplitwiseWrites {
+		policy |= 4
 	}
 	m.active.Add(1)
 	m.mu.Unlock()

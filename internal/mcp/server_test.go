@@ -193,13 +193,17 @@ func TestToolsReadOnlyAndParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(list.Tools) != 27 {
+	if len(list.Tools) != 38 {
 		t.Fatalf("got %d tools", len(list.Tools))
 	}
 	args := map[string]map[string]any{
 		"get_investment_snapshot": {"id": "investment-test"}, "get_transaction": {"id": "0"}, "get_merchant_profile": {"name": "Shop"}, "get_monthly_review": {"month": "2026-01"}, "list_monthly_review_evidence": {"month": "2026-01", "category": "cat_groceries"}, "get_wrapped": {"year": "2026"}, "get_cashflow": {"period": "2026-01"}, "get_budget_summary": {"month": "2026-01"},
 	}
 	for _, tool := range list.Tools {
+		// Source/candidate tools have dedicated synthetic workflow tests.
+		if tool.Name == "preview_statement" || tool.Name == "preview_investment_statement" || tool.Name == "preview_splitwise_statement" || tool.Name == "list_splitwise_candidates" {
+			continue
+		}
 		t.Run(tool.Name, func(t *testing.T) {
 			if !tool.Annotations.ReadOnlyHint {
 				t.Fatal("missing read-only hint")
@@ -275,7 +279,7 @@ func TestRestoreAndResetRevokeCredentials(t *testing.T) {
 	m, database := testManager(t)
 	token := enable(t, m)
 	allowed := true
-	if _, err := m.ConfigureAccess(true, m.Status().Port, &allowed, &allowed); err != nil {
+	if _, err := m.ConfigureAccess(true, m.Status().Port, &allowed, &allowed, &allowed); err != nil {
 		t.Fatal(err)
 	}
 	backup := filepath.Join(t.TempDir(), "backup.db")
@@ -297,7 +301,7 @@ func TestRestoreAndResetRevokeCredentials(t *testing.T) {
 		t.Fatal(err)
 	}
 	settings, _ := database.GetMCPSettings()
-	if settings.Enabled || settings.TokenHash != "" || settings.AllowCategorizationWrites || settings.AllowStatementWrites || m.Status().AllowCategorizationWrites || m.Status().AllowStatementWrites || request(m, token, "", "") != 503 {
+	if settings.Enabled || settings.TokenHash != "" || settings.AllowCategorizationWrites || settings.AllowStatementWrites || settings.AllowSplitwiseWrites || m.Status().AllowCategorizationWrites || m.Status().AllowStatementWrites || m.Status().AllowSplitwiseWrites || request(m, token, "", "") != 503 {
 		t.Fatal("restore reactivated credential")
 	}
 	enable(t, m)

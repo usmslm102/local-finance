@@ -37,12 +37,14 @@ export function MCPSettingsPanel() {
       port,
       allowCategorizationWrites,
       allowStatementWrites,
+      allowSplitwiseWrites,
     }: {
       enabled: boolean
       port: number
       allowCategorizationWrites?: boolean
       allowStatementWrites?: boolean
-    }) => updateMCPSettings(enabled, port, allowCategorizationWrites, allowStatementWrites),
+      allowSplitwiseWrites?: boolean
+    }) => updateMCPSettings(enabled, port, allowCategorizationWrites, allowStatementWrites, allowSplitwiseWrites),
     onSuccess: (settings) => {
       client.setQueryData(['mcp-settings'], settings)
       setPortDraft(null)
@@ -91,11 +93,9 @@ export function MCPSettingsPanel() {
             <CardTitle className="text-base">AI access through MCP</CardTitle>
             <Badge variant="outline">
               {settings.listening
-                ? settings.allow_statement_writes
-                  ? 'Listening · statement and investment writes'
-                  : settings.allow_categorization_writes
-                    ? 'Listening · category and rule writes'
-                    : 'Listening · read-only'
+                ? settings.allow_splitwise_writes || settings.allow_statement_writes || settings.allow_categorization_writes
+                  ? 'Listening · writes enabled'
+                  : 'Listening · read-only'
                 : settings.enabled
                   ? 'Unavailable'
                   : 'Disabled'}
@@ -193,7 +193,7 @@ export function MCPSettingsPanel() {
                   </Label>
                   <p className="text-sm text-muted-foreground">
                     All clients sharing your token can upload bank and credit-card statements,
-                    import investment workbooks by local path, and permanently delete specific
+                    import investment workbooks by local path or inline upload, and permanently delete specific
                     statement uploads and their transactions, including manual edits.
                   </p>
                 </div>
@@ -209,6 +209,19 @@ export function MCPSettingsPanel() {
                     })
                   }
                 />
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <Label htmlFor="mcp-splitwise-writes">Allow Splitwise uploads and matching</Label>
+                  <p className="text-sm text-muted-foreground">
+                    All clients sharing your token can import Splitwise exports, replace member aliases,
+                    confirm or ignore matches, undo decisions and confirm settlements. Imports and alias
+                    changes can reconcile pending entries across groups and change reported personal spending.
+                    This permission is separate from bank and investment uploads.
+                  </p>
+                </div>
+                <Switch id="mcp-splitwise-writes" checked={settings.allow_splitwise_writes} disabled={busy}
+                  onCheckedChange={(allowSplitwiseWrites) => save.mutate({enabled: settings.enabled, port: settings.port, allowSplitwiseWrites})} />
               </div>
               <div className="flex items-end gap-3 flex-wrap">
                 <Field className="flex flex-col gap-2">

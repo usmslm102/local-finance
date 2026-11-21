@@ -208,6 +208,8 @@ func (d *DB) ConfirmSplitwise(id string, req models.SplitwiseConfirmation) error
 	status := "CONFIRMED"
 	var link *string
 	if req.Ignore {
+		// Ignoring suppresses recognition; it must not rewrite the source share.
+		req.Share = share
 		status = "IGNORED"
 	} else {
 		paid, direction, err := splitwiseMovement(cost, net, req.Share, kind)

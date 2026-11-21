@@ -16,7 +16,7 @@ func TestMCPWritePermissionUpgradeAndReset(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Recreate the previous schema and migration history, preserving its access row.
-	if _, err := database.Exec(`ALTER TABLE mcp_settings DROP COLUMN allow_statement_writes; ALTER TABLE mcp_settings DROP COLUMN allow_categorization_writes`); err != nil {
+	if _, err := database.Exec(`ALTER TABLE mcp_settings DROP COLUMN allow_splitwise_writes; ALTER TABLE mcp_settings DROP COLUMN allow_statement_writes; ALTER TABLE mcp_settings DROP COLUMN allow_categorization_writes`); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := database.Exec(`DROP TABLE statement_import_transactions; ALTER TABLE statement_imports DROP COLUMN source_pdf; DROP VIEW ledger_transactions; DROP VIEW personal_transactions; DROP TABLE splitwise_entries; DROP TABLE splitwise_member_aliases; DROP TABLE splitwise_groups; DROP TABLE savings_goals; DELETE FROM goose_db_version WHERE version_id >= 16`); err != nil {
@@ -36,6 +36,7 @@ func TestMCPWritePermissionUpgradeAndReset(t *testing.T) {
 	}
 	got.AllowCategorizationWrites = true
 	got.AllowStatementWrites = true
+	got.AllowSplitwiseWrites = true
 	if err := database.SetMCPSettings(got); err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +44,7 @@ func TestMCPWritePermissionUpgradeAndReset(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err = database.GetMCPSettings()
-	if err != nil || got.Enabled || got.TokenHash != "" || got.AllowCategorizationWrites || got.AllowStatementWrites {
+	if err != nil || got.Enabled || got.TokenHash != "" || got.AllowCategorizationWrites || got.AllowStatementWrites || got.AllowSplitwiseWrites {
 		t.Fatalf("reset retained access: %+v %v", got, err)
 	}
 }

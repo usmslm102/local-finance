@@ -9,6 +9,7 @@ import (
 func (h *Handler) GetMCPSettings(c *gin.Context) { c.JSON(http.StatusOK, h.mcpManager.Status()) }
 func (h *Handler) UpdateMCPSettings(c *gin.Context) {
 	var request struct {
+		AllowSplitwiseWrites      *bool `json:"allow_splitwise_writes"`
 		AllowStatementWrites      *bool `json:"allow_statement_writes"`
 		Enabled                   *bool `json:"enabled"`
 		Port                      *int  `json:"port"`
@@ -18,7 +19,7 @@ func (h *Handler) UpdateMCPSettings(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Provide enabled and port"})
 		return
 	}
-	status, err := h.mcpManager.ConfigureAccess(*request.Enabled, *request.Port, request.AllowCategorizationWrites, request.AllowStatementWrites)
+	status, err := h.mcpManager.ConfigureAccess(*request.Enabled, *request.Port, request.AllowCategorizationWrites, request.AllowStatementWrites, request.AllowSplitwiseWrites)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
