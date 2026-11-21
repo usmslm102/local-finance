@@ -4,6 +4,7 @@ import "fmt"
 
 // MCPSettings never contains the credential itself. TokenHash is not serialized.
 type MCPSettings struct {
+	AllowSplitwiseWrites      bool   `json:"allow_splitwise_writes"`
 	AllowStatementWrites      bool   `json:"allow_statement_writes"`
 	Enabled                   bool   `json:"enabled"`
 	Port                      int    `json:"port"`
@@ -15,7 +16,7 @@ func (d *DB) GetMCPSettings() (MCPSettings, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	var s MCPSettings
-	err := d.conn.QueryRow("SELECT enabled, port, token_hash, allow_categorization_writes, allow_statement_writes FROM mcp_settings WHERE id = 1").Scan(&s.Enabled, &s.Port, &s.TokenHash, &s.AllowCategorizationWrites, &s.AllowStatementWrites)
+	err := d.conn.QueryRow("SELECT enabled, port, token_hash, allow_categorization_writes, allow_statement_writes, allow_splitwise_writes FROM mcp_settings WHERE id = 1").Scan(&s.Enabled, &s.Port, &s.TokenHash, &s.AllowCategorizationWrites, &s.AllowStatementWrites, &s.AllowSplitwiseWrites)
 	return s, err
 }
 
@@ -28,12 +29,12 @@ func (d *DB) SetMCPSettings(s MCPSettings) error {
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	_, err := d.conn.Exec("UPDATE mcp_settings SET enabled = ?, port = ?, token_hash = ?, allow_categorization_writes = ?, allow_statement_writes = ? WHERE id = 1", s.Enabled, s.Port, s.TokenHash, s.AllowCategorizationWrites, s.AllowStatementWrites)
+	_, err := d.conn.Exec("UPDATE mcp_settings SET enabled = ?, port = ?, token_hash = ?, allow_categorization_writes = ?, allow_statement_writes = ?, allow_splitwise_writes = ? WHERE id = 1", s.Enabled, s.Port, s.TokenHash, s.AllowCategorizationWrites, s.AllowStatementWrites, s.AllowSplitwiseWrites)
 	return err
 }
 
 // clearMCPAccess is called with d.mu held before destructive database operations.
 func (d *DB) clearMCPAccess() error {
-	_, err := d.conn.Exec("UPDATE mcp_settings SET enabled = 0, token_hash = '', allow_categorization_writes = 0, allow_statement_writes = 0 WHERE id = 1")
+	_, err := d.conn.Exec("UPDATE mcp_settings SET enabled = 0, token_hash = '', allow_categorization_writes = 0, allow_statement_writes = 0, allow_splitwise_writes = 0 WHERE id = 1")
 	return err
 }

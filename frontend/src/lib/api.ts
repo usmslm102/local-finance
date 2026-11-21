@@ -960,6 +960,7 @@ export async function applySystemUpdate(): Promise<import("../types").ApplyUpdat
 }
 
 export interface MCPSettings {
+ allow_splitwise_writes: boolean
   allow_statement_writes: boolean
   allow_categorization_writes: boolean
   enabled: boolean
@@ -980,8 +981,8 @@ async function mcpRequest<T>(path: string, init?: RequestInit): Promise<T> {
 export function fetchMCPSettings(): Promise<MCPSettings> {
   return mcpRequest('settings')
 }
-export function updateMCPSettings(enabled: boolean, port: number, allowCategorizationWrites?: boolean, allowStatementWrites?: boolean): Promise<MCPSettings> {
-  return mcpRequest('settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled, port, allow_categorization_writes: allowCategorizationWrites, allow_statement_writes: allowStatementWrites }) })
+export function updateMCPSettings(enabled: boolean, port: number, allowCategorizationWrites?: boolean, allowStatementWrites?: boolean, allowSplitwiseWrites?: boolean): Promise<MCPSettings> {
+  return mcpRequest('settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled, port, allow_categorization_writes: allowCategorizationWrites, allow_statement_writes: allowStatementWrites, allow_splitwise_writes: allowSplitwiseWrites }) })
 }
 export function rotateMCPToken(): Promise<{ token: string; settings: MCPSettings }> {
   return mcpRequest('token/rotate', { method: 'POST' })
