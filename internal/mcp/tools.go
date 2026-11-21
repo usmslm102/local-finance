@@ -90,7 +90,7 @@ func newServer(database *db.DB, allowCategorizationWrites, allowStatementWrites 
 		{name: "get_transaction", description: "Get a transaction with its category, tags, notes and narration.", fields: "id", required: []string{"id"}, query: func(a arguments) (any, error) { return database.GetTransaction(a.ID) }},
 		{name: "list_categories", description: "List categories and configured category budgets.", query: func(arguments) (any, error) { return database.ListCategories() }},
 		{name: "list_categorization_rules", description: "List existing categorization rules without applying them.", query: func(arguments) (any, error) { return database.ListRules() }},
-		{name: "get_overview", description: "Get the application's financial overview.", query: func(arguments) (any, error) { return database.GetAnalyticsOverview() }},
+		{name: "get_overview", description: "Get the application's financial overview. Optional inclusive dates filter flows; balances and card statements are latest imported snapshots, not live bank balances or verified unpaid debt.", fields: "start_date end_date", query: func(a arguments) (any, error) { return database.GetAnalyticsOverviewRange(a.StartDate, a.EndDate) }},
 		{name: "get_monthly_review", description: "Get monthly spending review and comparisons. Month is YYYY-MM; omitted means current month.", fields: "month", query: func(a arguments) (any, error) { return database.GetMonthlyReview(a.Month, time.Now()) }},
 		{name: "list_monthly_review_evidence", description: "Get supporting transactions for a monthly review category. Empty category means uncategorized. Fixed page size: 50.", fields: "month category period", required: []string{"category"}, backendPaging: true, query: func(a arguments) (any, error) {
 			return database.GetMonthlyReviewEvidence(a.Month, *a.Category, a.Period == "previous", a.Page, time.Now())
@@ -118,7 +118,7 @@ func newServer(database *db.DB, allowCategorizationWrites, allowStatementWrites 
 			}
 			return database.ListMerchants(a.Search, category, a.SortBy)
 		}},
-		{name: "get_merchant_profile", description: "Get a merchant profile and transaction evidence.", fields: "name", required: []string{"name"}, query: func(a arguments) (any, error) { return database.GetMerchantProfile(a.Name) }},
+		{name: "get_merchant_profile", description: "Get a merchant profile and transaction evidence.", fields: "name", required: []string{"name"}, query: func(a arguments) (any, error) { return database.GetMerchantProfilePageSize(a.Name, a.Page, a.PageSize) }},
 		{name: "list_statement_imports", description: "List statement import history and import totals; does not read statement files.", query: func(arguments) (any, error) { return database.ListStatementImports() }},
 		{name: "list_parsers", description: "List supported local statement parsers and formats.", query: func(arguments) (any, error) {
 			items := []map[string]any{}
@@ -323,6 +323,13 @@ func prepareOutput(data any, a arguments, backendPaging bool) (toolOutput, error
 		return toolOutput{}, err
 	}
 	out := toolOutput{Pagination: map[string]pagination{}}
+	if obj, ok := normalized.(map[string]any); ok {
+		if page, ok := obj["history_page"].(float64); ok {
+			size, _ := obj["history_page_size"].(float64)
+			total, _ := obj["total_tx_count"].(float64)
+			out.Pagination["/recent_transactions"] = pagination{Page: int(page), PageSize: int(size), Total: int(total), HasMore: page*size < total}
+		}
+	}
 	if backendPaging {
 		if obj, ok := normalized.(map[string]any); ok {
 			total, _ := obj["total"].(float64)
@@ -349,7 +356,8 @@ func sanitize(value any, path string, a arguments, pages map[string]pagination, 
 	case []any:
 		total := len(v)
 		start, end := 0, total
-		if !(backendPaging && path == "/items") {
+		_, alreadyPaged := pages[path]
+		if !alreadyPaged {
 			start = (a.Page - 1) * a.PageSize
 			if start > total {
 				start = total

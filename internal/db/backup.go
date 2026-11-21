@@ -168,6 +168,9 @@ func (d *DB) RestoreFrom(r io.Reader) error {
 		return fmt.Errorf("failed to preserve current database: %w", err)
 	}
 	restoreErr := copySQLite(d.conn, name, true)
+	if restoreErr == nil {
+		d.revisionID = uuid.NewString()
+	}
 	permissionErr := protectDatabaseFiles(d.path)
 	if restoreErr != nil {
 		// copySQLite always calls Finish: SQLite rolls back an incomplete

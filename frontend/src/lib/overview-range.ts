@@ -1,6 +1,13 @@
 export type OverviewPeriod = 'all' | '1' | '3' | '6' | '12' | 'custom'
 export type OverviewRange = { start_date?: string; end_date?: string }
 
+export function validOverviewSearch(search: Record<string, unknown>): OverviewRange & { category?: string } {
+  const validDate = (value: unknown): value is string => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value
+  const range: OverviewRange = validDate(search.start_date) && validDate(search.end_date) && search.start_date <= search.end_date
+    ? { start_date: search.start_date, end_date: search.end_date } : {}
+  return { ...range, category: typeof search.category === 'string' ? search.category : undefined }
+}
+
 function localDate(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }

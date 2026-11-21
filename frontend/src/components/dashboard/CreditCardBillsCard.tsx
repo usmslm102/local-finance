@@ -9,9 +9,10 @@ import { AnimatedNumber } from '@/components/ui/animated-number'
 
 interface CreditCardBillsCardProps {
   bills: CreditCardBill[]
+  history?: boolean
 }
 
-export const CreditCardBillsCard: React.FC<CreditCardBillsCardProps> = ({ bills }) => {
+export const CreditCardBillsCard: React.FC<CreditCardBillsCardProps> = ({ bills, history = false }) => {
   const { isPrivacyMode } = usePrivacy()
   if (!bills || bills.length === 0) {
     return null
@@ -23,10 +24,10 @@ export const CreditCardBillsCard: React.FC<CreditCardBillsCardProps> = ({ bills 
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <CreditCard className="size-4 text-warning" /> Credit Card Statements &amp; Dues
+              <CreditCard className="size-4 text-warning" /> {history ? 'Statement archive' : 'Latest reported card statements'}
             </CardTitle>
             <CardDescription className="text-xs mt-0.5">
-              Extracted billing statements, due dates, and reward points balances
+              Reported statement amounts and due dates. Payments are not verified.
             </CardDescription>
           </div>
           <Badge variant="secondary">
@@ -37,7 +38,6 @@ export const CreditCardBillsCard: React.FC<CreditCardBillsCardProps> = ({ bills 
       <CardContent className="pt-0">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {bills.map((bill) => {
-            const isUnpaid = bill.payment_status === 'UNPAID'
             return (
               <div
                 key={bill.id}
@@ -46,28 +46,29 @@ export const CreditCardBillsCard: React.FC<CreditCardBillsCardProps> = ({ bills 
                 <div>
                   <div className="flex items-start justify-between gap-2">
                     <div>
+                      <p className="text-xs text-muted-foreground">Statement {formatDate(bill.statement_date)}</p>
                       <h5 className="text-xs font-semibold text-foreground tracking-tight">
-                        {bill.bank_name || 'Credit Card'}
+                        {bill.bank_name || 'Credit Card'} · {bill.account_id.slice(-6)}
                       </h5>
                       <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
-                        <Calendar className="size-3" /> Due:{' '}
+                        <Calendar className="size-3" /> Reported due:{' '}
                         <span className="font-medium text-foreground">
                           {formatDate(bill.payment_due_date)}
                         </span>
                       </p>
                     </div>
                     <Badge
-                      variant={isUnpaid ? 'destructive' : 'secondary'}
+                      variant="secondary"
                       className="uppercase tracking-wider px-1.5 py-0"
                     >
-                      {bill.payment_status}
+                      Reported
                     </Badge>
                   </div>
 
                   <div className="mt-3 flex items-baseline justify-between">
                     <div>
                       <p className="text-[10px] uppercase font-medium text-muted-foreground tracking-wider">
-                        Total Due
+                        Statement amount
                       </p>
                       <div className="text-base font-bold font-mono text-foreground tracking-tight tabular-nums mt-0.5">
                         <AnimatedNumber

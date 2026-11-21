@@ -442,7 +442,7 @@ func (d *statementStore) ListRules() ([]models.CategorizationRule, error) {
 		}
 		list = append(list, r)
 	}
-	return list, rows.Err()
+	return models.PrepareRules(list), rows.Err()
 }
 
 func (d *statementStore) CreateOrUpdateCreditCardBill(b *models.CreditCardBill) error {

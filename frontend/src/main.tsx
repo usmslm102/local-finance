@@ -1,14 +1,16 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MutationCache, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider } from '@tanstack/react-router'
 import { router } from './router'
 import './index.css'
 import { installDesktopActions } from './lib/desktop'
+import { refreshActiveFinance } from './lib/finance-refresh'
 
 void installDesktopActions()
 
-const queryClient = new QueryClient({
+const queryClient: QueryClient = new QueryClient({
+  mutationCache: new MutationCache({ onSuccess: () => refreshActiveFinance(queryClient) }),
   defaultOptions: {
     queries: {
       staleTime: 1000 * 60, // 1 minute

@@ -170,9 +170,11 @@ export async function updateAccount(
   return res.json()
 }
 
-export async function fetchCreditCardBills(accountId?: string): Promise<import('../types').CreditCardBill[]> {
-  const query = accountId ? `?account_id=${encodeURIComponent(accountId)}` : ''
-  const res = await fetchWithAuth(`${BASE_URL}/credit-cards/bills${query}`)
+export async function fetchCreditCardBills(accountId?: string, latest = false): Promise<import('../types').CreditCardBill[]> {
+  const query = new URLSearchParams()
+  if (accountId) query.set('account_id', accountId)
+  if (latest) query.set('latest', 'true')
+  const res = await fetchWithAuth(`${BASE_URL}/credit-cards/bills?${query}`)
   if (!res.ok) throw new Error('Failed to fetch credit card bills')
   return res.json()
 }
@@ -716,6 +718,7 @@ export async function fetchMerchants(params?: {
   sort_by?: string
 }): Promise<import('../types').MerchantListResponse> {
   const query = new URLSearchParams()
+  query.set('include_source', 'false')
   if (params?.search) query.set('search', params.search)
   if (params?.category) query.set('category', params.category)
   if (params?.sort_by) query.set('sort_by', params.sort_by)
@@ -728,9 +731,10 @@ export async function fetchMerchants(params?: {
 }
 
 export async function fetchMerchantProfile(
-  payeeName: string
+  payeeName: string,
+  page = 1
 ): Promise<import('../types').MerchantProfile> {
-  const res = await fetchWithAuth(`${BASE_URL}/merchants/${encodeURIComponent(payeeName)}`)
+  const res = await fetchWithAuth(`${BASE_URL}/merchants/${encodeURIComponent(payeeName)}?page=${page}`)
   if (!res.ok) {
     throw new Error('Failed to fetch merchant profile')
   }

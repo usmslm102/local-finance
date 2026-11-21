@@ -2,7 +2,7 @@ import { cn } from '@/lib/utils'
 import { usePrivacy } from '@/components/privacy-provider'
 import { buttonVariants } from '@/components/ui/button'
 import { Field, FieldLabel } from '@/components/ui/field'
-import React, { useState, useId } from 'react'
+import React, { useState, useRef, useEffect, useId } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   fetchAccounts,
@@ -69,11 +69,14 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Link } from '@tanstack/react-router'
+import { statementForm } from '@/lib/statement-form'
 
 interface QueuedFile {
   id: string
   file: File
   password?: string
+  parserId: string
+  accountId: string
   status: 'previewing' | 'ready' | 'password_required' | 'error' | 'importing' | 'imported'
   preview?: StatementPreviewResult
   error?: string
@@ -85,6 +88,10 @@ export const StatementUploader: React.FC = () => {
   const fieldId = useId()
   const queryClient = useQueryClient()
   const [queuedFiles, setQueuedFiles] = useState<QueuedFile[]>([])
+  const importingIds = useRef(new Set<string>())
+  useEffect(() => {
+    setActivePreviewFile((current) => current ? queuedFiles.find((file) => file.id === current.id) ?? null : null)
+  }, [queuedFiles])
   const [parserId, setParserId] = useState('AUTO')
   const [accountId, setAccountId] = useState('AUTO')
   const [activePreviewFile, setActivePreviewFile] = useState<QueuedFile | null>(null)
@@ -139,12 +146,8 @@ export const StatementUploader: React.FC = () => {
     )
 
     try {
-      const formData = new FormData()
-      formData.append('file', qFile.file)
-      if (parserId && parserId !== 'AUTO') formData.append('parser_id', parserId)
-      if (accountId && accountId !== 'AUTO') formData.append('account_id', accountId)
       const pwd = customPassword !== undefined ? customPassword : qFile.password || ''
-      if (pwd) formData.append('password', pwd)
+      const formData = statementForm(qFile.file, { ...qFile, password: pwd })
 
       const previewRes = await previewStatement(formData)
 
@@ -201,6 +204,8 @@ export const StatementUploader: React.FC = () => {
       const qFile: QueuedFile = {
         id,
         file,
+        parserId,
+        accountId,
         status: 'previewing',
       }
       newQueue.push(qFile)
@@ -272,16 +277,14 @@ export const StatementUploader: React.FC = () => {
   }
 
   const importSingleFile = async (qFile: QueuedFile) => {
+    if (qFile.status !== 'ready' || importingIds.current.has(qFile.id)) return
+    importingIds.current.add(qFile.id)
     setQueuedFiles((prev) =>
       prev.map((f) => (f.id === qFile.id ? { ...f, status: 'importing' } : f))
     )
 
     try {
-      const formData = new FormData()
-      formData.append('file', qFile.file)
-      if (parserId && parserId !== 'AUTO') formData.append('parser_id', parserId)
-      if (accountId && accountId !== 'AUTO') formData.append('account_id', accountId)
-      if (qFile.password) formData.append('password', qFile.password)
+      const formData = statementForm(qFile.file, qFile)
 
       const result = await uploadStatement(formData)
 
@@ -300,7 +303,7 @@ export const StatementUploader: React.FC = () => {
           f.id === qFile.id ? { ...f, status: 'error', error: err.message || 'Import failed' } : f
         )
       )
-    }
+    } finally { importingIds.current.delete(qFile.id) }
   }
 
   const handleImportAllReady = async () => {
@@ -535,7 +538,7 @@ export const StatementUploader: React.FC = () => {
                   variant="outline"
                   size="sm"
                   onClick={clearQueue}
-                  disabled={isBatchImporting}
+                  disabled={isBatchImporting || queuedFiles.some((file) => file.status === 'importing')}
                   className="h-8"
                 >
                   Clear Queue
@@ -682,6 +685,18 @@ export const StatementUploader: React.FC = () => {
                           )}
                         </div>
 
+                        <p className="text-xs text-muted-foreground">
+                          Reviewed target: {qFile.accountId === 'AUTO' ? 'Detect from statement' : accounts?.find((a) => a.id === qFile.accountId)?.account_number_mask || qFile.accountId}
+                          {' · '}Parser: {qFile.parserId === 'AUTO' ? 'Automatic' : qFile.parserId}
+                        </p>
+                        {(qFile.status === 'ready' || qFile.status === 'error') && !isBatchImporting && (
+                          <Button size="sm" variant="outline" onClick={() => {
+                            const updated = { ...qFile, parserId, accountId, preview: undefined }
+                            setActivePreviewFile(null)
+                            setQueuedFiles((prev) => prev.map((f) => f.id === qFile.id ? updated : f))
+                            void processFilePreview(updated)
+                          }}>Apply current settings and preview again</Button>
+                        )}
                         {qFile.preview && qFile.status === 'ready' && (
                           <div className="flex items-center gap-4 mt-1 text-[11px] text-muted-foreground flex-wrap">
                             <span>
@@ -799,7 +814,7 @@ export const StatementUploader: React.FC = () => {
                             <Eye data-icon="inline-start" className="text-primary" />
                             <span>Preview Records</span>
                           </Button>
-                          <Button size="sm" className="h-8" onClick={() => importSingleFile(qFile)}>
+                          <Button size="sm" className="h-8" disabled={isBatchImporting} onClick={() => importSingleFile(qFile)}>
                             Import
                           </Button>
                         </>
@@ -821,6 +836,7 @@ export const StatementUploader: React.FC = () => {
                       <Button
                         variant="ghost"
                         size="sm"
+                        disabled={isBatchImporting || qFile.status === 'importing'}
                         onClick={() => removeFileFromQueue(qFile.id)}
                         className="size-8 p-0 hover:text-destructive"
                       >
@@ -1174,6 +1190,7 @@ export const StatementUploader: React.FC = () => {
               <Button
                 size="sm"
                 className="gap-1.5"
+                disabled={isBatchImporting}
                 onClick={() => {
                   if (activePreviewFile) {
                     importSingleFile(activePreviewFile)
