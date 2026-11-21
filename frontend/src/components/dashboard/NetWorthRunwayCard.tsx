@@ -25,7 +25,7 @@ export const NetWorthRunwayCard: React.FC<NetWorthRunwayCardProps> = ({
   const avgMonthlyBurn =
     validExpenses.length > 0
       ? validExpenses.reduce((acc, v) => acc + v, 0) / validExpenses.length
-      : 35000 // reasonable default baseline
+      : 0 // No recorded spending baseline
 
   const runwayMonths = avgMonthlyBurn > 0 ? totalLiquidity / avgMonthlyBurn : 0
 
@@ -52,6 +52,8 @@ export const NetWorthRunwayCard: React.FC<NetWorthRunwayCardProps> = ({
     gaugePercent = (runwayMonths / 6) * 100
   }
 
+  if (avgMonthlyBurn <= 0) { runwayStatusColor = 'text-muted-foreground'; gaugePercent = 0 }
+
   return (
     <Card className="overflow-hidden">
       <CardContent className="p-5 flex flex-col gap-4">
@@ -63,13 +65,13 @@ export const NetWorthRunwayCard: React.FC<NetWorthRunwayCardProps> = ({
             </div>
             <div>
               <h3 className="text-xs font-bold uppercase tracking-wider text-foreground">
-                Liquid Net Worth &amp; Emergency Runway
+                Reported Liquidity &amp; Spending Runway
               </h3>
             </div>
           </div>
 
           <Badge variant={runwayBadgeVariant} className="px-2 py-0.5">
-            {runwayLabel}
+            {avgMonthlyBurn > 0 ? runwayLabel : 'No spending baseline'}
           </Badge>
         </div>
 
@@ -79,13 +81,13 @@ export const NetWorthRunwayCard: React.FC<NetWorthRunwayCardProps> = ({
           <div className="flex flex-col gap-3">
             <div>
               <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground block">
-                Total Liquid Net Worth
+                Bank snapshots less card statements
               </span>
               <div className="text-3xl font-extrabold font-mono tracking-tight text-foreground tabular-nums privacy-blur mt-0.5">
                 {formatINR(netWorth, isPrivacyMode)}
               </div>
               <p className="text-[11px] text-muted-foreground mt-1">
-                Liquid Bank Savings minus active Credit Card Dues
+                Latest imported bank balances minus latest reported card amounts; payments are not verified.
               </p>
             </div>
 
@@ -101,7 +103,7 @@ export const NetWorthRunwayCard: React.FC<NetWorthRunwayCardProps> = ({
 
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted/60 border text-[11px] font-mono">
                 <CreditCard className="size-3 text-destructive" />
-                <span className="text-muted-foreground">Card Dues:</span>
+                <span className="text-muted-foreground">Card statements:</span>
                 <span className="font-bold text-destructive privacy-blur">
                   {formatINR(totalCreditDue, isPrivacyMode)}
                 </span>
@@ -119,7 +121,7 @@ export const NetWorthRunwayCard: React.FC<NetWorthRunwayCardProps> = ({
               <span
                 className={cn('text-sm font-bold font-mono', runwayStatusColor, 'privacy-blur')}
               >
-                {runwayMonths.toFixed(1)} Months
+                {avgMonthlyBurn > 0 ? `${runwayMonths.toFixed(1)} Months` : 'Not enough data'}
               </span>
             </div>
 
@@ -137,7 +139,7 @@ export const NetWorthRunwayCard: React.FC<NetWorthRunwayCardProps> = ({
                           ? 'bg-warning'
                           : 'bg-destructive'
                   )}
-                  style={{ width: `${gaugePercent}%` }}
+                  style={{ width: `${avgMonthlyBurn > 0 ? gaugePercent : 0}%` }}
                 />
               </div>
               <div className="flex justify-between text-[9px] font-mono text-muted-foreground pt-0.5">
@@ -149,9 +151,9 @@ export const NetWorthRunwayCard: React.FC<NetWorthRunwayCardProps> = ({
 
             {/* Debt-to-Liquid Ratio Footer */}
             <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1 border-t border-border/50">
-              <span>Card Debt Float Ratio:</span>
+              <span>Reported card / bank ratio:</span>
               <span className="font-mono font-semibold text-foreground privacy-blur">
-                {debtRatio.toFixed(1)}% of savings
+                {totalLiquidity > 0 ? `${debtRatio.toFixed(1)}% of savings` : 'Not available'}
               </span>
             </div>
           </div>

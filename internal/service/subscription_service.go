@@ -153,19 +153,23 @@ var knownCatalog = []CatalogRule{
 }
 
 func (s *SubscriptionService) ScanAndDetectSubscriptions() (*models.SubscriptionsSummary, error) {
-	// 1. Fetch all debit transactions
-	txs, _, err := s.db.ListTransactions(db.TransactionFilter{
-		TxType: string(models.TxTypeDebit),
-		Limit:  100000,
-	})
+	if err := s.DetectSubscriptions(); err != nil {
+		return nil, err
+	}
+	return s.db.GetSubscriptionsSummary()
+}
+
+// DetectSubscriptions keeps per-import cadence semantics but avoids presentation reads.
+func (s *SubscriptionService) DetectSubscriptions() error {
+	txs, err := s.db.ListSubscriptionCandidates()
 	if err != nil {
-		return nil, fmt.Errorf("failed to list transactions for subscription scan: %w", err)
+		return fmt.Errorf("failed to list transactions for subscription scan: %w", err)
 	}
 
 	// 2. Fetch existing categories and subscriptions
 	categories, err := s.db.ListCategories()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	catMap := make(map[string]string)
 	for _, c := range categories {
@@ -174,7 +178,7 @@ func (s *SubscriptionService) ScanAndDetectSubscriptions() (*models.Subscription
 
 	existingSubs, err := s.db.ListSubscriptions()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	existingMap := make(map[string]models.Subscription)
 	for _, sub := range existingSubs {
@@ -293,7 +297,9 @@ func (s *SubscriptionService) ScanAndDetectSubscriptions() (*models.Subscription
 
 	// 5. Mark recurring transactions in database
 	if len(recurringTxIDs) > 0 {
-		_ = s.db.MarkTransactionsRecurring(recurringTxIDs)
+		if err := s.db.MarkTransactionsRecurring(recurringTxIDs); err != nil {
+			return err
+		}
 	}
 
 	// 6. Create / Update Subscriptions in database
@@ -350,7 +356,9 @@ func (s *SubscriptionService) ScanAndDetectSubscriptions() (*models.Subscription
 				if existing.AccountID == nil {
 					existing.AccountID = &accountID
 				}
-				_ = s.db.UpdateSubscription(&existing)
+				if err := s.db.UpdateSubscription(&existing); err != nil {
+					return err
+				}
 			}
 		} else {
 			// Create new subscription record
@@ -369,11 +377,13 @@ func (s *SubscriptionService) ScanAndDetectSubscriptions() (*models.Subscription
 				Status:          models.SubscriptionStatusActive,
 				IsAutoDetected:  true,
 			}
-			_ = s.db.CreateSubscription(sub)
+			if err := s.db.CreateSubscription(sub); err != nil {
+				return err
+			}
 		}
 	}
 
-	return s.db.GetSubscriptionsSummary()
+	return nil
 }
 
 func nextDueDateFromLastPaid(lastPaid string, billingDay int, freq models.SubscriptionFrequency) string {

@@ -95,6 +95,9 @@ func (r *CategorizationRule) MatchesTransaction(tx Transaction) bool {
 	case "STARTS_WITH":
 		return strings.HasPrefix(strings.ToUpper(target), strings.ToUpper(r.MatchPattern))
 	case "REGEX":
+		if r.prepared {
+			return r.matchExpression != nil && r.matchExpression.MatchString(target)
+		}
 		re, err := regexp.Compile(r.MatchPattern)
 		return err == nil && re.MatchString(target)
 	}

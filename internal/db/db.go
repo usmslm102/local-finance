@@ -28,9 +28,10 @@ import (
 var embedMigrations embed.FS
 
 type DB struct {
-	mu   sync.RWMutex
-	conn *sql.DB
-	path string
+	mu         sync.RWMutex
+	revisionID string
+	conn       *sql.DB
+	path       string
 }
 
 func NewDB(dbPath string) (*DB, error) {
@@ -59,7 +60,7 @@ func NewDB(dbPath string) (*DB, error) {
 
 	conn.SetMaxOpenConns(1) // SQLite works best with 1 writer connection
 
-	d := &DB{conn: conn, path: absPath}
+	d := &DB{conn: conn, path: absPath, revisionID: uuid.NewString()}
 	if err := d.migrate(); err != nil {
 		_ = conn.Close()
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
@@ -769,6 +770,14 @@ func (d *DB) CreateOrUpdateCreditCardBill(b *models.CreditCardBill) error {
 }
 
 func (d *DB) ListCreditCardBills(accountID string) ([]models.CreditCardBill, error) {
+	return d.listCreditCardBills(accountID, false)
+}
+
+func (d *DB) ListLatestCreditCardBills(accountID string) ([]models.CreditCardBill, error) {
+	return d.listCreditCardBills(accountID, true)
+}
+
+func (d *DB) listCreditCardBills(accountID string, latest bool) ([]models.CreditCardBill, error) {
 	where := "1=1"
 	args := []interface{}{}
 	if accountID != "" {
@@ -776,17 +785,23 @@ func (d *DB) ListCreditCardBills(accountID string) ([]models.CreditCardBill, err
 		args = append(args, accountID)
 	}
 
-	query := fmt.Sprintf(`
+	source := "credit_card_bills b JOIN accounts a ON b.account_id=a.id"
+	prefix := ""
+	if latest {
+		prefix = billVersions
+		source = `accounts a JOIN cycle_versions b ON b.id=(SELECT v.id FROM cycle_versions v WHERE v.account_id=a.id AND v.cycle_rank=1 ORDER BY v.statement_date DESC,v.id DESC LIMIT 1)`
+	}
+
+	query := prefix + fmt.Sprintf(`
 		SELECT b.id, b.account_id, a.bank_name || ' (' || a.account_type || ')' as bank_name,
 		       b.statement_import_id, b.statement_date, b.payment_due_date,
 		       b.total_due_amount, b.minimum_due_amount, b.reward_points_earned, b.reward_points_balance,
 		       b.cashback_earned, b.cashback_credited, b.finance_charges, b.credit_limit, b.available_credit_limit,
 		       b.payment_status, b.created_at
-		FROM credit_card_bills b
-		JOIN accounts a ON b.account_id = a.id
+		FROM %s
 		WHERE %s
-		ORDER BY b.statement_date DESC
-	`, where)
+		ORDER BY b.statement_date DESC,b.created_at DESC,b.id DESC
+	`, source, where)
 
 	rows, err := d.conn.Query(query, args...)
 	if err != nil {
@@ -1050,15 +1065,27 @@ func (d *DB) MarkTransactionsRecurring(txIDs []string) error {
 		return nil
 	}
 
-	placeholders := make([]string, len(txIDs))
-	args := make([]any, len(txIDs))
-	for i, id := range txIDs {
-		placeholders[i] = "?"
-		args[i] = id
+	tx, err := d.conn.Begin()
+	if err != nil {
+		return err
 	}
-	query := "UPDATE transactions SET is_recurring = 1 WHERE id IN (" + strings.Join(placeholders, ",") + ")"
-	_, err := d.conn.Exec(query, args...)
-	return err
+	defer tx.Rollback()
+	for start := 0; start < len(txIDs); start += 500 {
+		end := start + 500
+		if end > len(txIDs) {
+			end = len(txIDs)
+		}
+		marks := make([]string, end-start)
+		args := make([]any, end-start)
+		for i, id := range txIDs[start:end] {
+			marks[i] = "?"
+			args[i] = id
+		}
+		if _, err := tx.Exec("UPDATE transactions SET is_recurring=1 WHERE is_recurring=0 AND id IN ("+strings.Join(marks, ",")+")", args...); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 func (d *DB) GetSubscriptionsSummary() (*models.SubscriptionsSummary, error) {
@@ -1109,6 +1136,8 @@ func (d *DB) GetAnalyticsOverview() (*models.AnalyticsOverview, error) {
 // GetAnalyticsOverviewRange filters transaction flows by inclusive dates.
 // Account balances and latest card bills remain current snapshots.
 func (d *DB) GetAnalyticsOverviewRange(startDate, endDate string) (*models.AnalyticsOverview, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 	dateFilter := ""
 	var dateArgs []any
 	for _, bound := range []struct{ date, operator string }{{startDate, ">="}, {endDate, "<="}} {
@@ -1244,16 +1273,16 @@ func (d *DB) GetAnalyticsOverviewRange(startDate, endDate string) (*models.Analy
 		WHERE account_type IN ('SAVINGS', 'CURRENT', 'WALLET')
 	`).Scan(&overview.TotalBankLiquidity)
 
-	// 7. Credit Card Outstanding Dues (Latest bill per card)
-	_ = d.conn.QueryRow(`
-		SELECT COALESCE(SUM(b.total_due_amount), 0)
-		FROM credit_card_bills b
-		WHERE (b.account_id, b.statement_date) IN (
-			SELECT account_id, MAX(statement_date)
-			FROM credit_card_bills
-			GROUP BY account_id
-		)
-	`).Scan(&overview.TotalCreditDue)
+	// Use the same canonical source versions for dashboard, REST and MCP.
+	bills, err := d.ListLatestCreditCardBills("")
+	if err != nil {
+		return nil, err
+	}
+	for _, bill := range bills {
+		overview.TotalCreditDue += bill.TotalDueAmount
+		overview.TotalRewardPoints += bill.RewardPointsBalance
+	}
+	overview.UpcomingBills = bills
 
 	// 8. Total Sanctioned Credit Limit across Cards
 	_ = d.conn.QueryRow(`
@@ -1268,25 +1297,9 @@ func (d *DB) GetAnalyticsOverviewRange(startDate, endDate string) (*models.Analy
 
 	// 9. Total Cashback Earned across all bills and transactions
 	var billCashback, txCashback float64
-	_ = d.conn.QueryRow(`SELECT COALESCE(SUM(cashback_earned), 0) FROM credit_card_bills`).Scan(&billCashback)
+	_ = d.conn.QueryRow(billVersions + `SELECT COALESCE(SUM(cashback_earned),0) FROM cycle_versions WHERE cycle_rank=1`).Scan(&billCashback)
 	_ = d.conn.QueryRow(`SELECT COALESCE(SUM(cashback_amount), 0) FROM personal_transactions`).Scan(&txCashback)
 	overview.TotalCashbackEarned = billCashback + txCashback
-
-	// 10. Total Reward Points Balance across Cards
-	_ = d.conn.QueryRow(`
-		SELECT COALESCE(SUM(b.reward_points_balance), 0)
-		FROM credit_card_bills b
-		WHERE (b.account_id, b.statement_date) IN (
-			SELECT account_id, MAX(statement_date)
-			FROM credit_card_bills
-			GROUP BY account_id
-		)
-	`).Scan(&overview.TotalRewardPoints)
-
-	// 11. Upcoming Active Credit Card Bills
-	if bills, err := d.ListCreditCardBills(""); err == nil && len(bills) > 0 {
-		overview.UpcomingBills = bills
-	}
 
 	return overview, nil
 }
@@ -1639,6 +1652,15 @@ func (d *DB) GetCardPortfolioOverview() (*models.CardPortfolioOverview, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
+	latest, err := d.ListLatestCreditCardBills("")
+	if err != nil {
+		return nil, err
+	}
+	latestByAccount := map[string]models.CreditCardBill{}
+	for _, bill := range latest {
+		latestByAccount[bill.AccountID] = bill
+	}
+
 	rows, err := d.conn.Query(`
 		SELECT id, bank_name, account_type, account_number_mask, currency, opening_balance, current_balance,
 		       credit_limit, billing_cycle_day, nickname, customer_id, ifsc_code, branch_name,
@@ -1791,15 +1813,14 @@ func (d *DB) GetCardPortfolioOverview() (*models.CardPortfolioOverview, error) {
 		}
 		totalAnnualFees += cd.AnnualFee
 
-		// Fetch latest credit card bill metadata
-		var totalDue, availLimit, cbEarned, rewPts float64
-		_ = d.conn.QueryRow(`
-			SELECT COALESCE(total_due_amount, 0), COALESCE(available_credit_limit, 0), COALESCE(cashback_earned, 0), COALESCE(reward_points_balance, 0)
-			FROM credit_card_bills
-			WHERE account_id = ?
-			ORDER BY statement_date DESC
-			LIMIT 1
-		`, r.a.ID).Scan(&totalDue, &availLimit, &cbEarned, &rewPts)
+		// Match the overview's latest distinct source version, including amendments.
+		bill := latestByAccount[r.a.ID]
+		totalDue, cbEarned, rewPts := bill.TotalDueAmount, bill.CashbackEarned, bill.RewardPointsBalance
+		var availLimit float64
+		if bill.AvailableCreditLimit != nil {
+			availLimit = *bill.AvailableCreditLimit
+		}
+
 		cd.TotalDueAmount = totalDue
 		cd.AvailableCreditLimit = availLimit
 		cd.TotalCashbackEarned = cbEarned
@@ -1911,11 +1932,8 @@ func (d *DB) GetCategoryBudgetSummary(monthStr string) (*models.BudgetSummary, e
 		monthStr = currentMonthStr
 	}
 
-	parsedTime, err := time.Parse("2006-01", monthStr)
-	if err != nil {
-		parsedTime = now
-		monthStr = currentMonthStr
-	}
+	parsedTime := budgetMonth(monthStr, now)
+	monthStr = parsedTime.Format("2006-01")
 
 	year := parsedTime.Year()
 	month := parsedTime.Month()
@@ -1967,6 +1985,27 @@ func (d *DB) GetCategoryBudgetSummary(monthStr string) (*models.BudgetSummary, e
 	}
 	rows.Close()
 
+	spendByCategory := make(map[string]float64)
+	spendRows, err := d.conn.Query(`SELECT COALESCE(category_id,''), SUM(amount)
+ FROM personal_transactions WHERE `+spendingFilter("")+` AND tx_date >= ? AND tx_date < ? GROUP BY category_id`,
+		parsedTime.Format("2006-01")+"-01", parsedTime.AddDate(0, 1, 0).Format("2006-01")+"-01")
+	if err != nil {
+		return nil, err
+	}
+	for spendRows.Next() {
+		var id string
+		var amount float64
+		if err := spendRows.Scan(&id, &amount); err != nil {
+			spendRows.Close()
+			return nil, err
+		}
+		spendByCategory[id] = amount
+	}
+	err = spendRows.Err()
+	spendRows.Close()
+	if err != nil {
+		return nil, err
+	}
 	budgets := make([]models.CategoryBudget, 0)
 	var totalBudget, totalSpent, totalRemaining float64
 	var overspentCount, warningCount int
@@ -1979,13 +2018,7 @@ func (d *DB) GetCategoryBudgetSummary(monthStr string) (*models.BudgetSummary, e
 			limit = c.MonthlyBudget.Float64
 		}
 
-		// Fetch actual spend for this category in this month
-		var spend float64
-		_ = d.conn.QueryRow(`
-			SELECT COALESCE(SUM(amount), 0)
-			FROM personal_transactions
-			WHERE category_id = ? AND `+spendingFilter("")+` AND strftime('%Y-%m', tx_date) = ?
-		`, c.ID, monthStr).Scan(&spend)
+		spend := spendByCategory[c.ID]
 
 		// Calculate metrics
 		var spentPct, remAmt, dailyAllowance, projectedSpend float64
@@ -2238,6 +2271,10 @@ func (d *DB) ToggleExcludeTransaction(txID string) (bool, error) {
 // ==========================================
 
 func (d *DB) ListMerchants(search, category, sortBy string) (*models.MerchantListResponse, error) {
+	return d.ListMerchantsWithSource(search, category, sortBy, true)
+}
+
+func (d *DB) ListMerchantsWithSource(search, category, sortBy string, includeSource bool) (*models.MerchantListResponse, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -2267,10 +2304,17 @@ func (d *DB) ListMerchants(search, category, sortBy string) (*models.MerchantLis
 		orderClause = "t.cleaned_payee ASC"
 	}
 
+	sourceExpression := "''"
+	if includeSource {
+		sourceExpression = `COALESCE(
+				(SELECT a.bank_name FROM personal_transactions st JOIN accounts a ON st.account_id = a.id WHERE st.cleaned_payee = t.cleaned_payee AND ` + financialActivityFilter("st") + ` ORDER BY st.tx_date DESC LIMIT 1),
+				''
+			)`
+	}
 	query := fmt.Sprintf(`
 		SELECT 
 			t.cleaned_payee,
-			COALESCE(c.name, 'Uncategorized') as category_name,
+			CASE WHEN COUNT(DISTINCT COALESCE(c.id,'uncat'))>1 THEN 'Multiple categories' ELSE COALESCE(c.name,'Uncategorized') END as category_name,
 			COALESCE(c.color_hex, '#64748B') as category_color,
 			COALESCE(c.icon, '') as category_icon,
 			COALESCE(SUM(CASE WHEN `+spendingFilter("t")+` THEN t.amount ELSE 0 END), 0) as total_spend,
@@ -2279,16 +2323,13 @@ func (d *DB) ListMerchants(search, category, sortBy string) (*models.MerchantLis
 			COALESCE(AVG(CASE WHEN `+spendingFilter("t")+` THEN t.amount ELSE NULL END), 0) as average_order_value,
 			MIN(t.tx_date) as first_tx_date,
 			MAX(t.tx_date) as last_tx_date,
-			COALESCE(
-				(SELECT a.bank_name FROM personal_transactions st JOIN accounts a ON st.account_id = a.id WHERE st.cleaned_payee = t.cleaned_payee AND `+financialActivityFilter("st")+` ORDER BY st.tx_date DESC LIMIT 1),
-				''
-			) as primary_source
+			%s as primary_source
 		FROM personal_transactions t
 		LEFT JOIN categories c ON t.category_id = c.id
 		WHERE %s
 		GROUP BY t.cleaned_payee
 		ORDER BY %s
-	`, whereClause, orderClause)
+	`, sourceExpression, whereClause, orderClause)
 
 	rows, err := d.conn.Query(query, args...)
 	if err != nil {
@@ -2298,7 +2339,6 @@ func (d *DB) ListMerchants(search, category, sortBy string) (*models.MerchantLis
 
 	var merchants = make([]models.MerchantSummaryItem, 0)
 	var grandTotalSpend float64
-	categorySpendMap := make(map[string]float64)
 
 	for rows.Next() {
 		var m models.MerchantSummaryItem
@@ -2311,18 +2351,41 @@ func (d *DB) ListMerchants(search, category, sortBy string) (*models.MerchantLis
 		}
 
 		grandTotalSpend += m.TotalSpend
-		categorySpendMap[m.CategoryName] += m.TotalSpend
+
 		merchants = append(merchants, m)
 	}
 
-	// Compute spend share %
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+	categoryRows, err := d.conn.Query(`SELECT COALESCE(c.name,'Uncategorized'),SUM(t.amount),COUNT(t.id)
+ FROM personal_transactions t LEFT JOIN categories c ON c.id=t.category_id
+ WHERE `+whereClause+` AND `+spendingFilter("t")+` GROUP BY COALESCE(c.name,'Uncategorized')`, args...)
+	if err != nil {
+		return nil, err
+	}
 	topCat := "None"
-	topCatSpend := 0.0
-	for cat, sp := range categorySpendMap {
-		if sp > topCatSpend {
-			topCatSpend = sp
-			topCat = cat
+	var topCatSpend float64
+	totalPurchases := 0
+	for categoryRows.Next() {
+		var name string
+		var amount float64
+		var count int
+		if err := categoryRows.Scan(&name, &amount, &count); err != nil {
+			categoryRows.Close()
+			return nil, err
 		}
+		totalPurchases += count
+		if amount > topCatSpend || (amount == topCatSpend && name < topCat) {
+			topCat = name
+			topCatSpend = amount
+		}
+	}
+	err = categoryRows.Err()
+	categoryRows.Close()
+	if err != nil {
+		return nil, err
 	}
 
 	for i := range merchants {
@@ -2332,14 +2395,8 @@ func (d *DB) ListMerchants(search, category, sortBy string) (*models.MerchantLis
 	}
 
 	var overallAOV float64
-	if len(merchants) > 0 && grandTotalSpend > 0 {
-		totalTx := 0
-		for _, m := range merchants {
-			totalTx += m.TxCount
-		}
-		if totalTx > 0 {
-			overallAOV = grandTotalSpend / float64(totalTx)
-		}
+	if totalPurchases > 0 {
+		overallAOV = grandTotalSpend / float64(totalPurchases)
 	}
 
 	return &models.MerchantListResponse{
@@ -2352,6 +2409,26 @@ func (d *DB) ListMerchants(search, category, sortBy string) (*models.MerchantLis
 }
 
 func (d *DB) GetMerchantProfile(payeeName string) (*models.MerchantProfile, error) {
+	return d.GetMerchantProfilePage(payeeName, 1)
+}
+
+func (d *DB) GetMerchantProfilePage(payeeName string, page int) (*models.MerchantProfile, error) {
+	return d.GetMerchantProfilePageSize(payeeName, page, 50)
+}
+
+func (d *DB) GetMerchantProfilePageSize(payeeName string, page, pageSize int) (*models.MerchantProfile, error) {
+	if pageSize < 1 {
+		pageSize = 50
+	}
+	if pageSize > 200 {
+		pageSize = 200
+	}
+	if page < 1 {
+		page = 1
+	}
+	if page > 1000000 {
+		page = 1000000
+	}
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -2489,19 +2566,24 @@ func (d *DB) GetMerchantProfile(payeeName string) (*models.MerchantProfile, erro
 		monthRows.Close()
 	}
 
+	p.HistoryPage = page
+	p.HistoryPageSize = pageSize
 	// 5. Recent Transactions
-	txRows, _ := d.conn.Query(`
+	txRows, err := d.conn.Query(`
 		SELECT 
 			t.id, t.account_id, COALESCE(a.bank_name || ' (' || a.account_type || ')', 'Splitwise'),
-			t.tx_date, t.raw_narration, t.cleaned_payee, t.payment_mode, t.reference_number,
+			t.tx_date, t.raw_narration, t.cleaned_payee, COALESCE(t.payment_mode,''), COALESCE(t.reference_number,''),
 			t.tx_type, t.amount, t.is_transfer, t.is_excluded, ledger.created_at
 		FROM personal_transactions t
 		LEFT JOIN accounts a ON t.account_id = a.id
 		LEFT JOIN transactions ledger ON ledger.id = t.id
 		WHERE t.cleaned_payee = ? AND `+financialActivityFilter("t")+`
-		ORDER BY t.tx_date DESC
-		LIMIT 50
-	`, payeeName)
+		ORDER BY t.tx_date DESC,COALESCE(ledger.created_at,'') DESC,t.id DESC
+		LIMIT ? OFFSET ?
+	`, payeeName, pageSize, (page-1)*pageSize)
+	if err != nil {
+		return nil, err
+	}
 	if txRows != nil {
 		for txRows.Next() {
 			var t models.Transaction
@@ -2614,7 +2696,7 @@ func (d *DB) GetCashFlowIntelligence(period string) (*models.CashFlowIntelligenc
 	// 4. Extract Inflow Credits and build Inflow Nodes & Links (Layer 0 -> Layer 1)
 	inflowQuery := fmt.Sprintf(`
 		SELECT 
-			t.id, t.raw_narration, t.cleaned_payee, t.payment_mode, t.amount,
+			t.id, t.raw_narration, COALESCE(t.cleaned_payee,''), COALESCE(t.payment_mode,''), t.amount,
 			COALESCE(a.id, 'splitwise') as acc_id, COALESCE(a.bank_name, 'Splitwise (paid by others)'), COALESCE(a.account_type, 'SHARED'), COALESCE(a.account_number_mask, '') as mask,
 			COALESCE(a.nickname, '') as nickname, COALESCE(a.card_variant, '') as variant
 		FROM personal_transactions t
@@ -2693,7 +2775,7 @@ func (d *DB) GetCashFlowIntelligence(period string) (*models.CashFlowIntelligenc
 	// 5. Extract Outflows and Categories (Layer 2 & Layer 3)
 	outflowQuery := fmt.Sprintf(`
 		SELECT 
-			t.id, t.amount, t.payment_mode, t.cleaned_payee,
+			t.id, t.amount, COALESCE(t.payment_mode,''), COALESCE(t.cleaned_payee,''),
 			COALESCE(a.id, 'splitwise') as acc_id, COALESCE(a.bank_name, 'Splitwise (paid by others)'), COALESCE(a.account_type, 'SHARED'), COALESCE(a.account_number_mask, '') as mask,
 			COALESCE(a.nickname, '') as nickname, COALESCE(a.card_variant, '') as variant,
 			COALESCE(c.id, 'uncat') as cat_id,
@@ -3044,6 +3126,10 @@ func (d *DB) GetCashFlowIntelligence(period string) (*models.CashFlowIntelligenc
 		}
 	}
 
+	historyByCategory, payeesByCategory, err := d.readCategoryDetails(dateClause, dateArgs)
+	if err != nil {
+		return nil, err
+	}
 	// 3-Month average & 6-month historical sparkline
 	for catID, curSpend := range categoryTotals {
 		meta := categoryMeta[catID]
@@ -3063,58 +3149,23 @@ func (d *DB) GetCashFlowIntelligence(period string) (*models.CashFlowIntelligenc
 			trend = "DOWN"
 		}
 
-		// Fetch last 6 months history for sparkline
-		historyPoints := []models.MonthlyCategoryDataPoint{}
-		hRows, err := d.conn.Query(`
-			SELECT strftime('%Y-%m', tx_date) as m, COALESCE(SUM(amount), 0)
-			FROM personal_transactions
-			WHERE (category_id = ? OR (? = 'uncat' AND NOT EXISTS (SELECT 1 FROM categories c WHERE c.id = personal_transactions.category_id)))
-			  AND `+spendingFilter("")+`
-			GROUP BY m
-			ORDER BY m DESC
-			LIMIT 6
-		`, catID, catID)
+		historyPoints := historyByCategory[catID]
+		if historyPoints == nil {
+			historyPoints = []models.MonthlyCategoryDataPoint{}
+		}
 		var threeMonthSum float64
 		var threeMonthCount int
-		if err == nil {
-			for hRows.Next() {
-				var dp models.MonthlyCategoryDataPoint
-				if err := hRows.Scan(&dp.Month, &dp.Amount); err == nil {
-					historyPoints = append([]models.MonthlyCategoryDataPoint{dp}, historyPoints...)
-					if threeMonthCount < 3 {
-						threeMonthSum += dp.Amount
-						threeMonthCount++
-					}
-				}
-			}
-			hRows.Close()
+		for i := len(historyPoints) - 1; i >= 0 && threeMonthCount < 3; i-- {
+			threeMonthSum += historyPoints[i].Amount
+			threeMonthCount++
 		}
 		var threeMonthAvg float64
 		if threeMonthCount > 0 {
 			threeMonthAvg = threeMonthSum / float64(threeMonthCount)
 		}
-
-		// Top payees for this category in period
-		topPayees := []models.PayeeSpend{}
-		topQuery := fmt.Sprintf(`
-			SELECT cleaned_payee, payment_mode, SUM(amount), COUNT(id)
-			FROM personal_transactions
-			WHERE (category_id = ? OR (? = 'uncat' AND NOT EXISTS (SELECT 1 FROM categories c WHERE c.id = personal_transactions.category_id)))
-			  AND `+spendingFilter("")+` AND %s
-			GROUP BY cleaned_payee, payment_mode
-			ORDER BY SUM(amount) DESC
-			LIMIT 3
-		`, dateClause)
-		pArgs := append([]interface{}{catID, catID}, dateArgs...)
-		pRows, err := d.conn.Query(topQuery, pArgs...)
-		if err == nil {
-			for pRows.Next() {
-				var ps models.PayeeSpend
-				if err := pRows.Scan(&ps.Payee, &ps.PaymentMode, &ps.TotalSpent, &ps.TxCount); err == nil && ps.Payee != "" {
-					topPayees = append(topPayees, ps)
-				}
-			}
-			pRows.Close()
+		topPayees := payeesByCategory[catID]
+		if topPayees == nil {
+			topPayees = []models.PayeeSpend{}
 		}
 
 		res.CategoryComparisons = append(res.CategoryComparisons, models.CategoryComparisonItem{

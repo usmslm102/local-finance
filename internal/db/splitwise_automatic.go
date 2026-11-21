@@ -55,13 +55,23 @@ func (d *DB) ReconcileSplitwise() error {
 
 func reconcileSplitwise(conn statementConnection) (models.SplitwiseImportResult, error) {
 	result := models.SplitwiseImportResult{}
-	members, err := listSplitwiseMembers(conn)
+	entries, err := listSplitwiseWhere(conn, "WHERE status='REVIEW'")
 	if err != nil {
 		return result, err
 	}
-	entries, err := listSplitwise(conn)
-	if err != nil {
-		return result, err
+	if len(entries) == 0 {
+		return result, nil
+	}
+	// Keep a single member snapshot for the pass, only when pending payments exist.
+	var members []models.SplitwiseMember
+	for _, e := range entries {
+		if e.Kind == "PAYMENT" {
+			members, err = listSplitwiseMembers(conn)
+			if err != nil {
+				return result, err
+			}
+			break
+		}
 	}
 	rules, err := (&statementStore{conn: conn}).ListRules()
 	if err != nil {

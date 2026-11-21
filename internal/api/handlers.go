@@ -443,7 +443,13 @@ func (h *Handler) ResetDatabase(c *gin.Context) {
 
 func (h *Handler) ListCreditCardBills(c *gin.Context) {
 	accountID := c.Query("account_id")
-	bills, err := h.db.ListCreditCardBills(accountID)
+	var bills []models.CreditCardBill
+	var err error
+	if c.Query("latest") == "true" {
+		bills, err = h.db.ListLatestCreditCardBills(accountID)
+	} else {
+		bills, err = h.db.ListCreditCardBills(accountID)
+	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -977,7 +983,7 @@ func (h *Handler) ListMerchants(c *gin.Context) {
 	category := c.Query("category")
 	sortBy := c.Query("sort_by")
 
-	res, err := h.db.ListMerchants(search, category, sortBy)
+	res, err := h.db.ListMerchantsWithSource(search, category, sortBy, c.Query("include_source") != "false")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -987,7 +993,8 @@ func (h *Handler) ListMerchants(c *gin.Context) {
 
 func (h *Handler) GetMerchantProfile(c *gin.Context) {
 	name := c.Param("name")
-	profile, err := h.db.GetMerchantProfile(name)
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	profile, err := h.db.GetMerchantProfilePage(name, page)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

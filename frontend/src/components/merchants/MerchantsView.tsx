@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/empty'
 import { QueryError, PageLoading } from '@/components/ui/query-state'
 import React, { useState, useEffect, useCallback } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useSearch, useNavigate } from '@tanstack/react-router'
 import { fetchMerchants, fetchMerchantProfile, fetchCategories } from '../../lib/api'
 import { formatINR } from '../../lib/utils'
@@ -52,6 +52,8 @@ export const MerchantsView: React.FC = () => {
     searchParams.category && searchParams.category !== 'ALL' ? searchParams.category : ''
   const sortBy = searchParams.sortBy || searchParams.sort || searchParams.sort_by || 'total_spend'
   const selectedMerchantPayee = searchParams.payee || searchParams.merchant || null
+  const page = searchParams.page || 1
+  const historyPage = searchParams.historyPage || 1
 
   const [searchInput, setSearchInput] = useState<string>(searchQuery)
 
@@ -66,9 +68,15 @@ export const MerchantsView: React.FC = () => {
         category: selectedCategory || undefined,
         sortBy: sortBy !== 'total_spend' ? sortBy : undefined,
         payee: selectedMerchantPayee || undefined,
+        page,
+        historyPage,
       }
       const merged = { ...current, ...newParams }
-      const cleaned: Record<string, string | undefined> = {}
+      const cleaned: Record<string, string | number | undefined> = {}
+      if (Object.hasOwn(newParams, 'search') || Object.hasOwn(newParams, 'category') || Object.hasOwn(newParams, 'sortBy')) merged.page = 1
+      if (newParams.payee !== undefined && newParams.payee !== selectedMerchantPayee) merged.historyPage = 1
+      if (merged.page && merged.page > 1) cleaned.page = merged.page
+      if (merged.historyPage && merged.historyPage > 1 && merged.payee) cleaned.historyPage = merged.historyPage
       if (merged.search && merged.search.trim()) cleaned.search = merged.search.trim()
       if (merged.category && merged.category !== 'ALL') cleaned.category = merged.category
       if (merged.sortBy && merged.sortBy !== 'total_spend') cleaned.sortBy = merged.sortBy
@@ -80,7 +88,7 @@ export const MerchantsView: React.FC = () => {
         replace,
       })
     },
-    [searchQuery, selectedCategory, sortBy, selectedMerchantPayee, navigate]
+    [searchQuery, selectedCategory, sortBy, selectedMerchantPayee, page, historyPage, navigate]
   )
 
   // Debounced search input sync
@@ -100,6 +108,7 @@ export const MerchantsView: React.FC = () => {
     refetch,
   } = useQuery({
     queryKey: ['merchants', searchQuery, selectedCategory, sortBy],
+    placeholderData: keepPreviousData,
     queryFn: () =>
       fetchMerchants({
         search: searchQuery,
@@ -121,16 +130,17 @@ export const MerchantsView: React.FC = () => {
     isError: isProfileError,
     refetch: refetchProfile,
   } = useQuery({
-    queryKey: ['merchant-profile', selectedMerchantPayee],
-    queryFn: () => (selectedMerchantPayee ? fetchMerchantProfile(selectedMerchantPayee) : null),
+    queryKey: ['merchant-profile', selectedMerchantPayee, historyPage],
+    queryFn: () => (selectedMerchantPayee ? fetchMerchantProfile(selectedMerchantPayee, historyPage) : null),
     enabled: !!selectedMerchantPayee,
   })
 
-  if (isLoading) return <PageLoading label="Loading merchants" />
-  if (isError || !listResponse)
-    return <QueryError message="Unable to load merchants" onRetry={refetch} />
-
-  const merchants = listResponse.merchants || []
+  const merchants = listResponse?.merchants || []
+  const summary = listResponse ?? { total_merchants: 0, total_spend: 0, average_order_value: 0, top_category: '—' }
+  const pageCount = Math.max(1, Math.ceil(merchants.length / 25))
+  const currentPage = Math.min(page, pageCount)
+  const visibleMerchants = merchants.slice((currentPage - 1) * 25, currentPage * 25)
+  const topMerchant = merchants.reduce<MerchantSummaryItem | undefined>((best, item) => !best || item.total_spend > best.total_spend || (item.total_spend === best.total_spend && item.cleaned_payee < best.cleaned_payee) ? item : best, undefined)
 
   return (
     <div className="flex flex-col gap-8 max-w-7xl mx-auto pb-12">
@@ -143,7 +153,7 @@ export const MerchantsView: React.FC = () => {
             </h1>
             <Badge variant="secondary" className="gap-1 py-0.5">
               <Store className="size-3.5 text-primary" />
-              {listResponse.total_merchants} Tracked Payees
+              {summary.total_merchants} Tracked Payees
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground mt-1">
@@ -166,10 +176,10 @@ export const MerchantsView: React.FC = () => {
               </div>
             </div>
             <p className="mt-2 text-2xl font-bold tracking-tight text-foreground">
-              {formatINR(listResponse.total_spend, isPrivacyMode)}
+              {formatINR(summary.total_spend, isPrivacyMode)}
             </p>
             <p className="mt-1 text-[11px] text-muted-foreground">
-              Across {listResponse.total_merchants} distinct merchants
+              Across {summary.total_merchants} distinct merchants
             </p>
           </CardContent>
         </Card>
@@ -185,9 +195,9 @@ export const MerchantsView: React.FC = () => {
               </div>
             </div>
             <p className="mt-2 text-2xl font-bold tracking-tight text-foreground">
-              {formatINR(listResponse.average_order_value, isPrivacyMode)}
+              {formatINR(summary.average_order_value, isPrivacyMode)}
             </p>
-            <p className="mt-1 text-[11px] text-muted-foreground">Mean transaction size</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">Mean purchase size</p>
           </CardContent>
         </Card>
 
@@ -202,7 +212,7 @@ export const MerchantsView: React.FC = () => {
               </div>
             </div>
             <p className="mt-2 text-2xl font-bold tracking-tight text-foreground truncate">
-              {listResponse.top_category || 'General'}
+              {summary.top_category || 'General'}
             </p>
             <p className="mt-1 text-[11px] text-muted-foreground">Highest merchant volume</p>
           </CardContent>
@@ -219,11 +229,11 @@ export const MerchantsView: React.FC = () => {
               </div>
             </div>
             <p className="mt-2 text-2xl font-bold tracking-tight text-foreground truncate">
-              {merchants.length > 0 ? merchants[0].cleaned_payee : 'None'}
+              {topMerchant ? topMerchant.cleaned_payee : 'None'}
             </p>
             <p className="mt-1 text-[11px] text-muted-foreground">
-              {merchants.length > 0
-                ? `${formatINR(merchants[0].total_spend, isPrivacyMode)} (${merchants[0].spend_share_pct.toFixed(1)}% of total)`
+              {topMerchant
+                ? `${formatINR(topMerchant.total_spend, isPrivacyMode)} (${topMerchant.spend_share_pct.toFixed(1)}% of total)`
                 : 'No transactions'}
             </p>
           </CardContent>
@@ -285,7 +295,7 @@ export const MerchantsView: React.FC = () => {
             <SelectContent>
               <SelectGroup>
                 <SelectItem value="total_spend">Highest spend</SelectItem>
-                <SelectItem value="tx_count">Most orders</SelectItem>
+                <SelectItem value="tx_count">Most transactions</SelectItem>
                 <SelectItem value="aov">Highest average order</SelectItem>
                 <SelectItem value="recent">Most recent</SelectItem>
                 <SelectItem value="name">Alphabetical</SelectItem>
@@ -296,7 +306,7 @@ export const MerchantsView: React.FC = () => {
       </div>
 
       {/* Merchant Cards Grid */}
-      {merchants.length === 0 ? (
+      {isLoading ? <PageLoading label="Loading merchants" /> : isError ? <QueryError message="Unable to load merchants" onRetry={refetch} /> : merchants.length === 0 ? (
         <Empty className="border py-12">
           <EmptyHeader>
             <EmptyMedia variant="icon">
@@ -320,7 +330,7 @@ export const MerchantsView: React.FC = () => {
         </Empty>
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {merchants.map((merchant) => (
+          {visibleMerchants.map((merchant) => (
             <MerchantCard
               key={merchant.cleaned_payee}
               merchant={merchant}
@@ -330,6 +340,11 @@ export const MerchantsView: React.FC = () => {
         </div>
       )}
 
+      {merchants.length > 25 && <nav aria-label="Merchant pages" className="flex items-center gap-3">
+        <Button variant="outline" disabled={currentPage <= 1} onClick={() => updateFilters({ page: currentPage - 1 }, false)}>Previous</Button>
+        <span>Page {currentPage} of {pageCount} · {merchants.length} payees</span>
+        <Button variant="outline" disabled={currentPage >= pageCount} onClick={() => updateFilters({ page: currentPage + 1 }, false)}>Next</Button>
+      </nav>}
       {/* Merchant Profile Deep-Dive Modal */}
       <Dialog
         open={!!selectedMerchantPayee}
@@ -349,7 +364,7 @@ export const MerchantsView: React.FC = () => {
               <PageLoading label="Loading merchant details" />
             </>
           ) : (
-            <MerchantProfileModalContent profile={merchantProfile} />
+            <MerchantProfileModalContent profile={merchantProfile} onPage={(historyPage) => updateFilters({ historyPage }, false)} />
           )}
         </DialogContent>
       </Dialog>
@@ -399,7 +414,7 @@ const MerchantCard: React.FC<{
                   {merchant.category_name}
                 </Badge>
                 <span className="text-[11px] text-muted-foreground font-mono">
-                  {merchant.tx_count} {merchant.tx_count === 1 ? 'order' : 'orders'}
+                  {merchant.tx_count} {merchant.tx_count === 1 ? 'transaction' : 'transactions'}
                 </span>
               </div>
             </div>
@@ -448,7 +463,7 @@ const MerchantCard: React.FC<{
 }
 
 // Modal Content for Deep Dive
-const MerchantProfileModalContent: React.FC<{ profile: MerchantProfile }> = ({ profile }) => {
+const MerchantProfileModalContent: React.FC<{ profile: MerchantProfile; onPage: (page: number) => void }> = ({ profile, onPage }) => {
   const { isPrivacyMode } = usePrivacy()
   return (
     <div className="flex flex-col gap-6">
@@ -498,12 +513,12 @@ const MerchantProfileModalContent: React.FC<{ profile: MerchantProfile }> = ({ p
           <span className="text-lg font-bold text-foreground mt-0.5 block">
             {formatINR(profile.average_order_value, isPrivacyMode)}
           </span>
-          <span className="text-[10px] text-muted-foreground">per transaction</span>
+          <span className="text-[10px] text-muted-foreground">per purchase</span>
         </div>
 
         <div className="rounded-lg border border-border bg-card/60 p-3">
           <span className="text-[10px] uppercase tracking-wider text-muted-foreground block">
-            Total Orders
+            Total Transactions
           </span>
           <span className="text-lg font-bold text-foreground mt-0.5 block">
             {profile.total_tx_count}
@@ -594,12 +609,17 @@ const MerchantProfileModalContent: React.FC<{ profile: MerchantProfile }> = ({ p
         </div>
       )}
 
+      <nav aria-label="Merchant transaction pages" className="flex flex-wrap items-center gap-3">
+        <Button variant="outline" disabled={profile.history_page <= 1} onClick={() => onPage(profile.history_page - 1)}>Previous transactions</Button>
+        <span>Page {profile.history_page} of {Math.max(1, Math.ceil(profile.total_tx_count / profile.history_page_size))}</span>
+        <Button variant="outline" disabled={profile.history_page * profile.history_page_size >= profile.total_tx_count} onClick={() => onPage(profile.history_page + 1)}>Next transactions</Button>
+      </nav>
       {/* Chronological Recent Transactions */}
       {profile.recent_transactions && profile.recent_transactions.length > 0 && (
         <div className="flex flex-col gap-3">
           <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
             <Receipt className="size-3.5 text-primary" /> Transaction History (
-            {profile.recent_transactions.length})
+            {profile.total_tx_count})
           </h4>
           <div className="rounded-xl border border-border overflow-hidden divide-y divide-border text-xs">
             {profile.recent_transactions.map((tx) => (

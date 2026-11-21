@@ -158,7 +158,12 @@ func (d *DB) listSplitwise() ([]models.SplitwiseEntry, error) {
 }
 
 func listSplitwise(conn statementConnection) ([]models.SplitwiseEntry, error) {
-	rows, err := conn.Query(`SELECT id,group_name,person,tx_date,description,category,cost_cents,net_cents,share_cents,kind,status,transaction_id,category_id,COALESCE((SELECT g.member_names FROM splitwise_groups g WHERE g.group_name=splitwise_entries.group_name),member_names),notes,tags,is_manual_category,removed_transaction_id,counterparty FROM splitwise_entries ORDER BY tx_date DESC,id`)
+	return listSplitwiseWhere(conn, "")
+}
+
+// predicate is internal SQL, never supplied by a user.
+func listSplitwiseWhere(conn statementConnection, predicate string) ([]models.SplitwiseEntry, error) {
+	rows, err := conn.Query(`SELECT id,group_name,person,tx_date,description,category,cost_cents,net_cents,share_cents,kind,status,transaction_id,category_id,COALESCE((SELECT g.member_names FROM splitwise_groups g WHERE g.group_name=splitwise_entries.group_name),member_names),notes,tags,is_manual_category,removed_transaction_id,counterparty FROM splitwise_entries ` + predicate + ` ORDER BY tx_date DESC,id`)
 	if err != nil {
 		return nil, err
 	}

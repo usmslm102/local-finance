@@ -35,6 +35,7 @@ import {
   fetchAccounts,
   fetchCategories,
   fetchTransactions,
+  fetchTransaction,
   fetchStatements,
   createRule,
   reapplyRules,
@@ -369,14 +370,18 @@ export const TransactionTable: React.FC = () => {
   const [editNotes, setEditNotes] = useState('')
   const [editTags, setEditTags] = useState('')
   const [isEditingDetails, setIsEditingDetails] = useState(false)
+  const [notesDirty, setNotesDirty] = useState(false)
+  const [tagsDirty, setTagsDirty] = useState(false)
 
   useEffect(() => {
     if (selectedTx) {
       setEditNotes(selectedTx.notes || '')
       setEditTags(selectedTx.tags || '')
       setIsEditingDetails(false)
+      setNotesDirty(false)
+      setTagsDirty(false)
     }
-  }, [selectedTx])
+  }, [selectedTx?.id])
 
   const updateTxMutation = useMutation({
     mutationFn: ({
@@ -391,11 +396,17 @@ export const TransactionTable: React.FC = () => {
     },
     onSuccess: (updatedTx, variables) => {
       setUpdatingTxId(null)
+      queryClient.setQueryData(['transaction', updatedTx.id], updatedTx)
       queryClient.invalidateQueries({ queryKey: ['transactions'] })
       queryClient.invalidateQueries({ queryKey: ['analytics'] })
       queryClient.invalidateQueries({ queryKey: ['budgets'] })
-      if (selectedTx && selectedTx.id === updatedTx.id) {
-        setSelectedTx(updatedTx)
+      setSelectedTx((current) => current?.id === updatedTx.id ? updatedTx : current)
+      if (selectedTx?.id === updatedTx.id && (variables.payload.notes !== undefined || variables.payload.tags !== undefined)) {
+        setEditNotes(updatedTx.notes || '')
+        setEditTags(updatedTx.tags || '')
+        setIsEditingDetails(false)
+        setNotesDirty(false)
+        setTagsDirty(false)
       }
       if (variables.payload.category_id && updatedTx.category_name && updatedTx.cleaned_payee) {
         setRulePromptTx({ tx: updatedTx, newCategoryName: updatedTx.category_name })
@@ -406,6 +417,22 @@ export const TransactionTable: React.FC = () => {
       console.error('Failed to update transaction:', err)
     },
   })
+
+  const selectedRecord = useQuery({
+    queryKey: ['transaction', selectedTx?.id],
+    queryFn: () => fetchTransaction(selectedTx!.id),
+    enabled: !!selectedTx,
+    staleTime: 0,
+  })
+  useEffect(() => {
+    if (selectedRecord.data && !updateTxMutation.isPending) {
+      setSelectedTx((current) => current?.id === selectedRecord.data.id ? selectedRecord.data : current)
+    }
+  }, [selectedRecord.data, isEditingDetails, updateTxMutation.isPending])
+  useEffect(() => {
+    if (!notesDirty) setEditNotes(selectedTx?.notes || '')
+    if (!tagsDirty) setEditTags(selectedTx?.tags || '')
+  }, [selectedTx?.notes, selectedTx?.tags, notesDirty, tagsDirty])
 
   const handleOpenQuickRule = (tx: Transaction, preferredCategoryId?: string) => {
     setQuickRulePattern(tx.cleaned_payee || tx.raw_narration)
@@ -822,6 +849,12 @@ export const TransactionTable: React.FC = () => {
       {showSourcePDF && activeStatement && <StatementPDFPreview key={activeStatement.id} statement={activeStatement} onClose={() => setShowSourcePDF(false)} />}
       {statementImportID && statementHistory.isError && <QueryError message="Unable to load import details" onRetry={statementHistory.refetch} />}
       {isError && <QueryError message="Unable to load transactions" onRetry={refetch} />}
+      {updateTxMutation.isError && updateTxMutation.variables?.payload.category_id !== undefined && updateTxMutation.isError && (
+        <Alert variant="destructive"><AlertDescription className="flex items-center gap-3">
+          Category change could not be saved.
+          <Button variant="outline" size="sm" onClick={() => updateTxMutation.mutate(updateTxMutation.variables!)}>Retry category change</Button>
+        </AlertDescription></Alert>
+      )}
       {/* Top Pagination & Quick Navigation Bar */}
       <div className="sticky top-14 z-20 flex items-center justify-between gap-3 flex-wrap rounded-lg border bg-background/95 p-3 text-xs backdrop-blur-sm">
         <div className="text-muted-foreground font-mono flex items-center gap-1.5">
@@ -1746,6 +1779,11 @@ export const TransactionTable: React.FC = () => {
                 </div>
               </div>
 
+              {updateTxMutation.isError && updateTxMutation.variables?.id === selectedTx.id && (
+                <Alert variant="destructive"><AlertDescription>
+                  Could not save changes. Your draft is still here. Try Save again.
+                </AlertDescription></Alert>
+              )}
               {/* Notes & Tags Editor */}
               <div className="flex flex-col gap-2 pt-2 border-t">
                 <div className="flex items-center justify-between">
@@ -1761,9 +1799,8 @@ export const TransactionTable: React.FC = () => {
                       onClick={() => {
                         updateTxMutation.mutate({
                           id: selectedTx.id,
-                          payload: { notes: editNotes, tags: editTags },
+                          payload: { ...(notesDirty ? { notes: editNotes } : {}), ...(tagsDirty ? { tags: editTags } : {}) },
                         })
-                        setIsEditingDetails(false)
                       }}
                     >
                       <Save data-icon="inline-start" /> Save Notes & Tags
@@ -1780,11 +1817,13 @@ export const TransactionTable: React.FC = () => {
                     </FieldLabel>
                     <Input
                       id={`${fieldId}-1485`}
+                      disabled={updateTxMutation.isPending}
                       placeholder="Add private note..."
                       className="h-8"
                       value={isEditingDetails ? editNotes : selectedTx.notes || ''}
                       onChange={(e) => {
                         setIsEditingDetails(true)
+                        setNotesDirty(true)
                         setEditNotes(e.target.value)
                       }}
                     />
@@ -1798,11 +1837,13 @@ export const TransactionTable: React.FC = () => {
                     </FieldLabel>
                     <Input
                       id={`${fieldId}-1497`}
+                      disabled={updateTxMutation.isPending}
                       placeholder="e.g. tax, business, personal"
                       className="h-8"
                       value={isEditingDetails ? editTags : selectedTx.tags || ''}
                       onChange={(e) => {
                         setIsEditingDetails(true)
+                        setTagsDirty(true)
                         setEditTags(e.target.value)
                       }}
                     />

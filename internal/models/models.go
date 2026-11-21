@@ -99,17 +99,20 @@ type Category struct {
 }
 
 type CategorizationRule struct {
-	ID               string `json:"id"`
-	Priority         int    `json:"priority"`
-	MatchField       string `json:"match_field"` // raw_narration, cleaned_payee, reference_number, upi_vpa
-	MatchType        string `json:"match_type"`  // CONTAINS, REGEX, EXACT, STARTS_WITH
-	MatchPattern     string `json:"match_pattern"`
-	ExcludePattern   string `json:"exclude_pattern,omitempty"` // Comma-separated negative keywords or regex to skip rule
-	TxType           string `json:"tx_type,omitempty"`         // ALL, DEBIT, CREDIT
-	TargetCategoryID string `json:"target_category_id"`
-	TargetCategory   string `json:"target_category,omitempty"`
-	AssignTags       string `json:"assign_tags,omitempty"`
-	IsActive         bool   `json:"is_active"`
+	prepared          bool
+	matchExpression   *regexp.Regexp
+	excludeExpression *regexp.Regexp
+	ID                string `json:"id"`
+	Priority          int    `json:"priority"`
+	MatchField        string `json:"match_field"` // raw_narration, cleaned_payee, reference_number, upi_vpa
+	MatchType         string `json:"match_type"`  // CONTAINS, REGEX, EXACT, STARTS_WITH
+	MatchPattern      string `json:"match_pattern"`
+	ExcludePattern    string `json:"exclude_pattern,omitempty"` // Comma-separated negative keywords or regex to skip rule
+	TxType            string `json:"tx_type,omitempty"`         // ALL, DEBIT, CREDIT
+	TargetCategoryID  string `json:"target_category_id"`
+	TargetCategory    string `json:"target_category,omitempty"`
+	AssignTags        string `json:"assign_tags,omitempty"`
+	IsActive          bool   `json:"is_active"`
 }
 
 // MatchesTxType checks if this rule applies to the given transaction type (DEBIT or CREDIT).
@@ -144,7 +147,11 @@ func (r *CategorizationRule) MatchesException(narration, payee string) bool {
 
 	// Also check regex pattern if meta-characters are present
 	if strings.ContainsAny(pattern, "|.*+?^$") {
-		if re, err := regexp.Compile("(?i)" + pattern); err == nil {
+		re := r.excludeExpression
+		if !r.prepared {
+			re, _ = regexp.Compile("(?i)" + pattern)
+		}
+		if re != nil {
 			if re.MatchString(narration) || re.MatchString(payee) {
 				return true
 			}
@@ -607,6 +614,8 @@ type PaymentSourceShare struct {
 }
 
 type MerchantProfile struct {
+	HistoryPage            int                     `json:"history_page"`
+	HistoryPageSize        int                     `json:"history_page_size"`
 	CleanedPayee           string                  `json:"cleaned_payee"`
 	CategoryName           string                  `json:"category_name"`
 	CategoryColor          string                  `json:"category_color"`

@@ -528,6 +528,8 @@ export interface PaymentSourceShare {
 }
 
 export interface MerchantProfile {
+  history_page: number
+  history_page_size: number
   cleaned_payee: string
   category_name: string
   category_color: string
@@ -799,6 +801,8 @@ export interface TransactionsSearchParams {
 }
 
 export interface MerchantsSearchParams {
+  page?: number
+  historyPage?: number
   search?: string
   q?: string
   category?: string

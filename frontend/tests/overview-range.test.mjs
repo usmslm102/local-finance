@@ -6,7 +6,14 @@ const source = await readFile(new URL('../src/lib/overview-range.ts', import.met
 const { outputText } = ts.transpileModule(source, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 },
 })
-const { overviewRange } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`)
+const { overviewRange, validOverviewSearch } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`)
+
+test('overview deep links retain valid dates and reject rollover or inverted calendar ranges', () => {
+  assert.deepEqual(validOverviewSearch({ start_date: '2024-02-29', end_date: '2024-03-02', category: 'cat_food' }), { start_date: '2024-02-29', end_date: '2024-03-02', category: 'cat_food' })
+  for (const [start_date, end_date] of [['2025-02-29', '2025-03-02'], ['2026-03-02', '2026-03-01'], ['garbage', '2026-03-01']]) {
+    assert.equal(validOverviewSearch({ start_date, end_date }).start_date, undefined)
+  }
+})
 
 test('rolling overview ranges cross years and end on local today', () => {
   const now = new Date(2026, 9, 11)

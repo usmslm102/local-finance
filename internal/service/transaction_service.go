@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"strings"
 	"time"
 
@@ -301,7 +302,9 @@ func (s *TransactionService) ImportStatement(filename string, r io.Reader, manua
 
 	// 10. Automatically scan and update recurring subscriptions
 	subService := NewSubscriptionService(s.db)
-	_, _ = subService.ScanAndDetectSubscriptions()
+	if err := subService.DetectSubscriptions(); err != nil {
+		log.Printf("statement imported; subscription refresh failed: %v", err)
+	}
 
 	return &models.ImportResult{
 		StatementImportID: stmtImportID,
@@ -478,6 +481,18 @@ func (s *TransactionService) PreviewStatement(filename string, r io.Reader, manu
 		}
 	}
 
+	existingHashes := map[string]bool{}
+	if accountID != "" {
+		hashes := make([]string, 0, len(parsedTxList))
+		for _, pt := range parsedTxList {
+			hashes = append(hashes, s.calculateTxHash(accountID, pt.Date, pt.Amount, pt.RawNarration, pt.ReferenceNumber, pt.TxType))
+		}
+		var err error
+		existingHashes, err = s.db.ExistingTxHashes(hashes)
+		if err != nil {
+			return nil, fmt.Errorf("check preview duplicates: %w", err)
+		}
+	}
 	// 5. Convert & Categorize Preview Transactions
 	var previewTxs []models.PreviewTransactionItem
 	for _, pt := range parsedTxList {
@@ -494,9 +509,7 @@ func (s *TransactionService) PreviewStatement(filename string, r io.Reader, manu
 		isDuplicate := false
 		if accountID != "" {
 			txHash := s.calculateTxHash(accountID, pt.Date, pt.Amount, pt.RawNarration, pt.ReferenceNumber, pt.TxType)
-			if exists, err := s.db.CheckTxHashExists(txHash); err == nil && exists {
-				isDuplicate = true
-			}
+			isDuplicate = existingHashes[txHash]
 		}
 
 		if isDuplicate {

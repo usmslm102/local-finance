@@ -9,6 +9,8 @@ import {
   createRootRoute,
   Outlet,
   useRouterState,
+  useNavigate,
+  useSearch,
   Link,
 } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
@@ -17,7 +19,10 @@ import { CommandPalette } from '@/components/layout/CommandPalette'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { Separator } from '@/components/ui/separator'
 import { OverviewTimeFrame } from '@/components/dashboard/OverviewTimeFrame'
-import type { OverviewRange } from '@/lib/overview-range'
+import { validOverviewSearch, type OverviewRange } from '@/lib/overview-range'
+import { CategoryPurchases } from '@/components/cashflow/CategoryPurchases'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { DataFreshness } from '@/components/DataFreshness'
 import { validSpendingMonth } from '@/lib/spending'
 import { OverviewCard } from '@/components/dashboard/OverviewCard'
 import { SpendingChart } from '@/components/dashboard/SpendingChart'
@@ -45,7 +50,6 @@ import {
   PlanningView,
   DataHealthView,
 } from '@/components/lazy-views'
-import { InvestmentTotals } from '@/components/investments/InvestmentTotals'
 import { PrivacyProvider } from '@/components/privacy-provider'
 import { PrivacyToggle } from '@/components/layout/PrivacyToggle'
 import { UpdateIndicator } from '@/components/updates/UpdateIndicator'
@@ -60,7 +64,7 @@ import type {
   SettingsSearchParams,
   SalarySearchParams,
 } from '@/types'
-import { fetchAccounts, fetchAnalytics, fetchAnalyticsRange, fetchCreditCardBills, fetchInvestments } from '@/lib/api'
+import { fetchAccounts, fetchAnalytics, fetchAnalyticsRange, fetchCreditCardBills } from '@/lib/api'
 import { formatINR } from '@/lib/utils'
 import { Wallet, TrendingDown, TrendingUp, Landmark, UploadCloud, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -170,6 +174,7 @@ const RootLayoutContent: React.FC = () => {
                 {currentPath !== '/import' && (
                   <Link
                     to="/import"
+                    aria-label="Import statements"
                     className={buttonVariants({
                       variant: 'default',
                       size: 'sm',
@@ -194,7 +199,7 @@ const RootLayoutContent: React.FC = () => {
                 <LockScreen />
               ) : (
                 <Suspense fallback={<PageLoading label="Opening view" />}>
-                  <Outlet />
+                  <DataFreshness /><Outlet />
                 </Suspense>
               )}
             </main>
@@ -231,9 +236,13 @@ const rootRoute = createRootRoute({
 // Overview Dashboard Page
 const DashboardPage: React.FC = () => {
   const { isPrivacyMode } = usePrivacy()
-  const [range, setRange] = useState<OverviewRange>({})
+  const search = useSearch({ from: '/' })
+  const navigate = useNavigate({ from: '/' })
+  const range: OverviewRange = { start_date: search.start_date, end_date: search.end_date }
+  const setRange = (next: OverviewRange) => navigate({ search: { ...next }, replace: false })
+  const [showDetails, setShowDetails] = useState(false)
+  const [showBillHistory, setShowBillHistory] = useState(false)
   const runwayBaseline = useQuery({ queryKey: ['analytics'], queryFn: fetchAnalytics })
-  const investments = useQuery({ queryKey: ['investments'], queryFn: fetchInvestments })
   const {
     data: analytics,
     isLoading,
@@ -250,11 +259,13 @@ const DashboardPage: React.FC = () => {
   })
 
   const { data: ccBills } = useQuery({
-    queryKey: ['credit-card-bills'],
-    queryFn: () => fetchCreditCardBills(),
+    queryKey: ['credit-card-bills', 'latest'],
+    queryFn: () => fetchCreditCardBills(undefined, true),
   })
 
 
+  const history = useQuery({ queryKey: ['credit-card-bills', 'history'], queryFn: () => fetchCreditCardBills(), enabled: showBillHistory })
+  const selectedCategory = analytics?.category_breakdown.find((item) => item.category_id === search.category)
   const totalIncome = analytics?.total_income || 0
   const totalExpense = analytics?.total_expense || 0
 
@@ -264,7 +275,7 @@ const DashboardPage: React.FC = () => {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-            Financial Intelligence
+            Overview
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
             Offline spending intelligence across your Indian bank accounts & credit cards
@@ -328,37 +339,6 @@ const DashboardPage: React.FC = () => {
         </Card>
       )}
 
-      {investments.error && (
-        <p role="alert" className="text-sm text-destructive">
-          Investment totals could not be loaded: {investments.error.message}
-        </p>
-      )}
-      <InvestmentTotals snapshots={investments.data ?? []} />
-      <MonthlyReview compact />
-      <div className="flex flex-wrap items-center justify-between gap-3 border-y py-4">
-        <div>
-          <h2 className="font-semibold">Plan beyond this month</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Check your statement coverage, set a savings goal, or test a spending scenario.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link to="/planning" className={buttonVariants({ variant: 'outline', size: 'sm' })}>
-            Savings forecast
-          </Link>
-          <Link
-            to="/planning"
-            search={{ tab: 'goals' }}
-            className={buttonVariants({ variant: 'outline', size: 'sm' })}
-          >
-            Savings goals
-          </Link>
-          <Link to="/data-health" className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
-            Data health
-          </Link>
-        </div>
-      </div>
-
       {/* KPI Overview Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <OverviewCard
@@ -386,13 +366,13 @@ const DashboardPage: React.FC = () => {
           variant="savings"
         />
         <OverviewCard
-          title="Credit Card Dues"
+          title="Latest Card Statements"
           amount={formatINR(analytics?.total_credit_due || 0, isPrivacyMode)}
           numericValue={analytics?.total_credit_due || 0}
           subtitle={
             analytics?.total_credit_limit
               ? `${(analytics.credit_utilization_rate || 0).toFixed(1)}% of ${formatINR(analytics.total_credit_limit, isPrivacyMode)} limit`
-              : 'Latest active card dues'
+              : 'Latest reported amounts; payment not verified'
           }
           icon={Wallet}
           variant={
@@ -403,6 +383,22 @@ const DashboardPage: React.FC = () => {
         />
       </div>
 
+      <p className="text-xs text-muted-foreground">Inflow and outflow use the selected dates. Bank balances and card statement amounts are the latest imported snapshots, not live bank balances or verified unpaid debt.</p>
+      <MonthlyReview compact />
+      {analytics && analytics.total_transactions > 0 && <SpendingChart data={analytics.category_breakdown} onCategorySelect={(item) => navigate({ search: { ...search, category: item } })} />}
+      <div className="flex flex-wrap gap-2">
+        <Link to="/investments" className={buttonVariants({ variant: 'outline', size: 'sm' })}>Investment holdings</Link>
+        <Link to="/planning" className={buttonVariants({ variant: 'outline', size: 'sm' })}>Savings & planning</Link>
+        <Link to="/merchants" className={buttonVariants({ variant: 'outline', size: 'sm' })}>Merchants</Link>
+        <Link to="/data-health" className={buttonVariants({ variant: 'outline', size: 'sm' })}>Data health</Link>
+        <Button variant="outline" aria-expanded={showDetails} aria-controls="overview-details" onClick={() => setShowDetails(!showDetails)}>{showDetails ? 'Hide details' : 'Accounts, statements & trends'}</Button>
+      </div>
+      <Dialog open={!!selectedCategory} onOpenChange={(open) => { if (!open) void navigate({ search: { ...range }, replace: true }) }}>
+        <DialogContent className="max-w-3xl"><DialogTitle>{selectedCategory?.category_name} purchases</DialogTitle>
+          {selectedCategory && <CategoryPurchases key={`${search.category}-${range.start_date}-${range.end_date}`} category={selectedCategory} range={range} periodLabel={range.start_date ? `${range.start_date} – ${range.end_date}` : 'All time'} />}
+        </DialogContent>
+      </Dialog>
+      {showDetails && <section id="overview-details" className="space-y-6">
       {/* Liquid Net Worth & Emergency Runway Gauge */}
       {analytics && (
         <NetWorthRunwayCard
@@ -414,6 +410,8 @@ const DashboardPage: React.FC = () => {
 
       {/* Credit Card Dues & Billing Statements */}
       {ccBills && ccBills.length > 0 && <CreditCardBillsCard bills={ccBills} />}
+      <Button variant="outline" aria-expanded={showBillHistory} onClick={() => setShowBillHistory(!showBillHistory)}>{showBillHistory ? 'Hide statement archive' : 'View statement archive'}</Button>
+      {showBillHistory && (history.isError ? <QueryError message="Unable to load statement archive" onRetry={history.refetch} /> : history.isPending ? <PageLoading label="Loading statement archive" /> : <CreditCardBillsCard bills={history.data ?? []} history />)}
 
       {/* Accounts List / Cards */}
       {accounts && accounts.length > 0 && (
@@ -433,7 +431,7 @@ const DashboardPage: React.FC = () => {
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-6">
-          <SpendingChart data={analytics?.category_breakdown || []} />
+          <TopPayeesList data={analytics?.top_payees || []} />
         </div>
         <div className="lg:col-span-6">
           <CashFlowChart data={analytics?.monthly_trends || []} />
@@ -441,7 +439,7 @@ const DashboardPage: React.FC = () => {
       </div>
 
       {/* Top Payees */}
-      <TopPayeesList data={analytics?.top_payees || []} />
+      </section>}
       </>}
     </div>
   )
@@ -451,6 +449,7 @@ const DashboardPage: React.FC = () => {
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
+  validateSearch: validOverviewSearch,
   component: DashboardPage,
 })
 
@@ -589,6 +588,8 @@ const merchantsRoute = createRoute({
       category: categoryStr && categoryStr !== 'ALL' ? categoryStr : undefined,
       sortBy: sortStr && sortStr !== 'total_spend' ? sortStr : undefined,
       payee: payeeStr || undefined,
+      page: Math.max(1, Math.min(1000000, Math.floor(Number(search.page) || 1))),
+      historyPage: Math.max(1, Math.min(1000000, Math.floor(Number(search.historyPage) || 1))),
     }
   },
   component: () => <MerchantsView />,
