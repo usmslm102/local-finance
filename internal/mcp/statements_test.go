@@ -27,7 +27,7 @@ func TestStatementWritesImportReimportDeleteAndPermissions(t *testing.T) {
 	for _, permissions := range []struct {
 		categories, statements bool
 		count                  int
-	}{{false, false, 38}, {true, false, 40}, {false, true, 42}, {true, true, 44}} {
+	}{{false, false, 40}, {true, false, 42}, {false, true, 44}, {true, true, 46}} {
 		if _, err := m.ConfigureAccess(true, m.Status().Port, &permissions.categories, &permissions.statements); err != nil {
 			t.Fatal(err)
 		}

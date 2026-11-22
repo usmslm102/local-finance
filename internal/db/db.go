@@ -3636,16 +3636,7 @@ func (d *DB) GetSalaryInsights() (*models.SalaryInsightsResponse, error) {
 		LEFT JOIN accounts a ON t.account_id = a.id
 		LEFT JOIN categories c ON t.category_id = c.id
 		WHERE ` + incomeFilter("t") + `
-		  AND (
-		      t.category_id = 'cat_salary' 
-		      OR t.payment_mode = 'SALARY'
-		      OR UPPER(t.cleaned_payee) LIKE '%SALARY%'
-		      OR UPPER(t.cleaned_payee) LIKE '%PAYROLL%'
-		      OR UPPER(t.raw_narration) LIKE '%SALARY%'
-		      OR UPPER(t.raw_narration) LIKE '%SAL CREDIT%'
-		      OR UPPER(t.raw_narration) LIKE '%PAYROLL%'
-		      OR UPPER(t.raw_narration) LIKE '%MONTHLY SAL%'
-		  )
+		  AND ` + salaryEvidenceFilter("t") + `
 		ORDER BY t.tx_date ASC, t.id ASC
 	`
 	rows, err := d.conn.Query(query)

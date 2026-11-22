@@ -164,6 +164,7 @@ func newServer(database *db.DB, allowCategorizationWrites, allowStatementWrites 
 		registerTool(server, spec)
 	}
 	registerStatementSchemaTool(server, allowStatementWrites)
+	registerFIRETools(server, database)
 	registerStatementPreviewTool(server, database, allowStatementWrites)
 	registerInvestmentPreviewTool(server, database, allowStatementWrites)
 	registerSplitwiseTools(server, database, allowSplitwiseWrites)

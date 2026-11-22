@@ -63,7 +63,7 @@ func TestCategorizationWritesAndPermissionChanges(t *testing.T) {
 	}
 	session := connect(t, m, token)
 	tools, err := session.ListTools(context.Background(), nil)
-	if err != nil || len(tools.Tools) != 40 {
+	if err != nil || len(tools.Tools) != 42 {
 		t.Fatalf("tool discovery: %+v %v", tools, err)
 	}
 	for _, tool := range tools.Tools {
@@ -142,7 +142,7 @@ func TestCategorizationWritesAndPermissionChanges(t *testing.T) {
 	}
 	read = connect(t, m, token)
 	tools, err = read.ListTools(context.Background(), nil)
-	if err != nil || len(tools.Tools) != 38 {
+	if err != nil || len(tools.Tools) != 40 {
 		t.Fatalf("read-only discovery: %+v %v", tools, err)
 	}
 	callWrite(t, read, "list_categories", map[string]any{}, false)
