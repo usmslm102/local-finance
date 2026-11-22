@@ -78,6 +78,8 @@ func setupRouter(database *db.DB, svc *service.TransactionService, staticFS fs.F
 		apiGroup.POST("/splitwise/:id/reset", h.ResetSplitwise)
 		apiGroup.GET("/splitwise/:id/candidates", h.SplitwiseCandidates)
 		apiGroup.GET("/goals", h.ListSavingsGoals)
+		apiGroup.GET("/planning/fire/baseline", h.FIREBaseline)
+		apiGroup.POST("/planning/fire/project", h.FIREProjection)
 		apiGroup.POST("/goals", h.SaveSavingsGoal)
 		apiGroup.PUT("/goals/:id", h.SaveSavingsGoal)
 		apiGroup.DELETE("/goals/:id", h.DeleteSavingsGoal)

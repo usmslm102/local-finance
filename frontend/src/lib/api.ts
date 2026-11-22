@@ -12,6 +12,18 @@ import {
 
 const BASE_URL = '/api'
 
+export async function fetchFireBaseline(): Promise<import('@/types/fire').FireBaseline> {
+  const res = await fetchWithAuth(`${BASE_URL}/planning/fire/baseline`)
+  if (!res.ok) throw new Error('Unable to load retirement planning inputs')
+  return res.json()
+}
+export async function projectFire(scenario: import('@/types/fire').FireScenario, signal?: AbortSignal): Promise<import('@/types/fire').FireResult> {
+  const res = await fetchWithAuth(`${BASE_URL}/planning/fire/project`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(scenario), signal})
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error || 'Unable to calculate retirement projection')
+  return data
+}
+
 export async function splitwiseRequest<T = void>(path: string, body?: unknown): Promise<T> {
   const res = await fetchWithAuth(`${BASE_URL}/splitwise${path}`, body === undefined ? undefined : {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),

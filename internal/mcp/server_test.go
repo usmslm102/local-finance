@@ -193,7 +193,7 @@ func TestToolsReadOnlyAndParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(list.Tools) != 38 {
+	if len(list.Tools) != 40 {
 		t.Fatalf("got %d tools", len(list.Tools))
 	}
 	args := map[string]map[string]any{
@@ -201,7 +201,7 @@ func TestToolsReadOnlyAndParity(t *testing.T) {
 	}
 	for _, tool := range list.Tools {
 		// Source/candidate tools have dedicated synthetic workflow tests.
-		if tool.Name == "preview_statement" || tool.Name == "preview_investment_statement" || tool.Name == "preview_splitwise_statement" || tool.Name == "list_splitwise_candidates" {
+		if tool.Name == "calculate_fire" || tool.Name == "preview_statement" || tool.Name == "preview_investment_statement" || tool.Name == "preview_splitwise_statement" || tool.Name == "list_splitwise_candidates" {
 			continue
 		}
 		t.Run(tool.Name, func(t *testing.T) {

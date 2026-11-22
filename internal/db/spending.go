@@ -31,6 +31,12 @@ func incomeFilter(alias string) string {
 	return sqlColumnPrefix(alias) + "tx_type = 'CREDIT' AND " + financialActivityFilter(alias)
 }
 
+// Share the salary evidence used by Salary Insights and retirement prefills.
+func salaryEvidenceFilter(alias string) string {
+	p := sqlColumnPrefix(alias)
+	return "(" + p + "category_id='cat_salary' OR " + p + "payment_mode='SALARY' OR UPPER(" + p + "cleaned_payee) LIKE '%SALARY%' OR UPPER(" + p + "cleaned_payee) LIKE '%PAYROLL%' OR UPPER(" + p + "raw_narration) LIKE '%SALARY%' OR UPPER(" + p + "raw_narration) LIKE '%SAL CREDIT%' OR UPPER(" + p + "raw_narration) LIKE '%PAYROLL%' OR UPPER(" + p + "raw_narration) LIKE '%MONTHLY SAL%')"
+}
+
 func financialFlowFilter(alias string) string {
 	prefix := sqlColumnPrefix(alias)
 	return "(" + prefix + "tx_type = 'DEBIT' OR " + prefix + "tx_type = 'CREDIT') AND " + financialActivityFilter(alias)

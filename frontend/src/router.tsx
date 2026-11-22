@@ -682,8 +682,8 @@ const routeTree = rootRoute.addChildren([
   createRoute({
     getParentRoute: () => rootRoute,
     path: '/planning',
-    validateSearch: (search: Record<string, unknown>): { tab?: 'goals' } => ({
-      tab: search.tab === 'goals' ? 'goals' : undefined,
+    validateSearch: (search: Record<string, unknown>): { tab?: 'goals' | 'fire' } => ({
+      tab: search.tab === 'goals' || search.tab === 'fire' ? search.tab : undefined,
     }),
     component: PlanningView,
   }),
