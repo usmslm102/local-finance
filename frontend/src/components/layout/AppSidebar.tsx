@@ -22,6 +22,7 @@ import {
   BookOpen,
   Trophy,
   Briefcase,
+  Flame,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { ModeToggle } from '@/components/mode-toggle'
@@ -65,6 +66,7 @@ const mainNavItems: NavItem[] = [
 ]
 
 const intelligenceNavItems: NavItem[] = [
+  { title: 'Retirement & FIRE', url: '/fire', icon: Flame },
   { title: 'Savings & Planning', url: '/planning', icon: Target },
   { title: 'Investments', url: '/investments', icon: Briefcase },
   { title: 'Splitwise', url: '/splitwise', icon: ArrowLeftRight },

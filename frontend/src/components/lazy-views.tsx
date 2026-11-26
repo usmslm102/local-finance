@@ -61,6 +61,9 @@ export const InvestmentsView = lazy(() =>
 export const PlanningView = lazy(() =>
   import('@/components/planning/PlanningView').then((module) => ({ default: module.PlanningView }))
 )
+export const FireView = lazy(() =>
+  import('@/components/planning/FireView').then((module) => ({ default: module.FireView }))
+)
 export const SplitwiseView = lazy(() =>
   import('@/components/splitwise/SplitwiseView').then((module) => ({ default: module.SplitwiseView }))
 )

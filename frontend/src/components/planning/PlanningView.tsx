@@ -2,10 +2,9 @@ import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { ForecastView } from './ForecastView'
 import { GoalsView } from './GoalsView'
-import { FireView } from './FireView'
 
 export function PlanningView() {
-  const search = useSearch({ strict: false }) as { tab?: 'goals' | 'fire' }
+  const search = useSearch({ strict: false }) as { tab?: 'goals' }
   const navigate = useNavigate()
   const tab = search.tab ?? 'forecast'
   return (
@@ -19,13 +18,12 @@ export function PlanningView() {
       <Tabs
         value={tab}
         onValueChange={(value) =>
-          void navigate({ to: '/planning', search: value === 'goals' || value === 'fire' ? { tab: value } : {} })
+          void navigate({ to: '/planning', search: value === 'goals' ? { tab: 'goals' } : {} })
         }
       >
         <TabsList>
           <TabsTrigger value="forecast">Savings forecast</TabsTrigger>
           <TabsTrigger value="goals">Savings goals</TabsTrigger>
-          <TabsTrigger value="fire">Retirement / FIRE</TabsTrigger>
         </TabsList>
         <TabsContent value="forecast" className="mt-6">
           <ForecastView />
@@ -33,7 +31,6 @@ export function PlanningView() {
         <TabsContent value="goals" className="mt-6">
           <GoalsView />
         </TabsContent>
-        <TabsContent value="fire" className="mt-6"><FireView /></TabsContent>
       </Tabs>
       <p className="text-sm text-muted-foreground">
         Good plans start with recent statements.{' '}
