@@ -20,6 +20,7 @@ import {
   Eye,
   EyeOff,
   Briefcase,
+  Flame,
 } from 'lucide-react'
 import {
   CommandDialog,
@@ -92,6 +93,10 @@ export const CommandPalette: React.FC = () => {
           <CommandEmpty>No results found.</CommandEmpty>
 
           <CommandGroup heading="Navigation">
+            <CommandItem onSelect={() => runCommand(() => navigate({ to: '/fire' }))}>
+              <Flame className="size-4" />
+              <span>Retirement & FIRE</span>
+            </CommandItem>
             <CommandItem onSelect={() => runCommand(() => navigate({ to: '/planning' }))}>
               <Target className="size-4" />
               <span>Savings Forecast</span>

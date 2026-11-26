@@ -1,6 +1,6 @@
 # Retirement / FIRE planning
 
-Open **Savings & planning → Retirement / FIRE**. This adds a local, editable
+Open **Retirement & FIRE** in the sidebar, immediately above Savings & Planning. Old `/planning?tab=fire` bookmarks redirect to the dedicated `/fire` page. This adds a local, editable
 scenario; it neither trades assets nor changes the ledger. The API exposes
 authenticated `GET /api/planning/fire/baseline` and read-only
 `POST /api/planning/fire/project` operations. No remote market or currency feed

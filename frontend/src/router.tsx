@@ -12,6 +12,7 @@ import {
   useNavigate,
   useSearch,
   Link,
+  redirect,
 } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { AppSidebar } from '@/components/layout/AppSidebar'
@@ -48,6 +49,7 @@ import {
   InvestmentsView,
   SplitwiseView,
   PlanningView,
+  FireView,
   DataHealthView,
 } from '@/components/lazy-views'
 import { PrivacyProvider } from '@/components/privacy-provider'
@@ -93,6 +95,8 @@ const RootLayoutContent: React.FC = () => {
         return 'Salary & Income Insights'
       case '/planning':
         return 'Savings & Planning'
+      case '/fire':
+        return 'Retirement & FIRE'
       case '/data-health':
         return 'Data Health'
       case '/investments':
@@ -678,6 +682,7 @@ const salaryRoute = createRoute({
 })
 
 const routeTree = rootRoute.addChildren([
+  createRoute({ getParentRoute: () => rootRoute, path: '/fire', component: FireView }),
   createRoute({ getParentRoute: () => rootRoute, path: '/splitwise', component: SplitwiseView }),
   createRoute({
     getParentRoute: () => rootRoute,
@@ -685,6 +690,9 @@ const routeTree = rootRoute.addChildren([
     validateSearch: (search: Record<string, unknown>): { tab?: 'goals' | 'fire' } => ({
       tab: search.tab === 'goals' || search.tab === 'fire' ? search.tab : undefined,
     }),
+    beforeLoad: ({ search }) => {
+      if (search.tab === 'fire') throw redirect({ to: '/fire', replace: true })
+    },
     component: PlanningView,
   }),
   createRoute({ getParentRoute: () => rootRoute, path: '/data-health', component: DataHealthView }),
